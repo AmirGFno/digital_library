@@ -68,15 +68,44 @@ jobs:
           path: release/*
           if-no-files-found: error
 
-      - name: Publish release (tags only)
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: pwsh
+  publish:
+    needs: build
+    if: >-
+      startsWith(github.ref, 'refs/tags/') ||
+      (github.event_name == 'push' && contains(github.event.head_commit.message, '[release]'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download built package
+        uses: actions/download-artifact@v4
+        with:
+          name: DigitalLibrary-windows-x64
+          path: release
+
+      - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $version = (Get-Content config.py | Select-String 'APP_VERSION = "([^"]+)"').Matches.Groups[1].Value
-          gh release create ${{ github.ref_name }} `
-            "release\DigitalLibrary-$version-windows-x64.zip" `
-            "release\SHA256.txt" `
-            --title "Digital Library $version" `
-            --notes "Windows build of Digital Library $version (single executable, no Python required)."
+          set -euo pipefail
+          VERSION="$(basename release/DigitalLibrary-*-windows-x64.zip | sed -E 's/^DigitalLibrary-([0-9]+\.[0-9]+\.[0-9]+)-windows-x64\.zip$/\1/')"
+          TAG="v${VERSION}"
+          cat > notes.md <<'EOF'
+          Windows x64 build of Digital Library.
+
+          Download the ZIP, extract it and run DigitalLibrary.exe. Python is not required; the application is portable and stores data folders next to the executable.
+
+          The executable is not code-signed, so Windows SmartScreen may show a warning the first time (More info -> Run anyway).
+
+          SHA256 checksum is attached as SHA256.txt.
+
+          ---
+
+          نسخه ویندوز 64 بیتی. فایل ZIP را دانلود، از حالت فشرده خارج و DigitalLibrary.exe را اجرا کنید. نیازی به نصب پایتون نیست و برنامه Portable است.
+          EOF
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "${GITHUB_SHA}" \
+              --title "Digital Library ${VERSION}" \
+              --notes-file notes.md
+          fi
+          gh release upload "$TAG" release/* --clobber --repo "$GITHUB_REPOSITORY"
