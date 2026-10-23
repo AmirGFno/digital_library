@@ -3,6 +3,7 @@ name: Build Windows executable
 on:
   workflow_dispatch:
   push:
+    branches: ["arena/**"]
     tags: ["v*"]
 
 permissions:
