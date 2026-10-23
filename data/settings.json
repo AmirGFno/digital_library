@@ -1,0 +1,12 @@
+{
+    "reader": {
+        "enabled": true,
+        "path": "C:\\Program Files\\CDisplayEx\\CDisplayEx.exe",
+        "name": "CDisplayEx",
+        "use_system_default": false
+    },
+    "view": {
+        "columns": 4,
+        "theme": "dark"
+    }
+}

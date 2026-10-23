@@ -1,0 +1,5 @@
+PyQt6>=6.4.0
+Pillow>=9.0.0
+PyMuPDF>=1.21.0
+rarfile>=4.0
+py7zr>=0.20.0

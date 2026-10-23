@@ -1,0 +1,546 @@
+2026-01-29 09:30:53,263 - library - ERROR - Database error: no such column: volume_num
+2026-01-29 09:30:58,746 - library - ERROR - Database error: no such column: volume_num
+2026-01-29 09:31:00,628 - library - ERROR - Database error: no such column: volume_num
+2026-01-29 09:31:02,340 - library - ERROR - Database error: no such column: volume_num
+2026-01-29 09:31:06,805 - library - ERROR - Database error: no such column: volume_num
+2026-01-29 09:43:59,513 - library - INFO - Added volume_num column
+2026-01-29 09:43:59,515 - library - INFO - Added custom_cover column
+2026-01-29 09:43:59,520 - library - INFO - Database initialized successfully
+2026-01-29 09:44:01,030 - library - INFO - Starting Digital Library application
+2026-01-29 09:44:02,560 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Amazing spider man 12 fa spidey.ir.cbr
+2026-01-29 09:44:02,561 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-29 09:44:02,563 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-29 09:44:02,564 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-29 09:44:02,565 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-29 09:44:02,566 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-29 09:44:02,566 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\b17c93c15d142d9d02eba613b1d8cd3b.jpg
+2026-01-29 09:44:02,567 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-29 09:44:02,567 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Moon Knight 006 (2014) Spidey.ir.cbr
+2026-01-29 09:44:02,567 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man - Life Story 001 Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,568 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-29 09:44:02,568 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-29 09:44:02,569 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\54d54a20f248ccf535b13948dd582e86.jpg
+2026-01-29 09:44:02,569 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\6062119e9d020a6233ffb6ef29dd7f9c.jpg
+2026-01-29 09:44:02,571 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-man Life Story _3 Farsi www.spidey.ir.zip
+2026-01-29 09:44:02,572 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\086c84ef39068edff6dd84631e3dc450.jpg
+2026-01-29 09:44:02,572 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man_-_Life_Story_004_(2019) Farsi www.spidey.ir.zip
+2026-01-29 09:44:02,573 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\4308f9bc4a49568ab03db4f085879d92.jpg
+2026-01-29 09:44:02,573 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man - Life Story 005 Farsi www.spidey.ir.zip
+2026-01-29 09:44:02,574 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\f1e38082ef2af292c7a481e627999b60.jpg
+2026-01-29 09:44:02,575 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man - Life Story 06 Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,576 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\c57a3261a566d04c1357e64bd632b80d.jpg
+2026-01-29 09:44:02,576 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\komik mard ankabooti dastane zendegi saliyane spidey.ir.zip
+2026-01-29 09:44:02,577 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\92f23b1f862217115eaa6c5ee5578dfa.jpg
+2026-01-29 09:44:02,577 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 01 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,579 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\b579b11888624aa8cb25b54ba1db81b5.jpg
+2026-01-29 09:44:02,579 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 02 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,580 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\5d61fa9847ab77b756d91284fe7fa009.jpg
+2026-01-29 09:44:02,580 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 010 (vol.1) Farsi www.spidey.ir.zip
+2026-01-29 09:44:02,580 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Scarlet Spiders _1_FA-(wWw.Spidey.ir).cbr
+2026-01-29 09:44:02,581 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 03 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,582 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\0ac4ed35c07c109c1652232ece784b77.jpg
+2026-01-29 09:44:02,582 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\327bbe480b3524b77ba97403ba400850.jpg
+2026-01-29 09:44:02,583 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\564a0711a144379043d5d7b3a9219248.jpg
+2026-01-29 09:44:02,583 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 04 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,584 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ac0e20d10437d81c5813f06fb2946468.jpg
+2026-01-29 09:44:02,585 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 05 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,586 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\949431da11824e2a271d49eb6599d2eb.jpg
+2026-01-29 09:44:02,586 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 06 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,587 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\0e2845b0de7e69a241defcf6bb2de533.jpg
+2026-01-29 09:44:02,588 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 07 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,589 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\fed4ebe5d500bc38a849dc7127b48dc0.jpg
+2026-01-29 09:44:02,589 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 08 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,590 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24db17b57970eab64160d5a507c2bde1.jpg
+2026-01-29 09:44:02,591 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 09 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,592 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\dd6bb32e2a2a71461569667cc4a19b43.jpg
+2026-01-29 09:44:02,592 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 010 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,594 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\04b50edd3097c47bc10607692d1cdb2e.jpg
+2026-01-29 09:44:02,594 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Mard Ankabooti Bartar 011 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,595 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\feb87242b032bd0a4caeca0a653d5e06.jpg
+2026-01-29 09:44:02,595 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 012 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,596 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man - Life Story 02 Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,597 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Telegram Desktop/Moon-Knight-2021-01-FA-FreeComics.zip
+2026-01-29 09:44:02,597 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\e93b4b69239e88d4dba55891d7053387.jpg
+2026-01-29 09:44:02,598 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-29 09:44:02,600 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-29 09:44:02,610 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 014 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,618 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/SuperiorSpider-Man-015-FA-www.spidey.ir.cbr
+2026-01-29 09:44:02,619 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\8bfeb04703e7c45649a6c8c6563c542d.jpg
+2026-01-29 09:44:02,619 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 019 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,620 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ea882584dcbfe4dc0f6b8e78c94a4295.jpg
+2026-01-29 09:44:02,620 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 020 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,621 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\8db097176377d776eb7506c9c9d25a13.jpg
+2026-01-29 09:44:02,622 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Batman vs spiderman Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,622 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\8a201ca9da8b6c50ffa0568907d2eccd.jpg
+2026-01-29 09:44:02,623 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/spiderman-batman-2-Farsi-www.spidey.ir.cbr
+2026-01-29 09:44:02,624 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\c2bdf8bec3fea588ef2d1651dca2e8ea.jpg
+2026-01-29 09:44:02,627 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\0c7d04c84fa9f22e6f0ee1172bbe8747.jpg
+2026-01-29 09:44:02,628 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 016 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,628 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ad77bd3999e52fdf82a5868a9dd3fdd6.jpg
+2026-01-29 09:44:02,628 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\943bf778611cc83bfab28828008f2eec.jpg
+2026-01-29 09:44:02,629 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 017 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,629 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\76c0234daefd2a7165fd7c4d55a8b2e6.jpg
+2026-01-29 09:44:02,630 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\9ade3f02a8c42cca6e01cb31717ee3b5.jpg
+2026-01-29 09:44:02,745 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 013 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:02,745 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 018 (vol.1) Farsi www.spidey.ir.zip
+2026-01-29 09:44:02,746 - library - INFO - Application window displayed
+2026-01-29 09:44:02,794 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\7900caae656ebdf8d72da988fbdf66c9.jpg
+2026-01-29 09:44:02,817 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\c958b2a789feec3298c0c458f9023006.jpg
+2026-01-29 09:44:42,363 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-29 09:44:42,365 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-29 09:44:42,366 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-29 09:44:42,367 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-29 09:44:42,367 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-29 09:44:42,368 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-29 09:44:42,369 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-29 09:44:42,369 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-29 09:44:42,370 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-29 09:44:42,370 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-29 09:44:42,384 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Moon Knight 006 (2014) Spidey.ir.cbr
+2026-01-29 09:44:42,385 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\54d54a20f248ccf535b13948dd582e86.jpg
+2026-01-29 09:44:43,703 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man - Life Story 001 Farsi www.spidey.ir.cbr
+2026-01-29 09:44:43,706 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\6062119e9d020a6233ffb6ef29dd7f9c.jpg
+2026-01-29 09:44:43,708 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man_-_Life_Story_004_(2019) Farsi www.spidey.ir.zip
+2026-01-29 09:44:43,710 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\4308f9bc4a49568ab03db4f085879d92.jpg
+2026-01-29 09:44:43,711 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man - Life Story 06 Farsi www.spidey.ir.cbr
+2026-01-29 09:44:43,712 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man - Life Story 02 Farsi www.spidey.ir.cbr
+2026-01-29 09:44:43,712 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\c57a3261a566d04c1357e64bd632b80d.jpg
+2026-01-29 09:44:43,712 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\943bf778611cc83bfab28828008f2eec.jpg
+2026-01-29 09:44:43,727 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\komik mard ankabooti dastane zendegi saliyane spidey.ir.zip
+2026-01-29 09:44:43,729 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\92f23b1f862217115eaa6c5ee5578dfa.jpg
+2026-01-29 09:44:43,743 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man - Life Story 005 Farsi www.spidey.ir.zip
+2026-01-29 09:44:43,745 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\f1e38082ef2af292c7a481e627999b60.jpg
+2026-01-29 09:44:43,758 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-man Life Story _3 Farsi www.spidey.ir.zip
+2026-01-29 09:44:43,760 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\086c84ef39068edff6dd84631e3dc450.jpg
+2026-01-29 09:44:44,211 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 06 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:44,212 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 07 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:44,213 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\fed4ebe5d500bc38a849dc7127b48dc0.jpg
+2026-01-29 09:44:44,214 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 08 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:44,215 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 09 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:44,216 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24db17b57970eab64160d5a507c2bde1.jpg
+2026-01-29 09:44:44,217 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\dd6bb32e2a2a71461569667cc4a19b43.jpg
+2026-01-29 09:44:44,217 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 010 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:44,218 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\04b50edd3097c47bc10607692d1cdb2e.jpg
+2026-01-29 09:44:44,219 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Mard Ankabooti Bartar 011 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:44,220 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 01 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:44,221 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 05 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:44,221 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 03 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:44,221 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 02 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:44,222 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\b579b11888624aa8cb25b54ba1db81b5.jpg
+2026-01-29 09:44:44,223 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 012 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:44,223 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\949431da11824e2a271d49eb6599d2eb.jpg
+2026-01-29 09:44:44,223 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\5d61fa9847ab77b756d91284fe7fa009.jpg
+2026-01-29 09:44:44,224 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\e93b4b69239e88d4dba55891d7053387.jpg
+2026-01-29 09:44:44,224 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 013 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:44,225 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\c958b2a789feec3298c0c458f9023006.jpg
+2026-01-29 09:44:44,226 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 014 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:44,226 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\0c7d04c84fa9f22e6f0ee1172bbe8747.jpg
+2026-01-29 09:44:44,227 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/SuperiorSpider-Man-015-FA-www.spidey.ir.cbr
+2026-01-29 09:44:44,228 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\8bfeb04703e7c45649a6c8c6563c542d.jpg
+2026-01-29 09:44:44,228 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 016 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:44,229 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\76c0234daefd2a7165fd7c4d55a8b2e6.jpg
+2026-01-29 09:44:44,229 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 017 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:44,230 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\9ade3f02a8c42cca6e01cb31717ee3b5.jpg
+2026-01-29 09:44:44,231 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 018 (vol.1) Farsi www.spidey.ir.zip
+2026-01-29 09:44:44,232 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\7900caae656ebdf8d72da988fbdf66c9.jpg
+2026-01-29 09:44:44,233 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 019 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:44,234 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ea882584dcbfe4dc0f6b8e78c94a4295.jpg
+2026-01-29 09:44:44,234 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 020 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:44,235 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\8db097176377d776eb7506c9c9d25a13.jpg
+2026-01-29 09:44:44,236 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\0e2845b0de7e69a241defcf6bb2de533.jpg
+2026-01-29 09:44:44,236 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\564a0711a144379043d5d7b3a9219248.jpg
+2026-01-29 09:44:44,252 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 04 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:44,253 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\feb87242b032bd0a4caeca0a653d5e06.jpg
+2026-01-29 09:44:44,263 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ac0e20d10437d81c5813f06fb2946468.jpg
+2026-01-29 09:44:56,299 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 010 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:56,300 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 01 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:56,300 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 02 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:56,301 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\b579b11888624aa8cb25b54ba1db81b5.jpg
+2026-01-29 09:44:56,302 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\5d61fa9847ab77b756d91284fe7fa009.jpg
+2026-01-29 09:44:56,302 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 03 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:56,303 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\564a0711a144379043d5d7b3a9219248.jpg
+2026-01-29 09:44:56,304 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\04b50edd3097c47bc10607692d1cdb2e.jpg
+2026-01-29 09:44:56,305 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 04 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:56,307 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ac0e20d10437d81c5813f06fb2946468.jpg
+2026-01-29 09:44:56,308 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 07 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:56,310 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\fed4ebe5d500bc38a849dc7127b48dc0.jpg
+2026-01-29 09:44:56,318 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 09 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:56,319 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 012 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:56,319 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 013 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:56,319 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 014 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:56,320 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\dd6bb32e2a2a71461569667cc4a19b43.jpg
+2026-01-29 09:44:56,320 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\e93b4b69239e88d4dba55891d7053387.jpg
+2026-01-29 09:44:56,320 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\c958b2a789feec3298c0c458f9023006.jpg
+2026-01-29 09:44:56,321 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 016 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:56,321 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\0c7d04c84fa9f22e6f0ee1172bbe8747.jpg
+2026-01-29 09:44:56,322 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 017 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:56,322 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 018 (vol.1) Farsi www.spidey.ir.zip
+2026-01-29 09:44:56,323 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\7900caae656ebdf8d72da988fbdf66c9.jpg
+2026-01-29 09:44:56,323 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 019 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:56,324 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ea882584dcbfe4dc0f6b8e78c94a4295.jpg
+2026-01-29 09:44:56,324 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 020 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:56,325 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\8db097176377d776eb7506c9c9d25a13.jpg
+2026-01-29 09:44:56,334 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 05 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:56,335 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\949431da11824e2a271d49eb6599d2eb.jpg
+2026-01-29 09:44:56,350 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 08 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:56,351 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 06 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:56,351 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/SuperiorSpider-Man-015-FA-www.spidey.ir.cbr
+2026-01-29 09:44:56,352 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\9ade3f02a8c42cca6e01cb31717ee3b5.jpg
+2026-01-29 09:44:56,352 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\76c0234daefd2a7165fd7c4d55a8b2e6.jpg
+2026-01-29 09:44:56,370 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\8bfeb04703e7c45649a6c8c6563c542d.jpg
+2026-01-29 09:44:56,380 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\0e2845b0de7e69a241defcf6bb2de533.jpg
+2026-01-29 09:44:56,380 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24db17b57970eab64160d5a507c2bde1.jpg
+2026-01-29 09:44:56,381 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Mard Ankabooti Bartar 011 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 09:44:56,383 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\feb87242b032bd0a4caeca0a653d5e06.jpg
+2026-01-29 09:47:34,417 - library - INFO - Application exiting with code 0
+2026-01-29 09:57:26,467 - library - INFO - Database initialized successfully
+2026-01-29 09:57:26,755 - library - INFO - Starting Digital Library application
+2026-01-29 09:57:26,810 - library - ERROR - Database error: '<' not supported between instances of 'NoneType' and 'str'
+2026-01-29 10:04:24,410 - library - INFO - Database initialized successfully
+2026-01-29 10:04:24,717 - library - INFO - Starting Digital Library application
+2026-01-29 10:04:25,836 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 010 (vol.1) Farsi www.spidey.ir.zip
+2026-01-29 10:04:25,838 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\0ac4ed35c07c109c1652232ece784b77.jpg
+2026-01-29 10:04:25,839 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Telegram Desktop/Moon-Knight-2021-01-FA-FreeComics.zip
+2026-01-29 10:04:25,841 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ad77bd3999e52fdf82a5868a9dd3fdd6.jpg
+2026-01-29 10:04:25,843 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-29 10:04:25,844 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-29 10:04:25,844 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-29 10:04:25,845 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-29 10:04:25,845 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-29 10:04:25,846 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-29 10:04:25,847 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-29 10:04:25,847 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Scarlet Spiders _1_FA-(wWw.Spidey.ir).cbr
+2026-01-29 10:04:25,847 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Amazing spider man 12 fa spidey.ir.cbr
+2026-01-29 10:04:25,848 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-29 10:04:25,848 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Moon Knight 006 (2014) Spidey.ir.cbr
+2026-01-29 10:04:25,848 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\327bbe480b3524b77ba97403ba400850.jpg
+2026-01-29 10:04:25,848 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\b17c93c15d142d9d02eba613b1d8cd3b.jpg
+2026-01-29 10:04:25,849 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\54d54a20f248ccf535b13948dd582e86.jpg
+2026-01-29 10:04:25,850 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man - Life Story 001 Farsi www.spidey.ir.cbr
+2026-01-29 10:04:25,851 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\6062119e9d020a6233ffb6ef29dd7f9c.jpg
+2026-01-29 10:04:25,851 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man - Life Story 02 Farsi www.spidey.ir.cbr
+2026-01-29 10:04:25,852 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\943bf778611cc83bfab28828008f2eec.jpg
+2026-01-29 10:04:25,852 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-man Life Story _3 Farsi www.spidey.ir.zip
+2026-01-29 10:04:25,853 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\086c84ef39068edff6dd84631e3dc450.jpg
+2026-01-29 10:04:25,854 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man_-_Life_Story_004_(2019) Farsi www.spidey.ir.zip
+2026-01-29 10:04:25,854 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\4308f9bc4a49568ab03db4f085879d92.jpg
+2026-01-29 10:04:25,855 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man - Life Story 005 Farsi www.spidey.ir.zip
+2026-01-29 10:04:25,856 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\f1e38082ef2af292c7a481e627999b60.jpg
+2026-01-29 10:04:25,856 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man - Life Story 06 Farsi www.spidey.ir.cbr
+2026-01-29 10:04:25,857 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\c57a3261a566d04c1357e64bd632b80d.jpg
+2026-01-29 10:04:25,857 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\komik mard ankabooti dastane zendegi saliyane spidey.ir.zip
+2026-01-29 10:04:25,858 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\92f23b1f862217115eaa6c5ee5578dfa.jpg
+2026-01-29 10:04:25,859 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 010 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:25,859 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\04b50edd3097c47bc10607692d1cdb2e.jpg
+2026-01-29 10:04:25,860 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 01 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:25,861 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\b579b11888624aa8cb25b54ba1db81b5.jpg
+2026-01-29 10:04:25,862 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 02 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:25,862 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-29 10:04:25,864 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 03 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:25,865 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\564a0711a144379043d5d7b3a9219248.jpg
+2026-01-29 10:04:25,865 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 04 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:25,866 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ac0e20d10437d81c5813f06fb2946468.jpg
+2026-01-29 10:04:25,868 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 06 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:25,869 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 07 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:25,870 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\fed4ebe5d500bc38a849dc7127b48dc0.jpg
+2026-01-29 10:04:25,870 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 08 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:25,871 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24db17b57970eab64160d5a507c2bde1.jpg
+2026-01-29 10:04:25,871 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 09 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:25,872 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\dd6bb32e2a2a71461569667cc4a19b43.jpg
+2026-01-29 10:04:25,873 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Mard Ankabooti Bartar 011 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:25,874 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\feb87242b032bd0a4caeca0a653d5e06.jpg
+2026-01-29 10:04:25,874 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 012 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:25,875 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\e93b4b69239e88d4dba55891d7053387.jpg
+2026-01-29 10:04:25,875 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 013 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:25,876 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\c958b2a789feec3298c0c458f9023006.jpg
+2026-01-29 10:04:25,876 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 014 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:25,878 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\0e2845b0de7e69a241defcf6bb2de533.jpg
+2026-01-29 10:04:25,878 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-29 10:04:25,878 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\0c7d04c84fa9f22e6f0ee1172bbe8747.jpg
+2026-01-29 10:04:25,879 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\5d61fa9847ab77b756d91284fe7fa009.jpg
+2026-01-29 10:04:25,882 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 016 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:25,883 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 017 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:25,884 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\76c0234daefd2a7165fd7c4d55a8b2e6.jpg
+2026-01-29 10:04:25,885 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\9ade3f02a8c42cca6e01cb31717ee3b5.jpg
+2026-01-29 10:04:25,887 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 020 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:25,888 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Batman vs spiderman Farsi www.spidey.ir.cbr
+2026-01-29 10:04:25,889 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\8a201ca9da8b6c50ffa0568907d2eccd.jpg
+2026-01-29 10:04:25,889 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/spiderman-batman-2-Farsi-www.spidey.ir.cbr
+2026-01-29 10:04:25,987 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\c2bdf8bec3fea588ef2d1651dca2e8ea.jpg
+2026-01-29 10:04:25,987 - library - INFO - Application window displayed
+2026-01-29 10:04:25,987 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\8db097176377d776eb7506c9c9d25a13.jpg
+2026-01-29 10:04:25,987 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 018 (vol.1) Farsi www.spidey.ir.zip
+2026-01-29 10:04:25,988 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/SuperiorSpider-Man-015-FA-www.spidey.ir.cbr
+2026-01-29 10:04:25,989 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 019 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:25,998 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\7900caae656ebdf8d72da988fbdf66c9.jpg
+2026-01-29 10:04:26,001 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 05 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:26,002 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ea882584dcbfe4dc0f6b8e78c94a4295.jpg
+2026-01-29 10:04:26,009 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\949431da11824e2a271d49eb6599d2eb.jpg
+2026-01-29 10:04:26,019 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\8bfeb04703e7c45649a6c8c6563c542d.jpg
+2026-01-29 10:04:28,453 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 010 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:28,455 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\04b50edd3097c47bc10607692d1cdb2e.jpg
+2026-01-29 10:04:28,458 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 03 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:28,460 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\564a0711a144379043d5d7b3a9219248.jpg
+2026-01-29 10:04:28,469 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 05 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:28,470 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 01 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:28,470 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 02 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:28,471 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 04 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:28,471 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 09 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:28,471 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 07 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:28,472 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\5d61fa9847ab77b756d91284fe7fa009.jpg
+2026-01-29 10:04:28,472 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ac0e20d10437d81c5813f06fb2946468.jpg
+2026-01-29 10:04:28,472 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\dd6bb32e2a2a71461569667cc4a19b43.jpg
+2026-01-29 10:04:28,473 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\fed4ebe5d500bc38a849dc7127b48dc0.jpg
+2026-01-29 10:04:28,473 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Mard Ankabooti Bartar 011 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:28,473 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 012 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:28,474 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\feb87242b032bd0a4caeca0a653d5e06.jpg
+2026-01-29 10:04:28,474 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\e93b4b69239e88d4dba55891d7053387.jpg
+2026-01-29 10:04:28,475 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/SuperiorSpider-Man-015-FA-www.spidey.ir.cbr
+2026-01-29 10:04:28,475 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 016 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:28,476 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\8bfeb04703e7c45649a6c8c6563c542d.jpg
+2026-01-29 10:04:28,476 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\76c0234daefd2a7165fd7c4d55a8b2e6.jpg
+2026-01-29 10:04:28,477 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 017 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:28,477 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\9ade3f02a8c42cca6e01cb31717ee3b5.jpg
+2026-01-29 10:04:28,478 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 018 (vol.1) Farsi www.spidey.ir.zip
+2026-01-29 10:04:28,478 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\7900caae656ebdf8d72da988fbdf66c9.jpg
+2026-01-29 10:04:28,479 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 019 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:28,480 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ea882584dcbfe4dc0f6b8e78c94a4295.jpg
+2026-01-29 10:04:28,480 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 020 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:28,481 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\8db097176377d776eb7506c9c9d25a13.jpg
+2026-01-29 10:04:28,485 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 013 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:28,487 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\c958b2a789feec3298c0c458f9023006.jpg
+2026-01-29 10:04:28,502 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 08 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:28,502 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 014 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:28,502 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 06 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:28,502 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\b579b11888624aa8cb25b54ba1db81b5.jpg
+2026-01-29 10:04:28,503 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\949431da11824e2a271d49eb6599d2eb.jpg
+2026-01-29 10:04:28,503 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24db17b57970eab64160d5a507c2bde1.jpg
+2026-01-29 10:04:28,504 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\0c7d04c84fa9f22e6f0ee1172bbe8747.jpg
+2026-01-29 10:04:28,518 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\0e2845b0de7e69a241defcf6bb2de533.jpg
+2026-01-29 10:04:35,008 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 010 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:35,010 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\04b50edd3097c47bc10607692d1cdb2e.jpg
+2026-01-29 10:04:35,011 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 03 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:35,012 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 02 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:35,012 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 01 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:35,013 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\5d61fa9847ab77b756d91284fe7fa009.jpg
+2026-01-29 10:04:35,013 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 04 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:35,014 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ac0e20d10437d81c5813f06fb2946468.jpg
+2026-01-29 10:04:35,015 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 05 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:35,016 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\949431da11824e2a271d49eb6599d2eb.jpg
+2026-01-29 10:04:35,016 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 06 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:35,017 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\0e2845b0de7e69a241defcf6bb2de533.jpg
+2026-01-29 10:04:35,017 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 07 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:35,018 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\fed4ebe5d500bc38a849dc7127b48dc0.jpg
+2026-01-29 10:04:35,018 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 08 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:35,020 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24db17b57970eab64160d5a507c2bde1.jpg
+2026-01-29 10:04:35,020 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 09 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:35,021 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\dd6bb32e2a2a71461569667cc4a19b43.jpg
+2026-01-29 10:04:35,022 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Mard Ankabooti Bartar 011 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:35,023 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\feb87242b032bd0a4caeca0a653d5e06.jpg
+2026-01-29 10:04:35,024 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 013 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:35,025 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\c958b2a789feec3298c0c458f9023006.jpg
+2026-01-29 10:04:35,025 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 014 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:35,026 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\564a0711a144379043d5d7b3a9219248.jpg
+2026-01-29 10:04:35,026 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\0c7d04c84fa9f22e6f0ee1172bbe8747.jpg
+2026-01-29 10:04:35,027 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/SuperiorSpider-Man-015-FA-www.spidey.ir.cbr
+2026-01-29 10:04:35,028 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\8bfeb04703e7c45649a6c8c6563c542d.jpg
+2026-01-29 10:04:35,028 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 016 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:35,029 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\76c0234daefd2a7165fd7c4d55a8b2e6.jpg
+2026-01-29 10:04:35,029 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 017 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:35,030 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\9ade3f02a8c42cca6e01cb31717ee3b5.jpg
+2026-01-29 10:04:35,031 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 018 (vol.1) Farsi www.spidey.ir.zip
+2026-01-29 10:04:35,031 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\7900caae656ebdf8d72da988fbdf66c9.jpg
+2026-01-29 10:04:35,032 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 019 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:35,033 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ea882584dcbfe4dc0f6b8e78c94a4295.jpg
+2026-01-29 10:04:35,033 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 020 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:35,034 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\8db097176377d776eb7506c9c9d25a13.jpg
+2026-01-29 10:04:35,041 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\b579b11888624aa8cb25b54ba1db81b5.jpg
+2026-01-29 10:04:35,049 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 012 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:35,051 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\e93b4b69239e88d4dba55891d7053387.jpg
+2026-01-29 10:04:48,577 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 010 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:48,579 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\04b50edd3097c47bc10607692d1cdb2e.jpg
+2026-01-29 10:04:48,580 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 02 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:48,581 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\5d61fa9847ab77b756d91284fe7fa009.jpg
+2026-01-29 10:04:48,582 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 03 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:48,583 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\564a0711a144379043d5d7b3a9219248.jpg
+2026-01-29 10:04:48,585 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 04 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:48,586 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ac0e20d10437d81c5813f06fb2946468.jpg
+2026-01-29 10:04:48,586 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 05 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:48,587 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\949431da11824e2a271d49eb6599d2eb.jpg
+2026-01-29 10:04:48,588 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 06 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:48,589 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\0e2845b0de7e69a241defcf6bb2de533.jpg
+2026-01-29 10:04:48,590 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 07 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:48,591 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\fed4ebe5d500bc38a849dc7127b48dc0.jpg
+2026-01-29 10:04:48,592 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 08 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:48,593 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24db17b57970eab64160d5a507c2bde1.jpg
+2026-01-29 10:04:48,594 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 09 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:48,595 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\dd6bb32e2a2a71461569667cc4a19b43.jpg
+2026-01-29 10:04:48,595 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 012 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:48,596 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\e93b4b69239e88d4dba55891d7053387.jpg
+2026-01-29 10:04:48,596 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 013 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:48,597 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\c958b2a789feec3298c0c458f9023006.jpg
+2026-01-29 10:04:48,597 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 014 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:48,598 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\0c7d04c84fa9f22e6f0ee1172bbe8747.jpg
+2026-01-29 10:04:48,598 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/SuperiorSpider-Man-015-FA-www.spidey.ir.cbr
+2026-01-29 10:04:48,599 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 01 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:48,600 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 016 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:48,600 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\b579b11888624aa8cb25b54ba1db81b5.jpg
+2026-01-29 10:04:48,601 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\76c0234daefd2a7165fd7c4d55a8b2e6.jpg
+2026-01-29 10:04:48,601 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 017 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:48,602 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\9ade3f02a8c42cca6e01cb31717ee3b5.jpg
+2026-01-29 10:04:48,602 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 018 (vol.1) Farsi www.spidey.ir.zip
+2026-01-29 10:04:48,603 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\7900caae656ebdf8d72da988fbdf66c9.jpg
+2026-01-29 10:04:48,604 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 019 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:48,605 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ea882584dcbfe4dc0f6b8e78c94a4295.jpg
+2026-01-29 10:04:48,605 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 020 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:48,606 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\8db097176377d776eb7506c9c9d25a13.jpg
+2026-01-29 10:04:48,615 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Mard Ankabooti Bartar 011 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:04:48,617 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\feb87242b032bd0a4caeca0a653d5e06.jpg
+2026-01-29 10:04:48,632 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\8bfeb04703e7c45649a6c8c6563c542d.jpg
+2026-01-29 10:20:22,012 - library - INFO - Database initialized successfully
+2026-01-29 10:20:22,493 - library - INFO - Starting Digital Library application
+2026-01-29 10:20:23,743 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 010 (vol.1) Farsi www.spidey.ir.zip
+2026-01-29 10:20:23,744 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Scarlet Spiders _1_FA-(wWw.Spidey.ir).cbr
+2026-01-29 10:20:23,745 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Amazing spider man 12 fa spidey.ir.cbr
+2026-01-29 10:20:23,746 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\327bbe480b3524b77ba97403ba400850.jpg
+2026-01-29 10:20:23,746 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\b17c93c15d142d9d02eba613b1d8cd3b.jpg
+2026-01-29 10:20:23,746 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Telegram Desktop/Moon-Knight-2021-01-FA-FreeComics.zip
+2026-01-29 10:20:23,747 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-29 10:20:23,747 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ad77bd3999e52fdf82a5868a9dd3fdd6.jpg
+2026-01-29 10:20:23,748 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-29 10:20:23,748 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-29 10:20:23,750 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-29 10:20:23,751 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-29 10:20:23,752 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-29 10:20:23,752 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-29 10:20:23,753 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-29 10:20:23,754 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-29 10:20:23,755 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-29 10:20:23,755 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Moon Knight 006 (2014) Spidey.ir.cbr
+2026-01-29 10:20:23,756 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\54d54a20f248ccf535b13948dd582e86.jpg
+2026-01-29 10:20:23,758 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\0ac4ed35c07c109c1652232ece784b77.jpg
+2026-01-29 10:20:23,759 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man - Life Story 02 Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,760 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\943bf778611cc83bfab28828008f2eec.jpg
+2026-01-29 10:20:23,760 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-man Life Story _3 Farsi www.spidey.ir.zip
+2026-01-29 10:20:23,762 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\086c84ef39068edff6dd84631e3dc450.jpg
+2026-01-29 10:20:23,762 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man_-_Life_Story_004_(2019) Farsi www.spidey.ir.zip
+2026-01-29 10:20:23,763 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\4308f9bc4a49568ab03db4f085879d92.jpg
+2026-01-29 10:20:23,764 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man - Life Story 005 Farsi www.spidey.ir.zip
+2026-01-29 10:20:23,765 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\f1e38082ef2af292c7a481e627999b60.jpg
+2026-01-29 10:20:23,766 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man - Life Story 06 Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,768 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\c57a3261a566d04c1357e64bd632b80d.jpg
+2026-01-29 10:20:23,768 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\komik mard ankabooti dastane zendegi saliyane spidey.ir.zip
+2026-01-29 10:20:23,769 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\92f23b1f862217115eaa6c5ee5578dfa.jpg
+2026-01-29 10:20:23,769 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 010 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,770 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\04b50edd3097c47bc10607692d1cdb2e.jpg
+2026-01-29 10:20:23,771 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Mard Ankabooti Bartar 011 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,773 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man - Life Story 001 Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,784 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\feb87242b032bd0a4caeca0a653d5e06.jpg
+2026-01-29 10:20:23,794 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 01 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,794 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 07 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,795 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\b579b11888624aa8cb25b54ba1db81b5.jpg
+2026-01-29 10:20:23,795 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\fed4ebe5d500bc38a849dc7127b48dc0.jpg
+2026-01-29 10:20:23,796 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 08 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,796 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 09 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,797 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24db17b57970eab64160d5a507c2bde1.jpg
+2026-01-29 10:20:23,797 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\dd6bb32e2a2a71461569667cc4a19b43.jpg
+2026-01-29 10:20:23,798 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 012 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,798 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 013 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,798 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\e93b4b69239e88d4dba55891d7053387.jpg
+2026-01-29 10:20:23,799 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\c958b2a789feec3298c0c458f9023006.jpg
+2026-01-29 10:20:23,800 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 014 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,800 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/SuperiorSpider-Man-015-FA-www.spidey.ir.cbr
+2026-01-29 10:20:23,801 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\0c7d04c84fa9f22e6f0ee1172bbe8747.jpg
+2026-01-29 10:20:23,802 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\8bfeb04703e7c45649a6c8c6563c542d.jpg
+2026-01-29 10:20:23,803 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 016 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,803 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 017 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,804 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\76c0234daefd2a7165fd7c4d55a8b2e6.jpg
+2026-01-29 10:20:23,804 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\9ade3f02a8c42cca6e01cb31717ee3b5.jpg
+2026-01-29 10:20:23,804 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 03 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,805 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 05 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,805 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 04 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,805 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\564a0711a144379043d5d7b3a9219248.jpg
+2026-01-29 10:20:23,806 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\949431da11824e2a271d49eb6599d2eb.jpg
+2026-01-29 10:20:23,806 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ac0e20d10437d81c5813f06fb2946468.jpg
+2026-01-29 10:20:23,806 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 020 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,806 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Batman vs spiderman Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,807 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/spiderman-batman-2-Farsi-www.spidey.ir.cbr
+2026-01-29 10:20:23,807 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\8db097176377d776eb7506c9c9d25a13.jpg
+2026-01-29 10:20:23,807 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\8a201ca9da8b6c50ffa0568907d2eccd.jpg
+2026-01-29 10:20:23,807 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\c2bdf8bec3fea588ef2d1651dca2e8ea.jpg
+2026-01-29 10:20:23,820 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 019 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,937 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 06 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,937 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 02 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:23,937 - library - INFO - Application window displayed
+2026-01-29 10:20:23,937 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\6062119e9d020a6233ffb6ef29dd7f9c.jpg
+2026-01-29 10:20:23,938 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 018 (vol.1) Farsi www.spidey.ir.zip
+2026-01-29 10:20:23,961 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ea882584dcbfe4dc0f6b8e78c94a4295.jpg
+2026-01-29 10:20:23,963 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\5d61fa9847ab77b756d91284fe7fa009.jpg
+2026-01-29 10:20:23,963 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\7900caae656ebdf8d72da988fbdf66c9.jpg
+2026-01-29 10:20:23,981 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\0e2845b0de7e69a241defcf6bb2de533.jpg
+2026-01-29 10:20:27,082 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-29 10:20:27,083 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-29 10:20:27,086 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-29 10:20:27,088 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-29 10:20:27,089 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-29 10:20:27,089 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-29 10:20:27,090 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-29 10:20:27,091 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Moon Knight 006 (2014) Spidey.ir.cbr
+2026-01-29 10:20:27,091 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\54d54a20f248ccf535b13948dd582e86.jpg
+2026-01-29 10:20:27,103 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-29 10:20:27,103 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-29 10:20:27,107 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-29 10:20:28,512 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man - Life Story 001 Farsi www.spidey.ir.cbr
+2026-01-29 10:20:28,514 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man - Life Story 02 Farsi www.spidey.ir.cbr
+2026-01-29 10:20:28,515 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\6062119e9d020a6233ffb6ef29dd7f9c.jpg
+2026-01-29 10:20:28,517 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-man Life Story _3 Farsi www.spidey.ir.zip
+2026-01-29 10:20:28,519 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\086c84ef39068edff6dd84631e3dc450.jpg
+2026-01-29 10:20:28,522 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man - Life Story 005 Farsi www.spidey.ir.zip
+2026-01-29 10:20:28,522 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\f1e38082ef2af292c7a481e627999b60.jpg
+2026-01-29 10:20:28,523 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man - Life Story 06 Farsi www.spidey.ir.cbr
+2026-01-29 10:20:28,524 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\c57a3261a566d04c1357e64bd632b80d.jpg
+2026-01-29 10:20:28,524 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\komik mard ankabooti dastane zendegi saliyane spidey.ir.zip
+2026-01-29 10:20:28,525 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\92f23b1f862217115eaa6c5ee5578dfa.jpg
+2026-01-29 10:20:28,529 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\Spider-Man - Life Story\Spider-Man_-_Life_Story_004_(2019) Farsi www.spidey.ir.zip
+2026-01-29 10:20:28,530 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\943bf778611cc83bfab28828008f2eec.jpg
+2026-01-29 10:20:28,547 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\4308f9bc4a49568ab03db4f085879d92.jpg
+2026-01-29 10:20:29,616 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 010 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:29,618 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Mard Ankabooti Bartar 011 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:29,621 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 01 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:29,621 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\feb87242b032bd0a4caeca0a653d5e06.jpg
+2026-01-29 10:20:29,623 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\b579b11888624aa8cb25b54ba1db81b5.jpg
+2026-01-29 10:20:29,624 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 02 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:29,627 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\5d61fa9847ab77b756d91284fe7fa009.jpg
+2026-01-29 10:20:29,627 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 03 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:29,628 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\564a0711a144379043d5d7b3a9219248.jpg
+2026-01-29 10:20:29,628 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 04 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:29,630 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ac0e20d10437d81c5813f06fb2946468.jpg
+2026-01-29 10:20:29,630 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 05 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:29,631 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\04b50edd3097c47bc10607692d1cdb2e.jpg
+2026-01-29 10:20:29,634 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 06 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:29,636 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 07 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:29,646 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\0e2845b0de7e69a241defcf6bb2de533.jpg
+2026-01-29 10:20:29,649 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/SuperiorSpider-Man-015-FA-www.spidey.ir.cbr
+2026-01-29 10:20:29,650 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\8bfeb04703e7c45649a6c8c6563c542d.jpg
+2026-01-29 10:20:29,651 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 016 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:29,653 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\76c0234daefd2a7165fd7c4d55a8b2e6.jpg
+2026-01-29 10:20:29,653 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 017 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:29,654 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\9ade3f02a8c42cca6e01cb31717ee3b5.jpg
+2026-01-29 10:20:29,654 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 018 (vol.1) Farsi www.spidey.ir.zip
+2026-01-29 10:20:29,655 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\7900caae656ebdf8d72da988fbdf66c9.jpg
+2026-01-29 10:20:29,656 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 019 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:29,656 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ea882584dcbfe4dc0f6b8e78c94a4295.jpg
+2026-01-29 10:20:29,657 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 020 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:29,657 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\8db097176377d776eb7506c9c9d25a13.jpg
+2026-01-29 10:20:29,663 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 08 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:29,663 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 014 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:29,665 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\0c7d04c84fa9f22e6f0ee1172bbe8747.jpg
+2026-01-29 10:20:29,682 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 012 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:29,685 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\e93b4b69239e88d4dba55891d7053387.jpg
+2026-01-29 10:20:29,694 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24db17b57970eab64160d5a507c2bde1.jpg
+2026-01-29 10:20:29,695 - library - DEBUG - Getting cover for C:\Users\Amir\Downloads\superior\Mard Ankabooti Bartar 09 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:29,698 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\dd6bb32e2a2a71461569667cc4a19b43.jpg
+2026-01-29 10:20:29,710 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\949431da11824e2a271d49eb6599d2eb.jpg
+2026-01-29 10:20:29,725 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/superior/Mard Ankabooti Bartar 013 (vol.1) Farsi www.spidey.ir.cbr
+2026-01-29 10:20:29,727 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\c958b2a789feec3298c0c458f9023006.jpg
+2026-01-29 10:20:29,759 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\fed4ebe5d500bc38a849dc7127b48dc0.jpg

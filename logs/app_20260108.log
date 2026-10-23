@@ -1,0 +1,494 @@
+2026-01-08 11:56:22,812 - library - INFO - Database initialized successfully
+2026-01-08 11:56:24,273 - library - ERROR - Failed to load default cover: cannot identify image file 'D:\\digital_library\\assets\\default_cover.png'
+2026-01-08 11:56:29,830 - library - INFO - Database initialized successfully
+2026-01-08 11:56:30,183 - library - ERROR - Failed to load default cover: cannot identify image file 'd:\\digital_library\\assets\\default_cover.png'
+2026-01-08 12:00:32,572 - library - INFO - Database initialized successfully
+2026-01-08 12:00:48,453 - library - INFO - Database initialized successfully
+2026-01-08 12:10:55,859 - library - INFO - Database initialized successfully
+2026-01-08 12:18:51,315 - library - INFO - Database initialized successfully
+2026-01-08 12:18:51,667 - library - INFO - Starting Digital Library application
+2026-01-08 12:19:02,379 - library - INFO - Application window displayed
+2026-01-08 12:19:51,335 - library - INFO - Created series: moonknight (ID: 1)
+2026-01-08 12:20:27,026 - library - INFO - Added book: C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar (ID: 1)
+2026-01-08 12:20:27,078 - library - ERROR - RAR extraction error for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar: Cannot find working tool
+2026-01-08 12:20:32,700 - library - INFO - Opened book: C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:20:50,546 - library - INFO - Opened book: C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:32:22,520 - library - INFO - Application exiting with code 0
+2026-01-08 12:32:38,926 - library - INFO - Database initialized successfully
+2026-01-08 12:32:39,246 - library - INFO - Starting Digital Library application
+2026-01-08 12:32:40,093 - library - INFO - Application window displayed
+2026-01-08 12:35:38,385 - library - INFO - Database initialized successfully
+2026-01-08 12:35:38,726 - library - INFO - Starting Digital Library application
+2026-01-08 12:35:39,577 - library - INFO - Application window displayed
+2026-01-08 12:35:42,110 - library - INFO - Opened with CDisplayEx: C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:35:42,110 - library - INFO - Opened book: C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:35:51,846 - library - INFO - Book 1 marked as read
+2026-01-08 12:39:32,012 - library - INFO - Added book: C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar (ID: 2)
+2026-01-08 12:39:32,029 - library - INFO - Added book: C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar (ID: 3)
+2026-01-08 12:39:32,037 - library - INFO - Added book: C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar (ID: 4)
+2026-01-08 12:39:32,047 - library - INFO - Added book: C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar (ID: 5)
+2026-01-08 12:39:32,091 - library - ERROR - RAR extraction error for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar: Cannot find working tool
+2026-01-08 12:39:32,097 - library - ERROR - RAR extraction error for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar: Cannot find working tool
+2026-01-08 12:39:32,098 - library - ERROR - RAR extraction error for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar: Cannot find working tool
+2026-01-08 12:39:32,152 - library - ERROR - RAR extraction error for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar: Cannot find working tool
+2026-01-08 12:41:00,637 - library - INFO - Application exiting with code 0
+2026-01-08 12:41:04,714 - library - INFO - Database initialized successfully
+2026-01-08 12:41:05,221 - library - INFO - Starting Digital Library application
+2026-01-08 12:41:06,024 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:41:06,025 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:41:06,026 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:41:06,026 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:41:06,026 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:41:06,027 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:41:06,027 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:41:06,028 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:41:06,029 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:41:06,030 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:41:06,123 - library - INFO - Application window displayed
+2026-01-08 12:41:14,109 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:41:14,109 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:41:14,111 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:41:14,111 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:41:14,112 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:41:14,113 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:41:14,114 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:41:14,114 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:41:14,116 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:41:14,117 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:41:37,438 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:41:37,439 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:41:37,440 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:41:37,440 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:41:37,441 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:41:37,442 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:41:37,443 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:41:37,443 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:41:37,444 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:41:37,444 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:41:43,738 - library - INFO - Application exiting with code 0
+2026-01-08 12:42:41,088 - library - INFO - Database initialized successfully
+2026-01-08 12:42:41,520 - library - INFO - Starting Digital Library application
+2026-01-08 12:42:42,300 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:42:42,300 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:42:42,301 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:42:42,302 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:42:42,302 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:42:42,302 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:42:42,303 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:42:42,303 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:42:42,304 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:42:42,304 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:42:42,380 - library - INFO - Application window displayed
+2026-01-08 12:43:31,322 - library - INFO - Added book: C:/Users/Amir/Downloads/Documents/1 دایره_2.pdf (ID: 6)
+2026-01-08 12:43:31,438 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Documents/1 دایره_2.pdf
+2026-01-08 12:43:31,438 - library - DEBUG - Extracting new cover...
+2026-01-08 12:43:31,455 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:43:31,630 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:43:31,689 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:43:31,690 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:43:31,691 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:43:31,691 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:43:31,692 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:43:31,692 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:43:31,693 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:43:31,693 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:43:31,698 - library - DEBUG - Cover extracted successfully
+2026-01-08 12:43:31,706 - library - DEBUG - Cover saved to cache: D:\digital_library\thumbnails\d4d68548ad8aac889625cec55aae76c0.jpg
+2026-01-08 12:43:36,163 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Documents/1 دایره_2.pdf
+2026-01-08 12:43:36,163 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\d4d68548ad8aac889625cec55aae76c0.jpg
+2026-01-08 12:43:36,164 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:43:36,164 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:43:36,165 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:43:36,166 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:43:36,166 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:43:36,167 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:43:36,167 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:43:36,168 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:43:36,169 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:43:36,169 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:43:36,660 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Documents/1 دایره_2.pdf
+2026-01-08 12:43:36,660 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\d4d68548ad8aac889625cec55aae76c0.jpg
+2026-01-08 12:43:36,662 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:43:36,662 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:43:36,663 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:43:36,663 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:43:36,665 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:43:36,665 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:43:36,666 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:43:36,666 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:43:36,667 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:43:36,667 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:43:38,147 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:43:38,148 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:43:38,149 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:43:38,149 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:43:38,150 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:43:38,150 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:43:38,151 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:43:38,151 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:43:38,152 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:43:38,152 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:43:39,075 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Documents/1 دایره_2.pdf
+2026-01-08 12:43:39,075 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\d4d68548ad8aac889625cec55aae76c0.jpg
+2026-01-08 12:43:39,076 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:43:39,076 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:43:39,077 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:43:39,077 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:43:39,078 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:43:39,078 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:43:39,079 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:43:39,079 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:43:39,080 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:43:39,080 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:43:40,779 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Documents/1 دایره_2.pdf
+2026-01-08 12:43:40,779 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\d4d68548ad8aac889625cec55aae76c0.jpg
+2026-01-08 12:43:40,780 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:43:40,780 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:43:40,781 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:43:40,781 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:43:40,782 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:43:40,782 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:43:40,783 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:43:40,784 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:43:40,784 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:43:40,785 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:43:49,898 - library - INFO - Cleared cache for: C:/Users/Amir/Downloads/Documents/1 دایره_2.pdf
+2026-01-08 12:43:49,900 - library - INFO - Deleted book ID: 6
+2026-01-08 12:43:49,919 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:43:49,920 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:43:49,921 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:43:49,921 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:43:49,922 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:43:49,922 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:43:49,923 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:43:49,923 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:43:49,924 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:43:49,924 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:44:12,436 - library - INFO - Added book: C:/Users/Amir/Downloads/Telegram Desktop/Moon-Knight-2021-01-FA-FreeComics.zip (ID: 7)
+2026-01-08 12:44:12,459 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Telegram Desktop/Moon-Knight-2021-01-FA-FreeComics.zip
+2026-01-08 12:44:12,460 - library - DEBUG - Extracting new cover...
+2026-01-08 12:44:12,464 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:44:12,464 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:44:12,465 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:44:12,465 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:44:12,466 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:44:12,467 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:44:12,469 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:44:12,469 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:44:12,472 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:44:12,473 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:44:12,497 - library - DEBUG - Cover extracted successfully
+2026-01-08 12:44:12,511 - library - DEBUG - Cover saved to cache: D:\digital_library\thumbnails\ad77bd3999e52fdf82a5868a9dd3fdd6.jpg
+2026-01-08 12:44:19,528 - library - INFO - Cleared cache for: C:/Users/Amir/Downloads/Telegram Desktop/Moon-Knight-2021-01-FA-FreeComics.zip
+2026-01-08 12:44:19,530 - library - INFO - Deleted book ID: 7
+2026-01-08 12:44:19,550 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:44:19,550 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:44:19,551 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:44:19,551 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:44:19,552 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:44:19,552 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:44:19,555 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:44:19,555 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:44:19,556 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:44:19,556 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:44:43,739 - library - INFO - Database initialized successfully
+2026-01-08 12:44:44,160 - library - INFO - Starting Digital Library application
+2026-01-08 12:44:44,974 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:44:44,975 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:44:44,975 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:44:44,976 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:44:44,976 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:44:44,976 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:44:44,977 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:44:44,977 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:44:44,978 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:44:44,978 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:44:45,064 - library - INFO - Application window displayed
+2026-01-08 12:45:10,619 - library - ERROR - Database error: UNIQUE constraint failed: books.filepath
+2026-01-08 12:45:10,621 - library - WARNING - Book already exists: C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:45:15,511 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:45:15,512 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:45:15,513 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:45:15,514 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:45:15,515 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:45:15,516 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:45:15,517 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:45:15,517 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:45:15,518 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:45:15,518 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:45:31,673 - library - INFO - Cleared cache for: C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:45:31,674 - library - INFO - Deleted book ID: 2
+2026-01-08 12:45:31,693 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:45:31,693 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:45:31,694 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:45:31,695 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:45:31,696 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:45:31,696 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:45:31,697 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:45:31,698 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:45:39,443 - library - INFO - Added book: C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar (ID: 8)
+2026-01-08 12:45:39,466 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:45:39,467 - library - DEBUG - Extracting new cover...
+2026-01-08 12:45:39,468 - library - DEBUG - Using UnRAR tool: C:\Program Files\WinRAR\UnRAR.exe
+2026-01-08 12:45:39,469 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:45:39,470 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:45:39,474 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:45:39,474 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:45:39,475 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:45:39,476 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:45:39,477 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:45:39,478 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:45:39,682 - library - DEBUG - Cover extracted successfully
+2026-01-08 12:45:39,693 - library - DEBUG - Cover saved to cache: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:45:48,198 - library - INFO - Cleared cache for: C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:45:48,200 - library - INFO - Deleted book ID: 8
+2026-01-08 12:45:48,216 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:45:48,216 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:45:48,217 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:45:48,217 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:45:48,218 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:45:48,218 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:45:48,219 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:45:48,220 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:45:53,301 - library - INFO - Cleared all cover cache
+2026-01-08 12:45:53,304 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:45:53,304 - library - DEBUG - Extracting new cover...
+2026-01-08 12:45:53,304 - library - DEBUG - Using UnRAR tool: C:\Program Files\WinRAR\UnRAR.exe
+2026-01-08 12:45:53,306 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:45:53,307 - library - DEBUG - Extracting new cover...
+2026-01-08 12:45:53,307 - library - DEBUG - Using UnRAR tool: C:\Program Files\WinRAR\UnRAR.exe
+2026-01-08 12:45:53,311 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:45:53,313 - library - DEBUG - Extracting new cover...
+2026-01-08 12:45:53,314 - library - DEBUG - Using UnRAR tool: C:\Program Files\WinRAR\UnRAR.exe
+2026-01-08 12:45:53,316 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:45:53,316 - library - DEBUG - Extracting new cover...
+2026-01-08 12:45:53,316 - library - DEBUG - Using UnRAR tool: C:\Program Files\WinRAR\UnRAR.exe
+2026-01-08 12:45:53,504 - library - DEBUG - Cover extracted successfully
+2026-01-08 12:45:53,521 - library - DEBUG - Cover saved to cache: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:45:53,538 - library - DEBUG - Cover extracted successfully
+2026-01-08 12:45:53,550 - library - DEBUG - Cover extracted successfully
+2026-01-08 12:45:53,557 - library - DEBUG - Cover saved to cache: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:45:53,571 - library - DEBUG - Cover extracted successfully
+2026-01-08 12:45:53,577 - library - DEBUG - Cover saved to cache: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:45:53,595 - library - DEBUG - Cover saved to cache: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:46:18,325 - library - INFO - Added book: C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar (ID: 9)
+2026-01-08 12:46:18,348 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:46:18,348 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:46:18,350 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:46:18,350 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:46:18,351 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:46:18,352 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:46:18,353 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:46:18,355 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:46:18,356 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:46:18,356 - library - DEBUG - Extracting new cover...
+2026-01-08 12:46:18,356 - library - DEBUG - Using UnRAR tool: C:\Program Files\WinRAR\UnRAR.exe
+2026-01-08 12:46:18,495 - library - DEBUG - Cover extracted successfully
+2026-01-08 12:46:18,505 - library - DEBUG - Cover saved to cache: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:46:21,124 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:46:21,125 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:46:21,125 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:46:21,126 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:46:21,127 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:46:21,127 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:46:21,128 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:46:21,128 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:46:21,129 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:46:21,129 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:46:27,457 - library - INFO - Opened with CDisplayEx: C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:46:27,458 - library - INFO - Opened book: C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:46:58,369 - library - INFO - Opened with CDisplayEx: C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:46:58,369 - library - INFO - Opened book: C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:47:23,037 - library - INFO - Opened with CDisplayEx: C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:47:23,037 - library - INFO - Opened book: C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:52:57,071 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:52:57,072 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:52:57,072 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:52:57,072 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:52:57,073 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:52:57,073 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:52:57,074 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:52:57,074 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:52:57,075 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:52:57,075 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:53:00,314 - library - INFO - Application exiting with code 0
+2026-01-08 12:53:12,284 - library - INFO - Database initialized successfully
+2026-01-08 12:53:12,711 - library - INFO - Starting Digital Library application
+2026-01-08 12:53:13,486 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:53:13,486 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:53:13,487 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:53:13,487 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:53:13,488 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:53:13,488 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:53:13,489 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:53:13,489 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:53:13,490 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:53:13,490 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:53:13,572 - library - INFO - Application window displayed
+2026-01-08 12:53:17,917 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:53:17,917 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:53:17,919 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:53:17,919 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:53:17,920 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:53:17,921 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:53:17,922 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:53:17,922 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:53:17,924 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:53:17,924 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:53:20,499 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:53:20,499 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:53:20,500 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:53:20,500 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:53:20,501 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:53:20,501 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:53:20,502 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:53:20,502 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:53:20,503 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:53:20,503 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 12:53:31,238 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 12:53:31,238 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 12:53:31,239 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 12:53:31,240 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 12:53:31,241 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 12:53:31,241 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 12:53:31,242 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 12:53:31,242 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 12:53:31,243 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 12:53:31,244 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 13:05:07,220 - library - INFO - Book 5 marked as read
+2026-01-08 13:05:07,371 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 13:05:07,372 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 13:05:07,372 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 13:05:07,373 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 13:05:07,373 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 13:05:07,373 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 13:05:07,374 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 13:05:07,374 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 13:05:07,375 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 13:05:07,375 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 13:05:08,310 - library - INFO - Opened with CDisplayEx: C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 13:05:08,310 - library - INFO - Opened book: C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 13:09:31,085 - library - INFO - Book 4 marked as read
+2026-01-08 13:09:31,240 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 13:09:31,241 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 13:09:31,241 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 13:09:31,241 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 13:09:31,242 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 13:09:31,242 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 13:09:31,243 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 13:09:31,243 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 13:09:31,244 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 13:09:31,244 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 13:09:33,905 - library - INFO - Opened with CDisplayEx: C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 13:09:33,905 - library - INFO - Opened book: C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 14:17:44,015 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 14:17:44,017 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 14:17:44,017 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 14:17:44,017 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 14:17:44,019 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 14:17:44,019 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 14:17:44,020 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 14:17:44,020 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 14:17:44,021 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 14:17:44,022 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 15:23:54,540 - library - INFO - Book 3 marked as read
+2026-01-08 15:23:54,689 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 15:23:54,690 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 15:23:54,691 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 15:23:54,691 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 15:23:54,691 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 15:23:54,692 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 15:23:54,693 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 15:23:54,693 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 15:23:54,694 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 15:23:54,695 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 15:23:57,791 - library - INFO - Opened with CDisplayEx: C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 15:23:57,791 - library - INFO - Opened book: C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 21:16:12,039 - library - INFO - Database initialized successfully
+2026-01-08 21:16:13,611 - library - INFO - Starting Digital Library application
+2026-01-08 21:16:14,583 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 21:16:14,584 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 21:16:14,585 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 21:16:14,587 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 21:16:14,588 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 21:16:14,590 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 21:16:14,590 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 21:16:14,590 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 21:16:14,590 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 21:16:14,590 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 21:16:14,661 - library - INFO - Application window displayed
+2026-01-08 21:16:27,303 - library - INFO - Opened with CDisplayEx: C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 21:16:27,303 - library - INFO - Opened book: C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 21:17:43,667 - library - INFO - Book 9 marked as read
+2026-01-08 21:17:43,816 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 21:17:43,816 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 21:17:43,816 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 21:17:43,816 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 21:17:43,817 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 21:17:43,818 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 21:17:43,818 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 21:17:43,819 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 21:17:43,819 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 21:17:43,820 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 21:18:20,122 - library - INFO - Created series: Moon knight (2021) (ID: 2)
+2026-01-08 21:18:20,238 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 21:18:20,238 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 21:18:20,239 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 21:18:20,239 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 21:18:20,240 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 21:18:20,240 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 21:18:20,241 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 21:18:20,241 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 21:18:20,242 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 21:18:20,242 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 21:18:24,305 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 21:18:24,305 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 21:18:24,307 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 21:18:24,307 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 21:18:24,309 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 21:18:24,309 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 21:18:24,310 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 21:18:24,311 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 21:18:24,312 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 21:18:24,313 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 21:19:04,479 - library - INFO - Added book: C:/Users/Amir/Downloads/Telegram Desktop/Moon-Knight-2021-01-FA-FreeComics.zip (ID: 10)
+2026-01-08 21:19:16,594 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Telegram Desktop/Moon-Knight-2021-01-FA-FreeComics.zip
+2026-01-08 21:19:16,595 - library - DEBUG - Extracting new cover...
+2026-01-08 21:19:16,596 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 21:19:16,597 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 21:19:16,599 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 21:19:16,599 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 21:19:16,601 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 21:19:16,601 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 21:19:16,603 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 21:19:16,603 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 21:19:16,606 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 21:19:16,606 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 21:19:16,667 - library - DEBUG - Cover extracted successfully
+2026-01-08 21:19:16,675 - library - DEBUG - Cover saved to cache: D:\digital_library\thumbnails\ad77bd3999e52fdf82a5868a9dd3fdd6.jpg
+2026-01-08 21:19:21,697 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Telegram Desktop/Moon-Knight-2021-01-FA-FreeComics.zip
+2026-01-08 21:19:21,698 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ad77bd3999e52fdf82a5868a9dd3fdd6.jpg
+2026-01-08 21:19:21,699 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 21:19:21,700 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 21:19:21,701 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 21:19:21,701 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 21:19:21,703 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 21:19:21,703 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 21:19:21,704 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 21:19:21,705 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 21:19:21,706 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 21:19:21,707 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 21:19:29,144 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Telegram Desktop/Moon-Knight-2021-01-FA-FreeComics.zip
+2026-01-08 21:19:29,145 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ad77bd3999e52fdf82a5868a9dd3fdd6.jpg
+2026-01-08 21:19:29,146 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 01(FA)(FromAnime).rar
+2026-01-08 21:19:29,146 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\41fc396222d07424d5b51cf61e633c20.jpg
+2026-01-08 21:19:29,147 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 02(FA)(FromAnime).rar
+2026-01-08 21:19:29,147 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\1e8e3d12b20effe3c2cd551911deb215.jpg
+2026-01-08 21:19:29,148 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 03(FA)(FromAnime).rar
+2026-01-08 21:19:29,148 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\73c50ecdc93d72095e679647bc4622dc.jpg
+2026-01-08 21:19:29,149 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 04(FA)(FromAnime).rar
+2026-01-08 21:19:29,149 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\24419418eb91c2ac3df3edbafc44b71e.jpg
+2026-01-08 21:19:29,150 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Compressed/Moon Knight 05(FA)(FromAnime).rar
+2026-01-08 21:19:29,151 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ae9893b5ad3dd6938c3e589d65aa44f0.jpg
+2026-01-08 21:19:30,441 - library - DEBUG - Getting cover for C:/Users/Amir/Downloads/Telegram Desktop/Moon-Knight-2021-01-FA-FreeComics.zip
+2026-01-08 21:19:30,442 - library - DEBUG - Using cached cover: D:\digital_library\thumbnails\ad77bd3999e52fdf82a5868a9dd3fdd6.jpg
