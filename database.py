@@ -2,16 +2,34 @@
 Database module for the Digital Library application.
 Uses SQLite with proper connection handling and PRAGMA settings.
 """
-import sqlite3
+import os
 import re
+import sqlite3
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Tuple
 from contextlib import contextmanager
 
 from config import DATABASE_PATH
 from utils.logger import logger
 from utils.helpers import sort_books_naturally
+
+
+def normalize_path(filepath: str) -> str:
+    """Return a canonical absolute path used for duplicate detection.
+
+    Windows paths are case-insensitive, so they are lower-cased; on Linux and
+    macOS the real case is preserved (macOS is case-insensitive too, but keeping
+    the original path readable matters more than an edge case there).
+    """
+    try:
+        resolved = os.path.abspath(os.path.expanduser(str(filepath)))
+        resolved = os.path.normpath(resolved)
+    except Exception:
+        resolved = str(filepath)
+    if os.name == "nt":
+        resolved = resolved.lower()
+    return resolved
 
 
 class Database:
@@ -118,6 +136,52 @@ class Database:
                     logger.info("Added custom_cover column")
                 except Exception as e:
                     logger.warning(f"Could not add custom_cover: {e}")
+
+            # --- Schema v3: reading statistics and comic metadata ---------
+            new_columns = {
+                'favorite': 'INTEGER DEFAULT 0',
+                'rating': 'INTEGER DEFAULT 0',
+                'last_opened_at': 'TEXT',
+                'open_count': 'INTEGER DEFAULT 0',
+                'page_count': 'INTEGER',
+                'file_size': 'INTEGER',
+                'writer': 'TEXT',
+                'publisher': 'TEXT',
+                'year': 'INTEGER',
+                'summary': 'TEXT',
+                'genre': 'TEXT',
+                'language': 'TEXT',
+            }
+            cursor.execute("PRAGMA table_info(books)")
+            existing_columns = [col[1] for col in cursor.fetchall()]
+            for column, column_type in new_columns.items():
+                if column in existing_columns:
+                    continue
+                try:
+                    cursor.execute(f"ALTER TABLE books ADD COLUMN {column} {column_type}")
+                    logger.info(f"Added {column} column")
+                except Exception as e:
+                    logger.warning(f"Could not add {column}: {e}")
+
+            # --- Schema v4: duplicate detection -----------------------------
+            cursor.execute("PRAGMA table_info(books)")
+            existing_columns = [col[1] for col in cursor.fetchall()]
+            if 'file_hash' not in existing_columns:
+                try:
+                    cursor.execute("ALTER TABLE books ADD COLUMN file_hash TEXT")
+                    logger.info("Added file_hash column")
+                except Exception as e:
+                    logger.warning(f"Could not add file_hash: {e}")
+
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_books_favorite ON books(favorite)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_books_last_opened ON books(last_opened_at)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_books_file_hash ON books(file_hash)"
+            )
             
             # Create basic indexes
             cursor.execute("""
@@ -149,7 +213,7 @@ class Database:
             # Set schema version
             cursor.execute("""
                 INSERT OR REPLACE INTO metadata (key, value, updated_at)
-                VALUES ('schema_version', '2.0', CURRENT_TIMESTAMP)
+                VALUES ('schema_version', '4.0', CURRENT_TIMESTAMP)
             """)
             
             logger.info("Database initialized successfully")
@@ -256,19 +320,50 @@ class Database:
     
     # ==================== BOOK OPERATIONS ====================
     
-    def add_book(self, filepath: str, title: Optional[str] = None,
-                 series_id: Optional[int] = None, volume: Optional[str] = None) -> Optional[int]:
-        """Add a new book and return its ID."""
+    @staticmethod
+    def _file_size(filepath: str) -> Optional[int]:
         try:
-            # Calculate volume number
+            return Path(filepath).stat().st_size
+        except OSError:
+            return None
+
+    def add_book(self, filepath: str, title: Optional[str] = None,
+                 series_id: Optional[int] = None, volume: Optional[str] = None,
+                 metadata: Optional[Dict] = None,
+                 file_hash: Optional[str] = None) -> Optional[int]:
+        """Add a new book and return its ID.
+
+        ``metadata`` may contain ComicInfo.xml values such as writer,
+        publisher, year, summary, page_count and genre.
+        """
+        try:
+            metadata = metadata or {}
+            volume = volume if volume is not None else metadata.get('volume')
+            title = title or metadata.get('title')
             volume_num = self._extract_volume_number(volume)
-            
+
+            record = {
+                'title': title,
+                'series_id': series_id,
+                'volume': str(volume) if volume is not None else None,
+                'volume_num': volume_num,
+                'filepath': str(filepath),
+                'file_size': self._file_size(filepath),
+                'file_hash': file_hash or compute_file_hash(filepath),
+            }
+            for key in ('writer', 'publisher', 'year', 'summary', 'page_count', 'genre', 'language'):
+                value = metadata.get(key)
+                if value not in (None, ''):
+                    record[key] = value
+
+            columns = ', '.join(record.keys())
+            placeholders = ', '.join('?' for _ in record)
             with self.get_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
-                    INSERT INTO books (title, series_id, volume, volume_num, filepath)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (title, series_id, volume, volume_num, filepath))
+                cursor.execute(
+                    f"INSERT INTO books ({columns}) VALUES ({placeholders})",
+                    list(record.values())
+                )
                 book_id = cursor.lastrowid
                 logger.info(f"Added book: {filepath} (ID: {book_id})")
                 return book_id
@@ -337,8 +432,13 @@ class Database:
             return sort_books_naturally(books)
     
     def update_book(self, book_id: int, **kwargs) -> bool:
-        """Update book fields. Accepts: title, series_id, volume, is_read, custom_cover."""
-        allowed_fields = {'title', 'series_id', 'volume', 'is_read', 'custom_cover'}
+        """Update book fields (metadata, reading state, favorite, rating...)."""
+        allowed_fields = {
+            'title', 'series_id', 'volume', 'is_read', 'custom_cover',
+            'favorite', 'rating', 'last_opened_at', 'open_count', 'page_count',
+            'file_size', 'writer', 'publisher', 'year', 'summary', 'genre',
+            'language',
+        }
         updates = {k: v for k, v in kwargs.items() if k in allowed_fields}
         
         if not updates:
@@ -437,19 +537,82 @@ class Database:
     
     # Other operations
     def get_recent_books(self, limit: int = 20) -> List[Dict]:
-        """Get recently added books."""
+        """Get the most recently added books (newest first)."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT b.*, s.name as series_name
                 FROM books b
                 LEFT JOIN series s ON b.series_id = s.id
-                ORDER BY b.created_at DESC
+                ORDER BY datetime(b.created_at) DESC, b.id DESC
                 LIMIT ?
             """, (limit,))
-            
-            books = [dict(row) for row in cursor.fetchall()]
-            return sort_books_naturally(books)
+            return [dict(row) for row in cursor.fetchall()]
+
+    def get_recently_read_books(self, limit: int = 20) -> List[Dict]:
+        """Books that were opened recently (newest first)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT b.*, s.name as series_name
+                FROM books b
+                LEFT JOIN series s ON b.series_id = s.id
+                WHERE b.last_opened_at IS NOT NULL
+                ORDER BY datetime(b.last_opened_at) DESC
+                LIMIT ?
+            """, (limit,))
+            return [dict(row) for row in cursor.fetchall()]
+
+    def mark_book_opened(self, book_id: int, mark_read: bool = False) -> bool:
+        """Record that a book was opened and optionally mark it as read."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE books
+                SET open_count = COALESCE(open_count, 0) + 1,
+                    last_opened_at = CURRENT_TIMESTAMP,
+                    is_read = CASE WHEN ? THEN 1 ELSE is_read END
+                WHERE id = ?
+            """, (1 if mark_read else 0, book_id))
+            return cursor.rowcount > 0
+
+    def toggle_favorite(self, book_id: int) -> Optional[bool]:
+        """Toggle the favorite flag and return the new state."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT favorite FROM books WHERE id = ?", (book_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            new_state = 0 if row['favorite'] else 1
+            cursor.execute(
+                "UPDATE books SET favorite = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (new_state, book_id)
+            )
+            return bool(new_state)
+
+    def set_rating(self, book_id: int, rating: int) -> bool:
+        """Set a 0-5 star rating for a book."""
+        rating = max(0, min(5, int(rating)))
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE books SET rating = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (rating, book_id)
+            )
+            return cursor.rowcount > 0
+
+    def get_favorite_books(self) -> List[Dict]:
+        """Get all books marked as favorites."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT b.*, s.name as series_name
+                FROM books b
+                LEFT JOIN series s ON b.series_id = s.id
+                WHERE b.favorite = 1
+            """)
+            return sort_books_naturally([dict(row) for row in cursor.fetchall()])
 
     def get_unread_books(self) -> List[Dict]:
         """Get all unread books."""
@@ -480,7 +643,7 @@ class Database:
             return cursor.fetchone()[0]
     
     def search_books(self, query: str) -> List[Dict]:
-        """Search books by title or filepath."""
+        """Search books by title, series, writer, publisher, volume or path."""
         with self.get_connection() as conn:
             cursor = conn.cursor()
             search_term = f"%{query}%"
@@ -488,52 +651,172 @@ class Database:
                 SELECT b.*, s.name as series_name
                 FROM books b
                 LEFT JOIN series s ON b.series_id = s.id
-                WHERE b.title LIKE ? OR b.filepath LIKE ?
-            """, (search_term, search_term))
-            
-            books = [dict(row) for row in cursor.fetchall()]
-            return sort_books_naturally(books)
+                WHERE b.title LIKE ?
+                   OR b.filepath LIKE ?
+                   OR b.writer LIKE ?
+                   OR b.publisher LIKE ?
+                   OR b.volume LIKE ?
+                   OR s.name LIKE ?
+            """, (search_term,) * 6)
+            return sort_books_naturally([dict(row) for row in cursor.fetchall()])
 
     def bulk_add_books(self, books: List[Dict]) -> Tuple[int, int]:
-        """
-        Bulk add books. Each dict should have 'filepath' and optionally
-        'title', 'series_id', 'volume'.
-        Returns (success_count, skip_count).
+        """Bulk add books.
+
+        Each dict must contain ``filepath`` and may contain title, series_id,
+        volume and ComicInfo metadata fields. Returns (success, skipped).
         """
         success = 0
         skipped = 0
-        
+        fields = (
+            'title', 'series_id', 'volume', 'volume_num', 'filepath', 'file_size',
+            'writer', 'publisher', 'year', 'summary', 'page_count', 'genre', 'language',
+        )
+
         with self.get_connection() as conn:
             cursor = conn.cursor()
             for book in books:
                 try:
-                    volume_num = self._extract_volume_number(book.get('volume'))
-                    cursor.execute("""
-                        INSERT INTO books (title, series_id, volume, volume_num, filepath)
-                        VALUES (?, ?, ?, ?, ?)
-                    """, (
-                        book.get('title'),
-                        book.get('series_id'),
-                        book.get('volume'),
-                        volume_num,
-                        book['filepath']
-                    ))
+                    record = {
+                        'title': book.get('title'),
+                        'series_id': book.get('series_id'),
+                        'volume': book.get('volume'),
+                        'volume_num': self._extract_volume_number(book.get('volume')),
+                        'filepath': book['filepath'],
+                        'file_size': self._file_size(book['filepath']),
+                    }
+                    for key in ('writer', 'publisher', 'year', 'summary', 'page_count', 'genre', 'language'):
+                        value = book.get(key)
+                        if value not in (None, ''):
+                            record[key] = value
+
+                    columns = ', '.join(column for column in fields if column in record)
+                    placeholders = ', '.join('?' for column in fields if column in record)
+                    values = [record[column] for column in fields if column in record]
+                    cursor.execute(
+                        f"INSERT INTO books ({columns}) VALUES ({placeholders})",
+                        values
+                    )
                     success += 1
                 except sqlite3.IntegrityError:
                     skipped += 1
-        
+                except Exception as exc:
+                    logger.error(f"Failed to import {book.get('filepath')}: {exc}")
+                    skipped += 1
+
         logger.info(f"Bulk import: {success} added, {skipped} skipped")
         return success, skipped
+
+    def get_statistics(self) -> Dict:
+        """Library statistics used by the dashboard/status bar."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT
+                    COUNT(*) AS total,
+                    COALESCE(SUM(is_read), 0) AS read_count,
+                    COALESCE(SUM(favorite), 0) AS favorites,
+                    COALESCE(SUM(file_size), 0) AS total_size,
+                    COALESCE(SUM(page_count), 0) AS total_pages
+                FROM books
+            """)
+            row = dict(cursor.fetchone())
+            cursor.execute("SELECT COUNT(*) AS count FROM series")
+            row['series_count'] = cursor.fetchone()['count']
+            cursor.execute(
+                "SELECT COUNT(*) AS count FROM books WHERE last_opened_at IS NOT NULL"
+            )
+            row['started_count'] = cursor.fetchone()['count']
+            row['unread_count'] = row['total'] - row['read_count']
+            cursor.execute("SELECT LOWER(filepath) AS path FROM books")
+            formats: Dict[str, int] = {}
+            for item in cursor.fetchall():
+                path = item['path']
+                if path.endswith(('.cbz', '.cbr', '.cb7', '.cbt')):
+                    key = 'comic'
+                elif path.endswith('.pdf'):
+                    key = 'pdf'
+                elif path.endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tiff')):
+                    key = 'image'
+                elif path.endswith(('.zip', '.rar', '.7z', '.tar', '.tgz')):
+                    key = 'archive'
+                else:
+                    key = 'other'
+                formats[key] = formats.get(key, 0) + 1
+            row['formats'] = formats
+            return row
     
     def book_exists(self, filepath: str) -> bool:
-        """Check if a book with the given filepath exists."""
+        """Check if a book with the same path already exists (case-insensitive)."""
+        return self.find_duplicate(filepath) is not None
+
+    def find_duplicate(self, filepath: str,
+                       file_hash: Optional[str] = None) -> Optional[Dict]:
+        """Return the existing book matching *filepath* or *file_hash*.
+
+        Two books are the same when their normalised path matches, or when the
+        content fingerprint matches (the file was renamed or moved). This is what
+        keeps repeated folder imports from adding the same comic twice.
+        """
+        target = normalize_path(filepath)
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM books")
+            for row in cursor.fetchall():
+                book = dict(row)
+                if normalize_path(book.get("filepath", "")) == target:
+                    return book
+            if file_hash:
+                cursor.execute(
+                    "SELECT * FROM books WHERE file_hash = ? LIMIT 1", (file_hash,)
+                )
+                row = cursor.fetchone()
+                if row:
+                    return dict(row)
+        return None
+
+    def get_library_index(self) -> Tuple[Dict[str, int], Dict[str, int]]:
+        """Return (normalised path -> id, file hash -> id) for the whole library.
+
+        Building the index once makes importing a large folder linear instead of
+        comparing every file with every book.
+        """
+        paths: Dict[str, int] = {}
+        hashes: Dict[str, int] = {}
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, filepath, file_hash FROM books")
+            for row in cursor.fetchall():
+                paths[normalize_path(row["filepath"])] = row["id"]
+                if row["file_hash"]:
+                    hashes[row["file_hash"]] = row["id"]
+        return paths, hashes
+
+    def get_series_volume_numbers(self, series_id: Optional[int]) -> set:
+        """Volume numbers already used inside a series (for the numbering plan)."""
+        if series_id is None:
+            return set()
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT 1 FROM books WHERE filepath = ?",
-                (filepath,)
+                "SELECT volume_num FROM books WHERE series_id = ? "
+                "AND volume_num IS NOT NULL",
+                (series_id,),
             )
-            return cursor.fetchone() is not None
+            return {int(row[0]) for row in cursor.fetchall() if row[0] is not None}
+
+    def get_series_by_name_ci(self, name: str) -> Optional[Dict]:
+        """Find a series by name, ignoring case and surrounding spaces."""
+        if not name:
+            return None
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM series WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))",
+                (name,),
+            )
+            row = cursor.fetchone()
+            return dict(row) if row else None
     
     def update_all_volume_numbers(self) -> int:
         """
@@ -560,6 +843,28 @@ class Database:
             
             logger.info(f"Updated volume numbers for {updated_count} books")
             return updated_count
+
+
+def compute_file_hash(filepath: str, chunk_size: int = 65536) -> Optional[str]:
+    """Cheap content fingerprint: size + head and tail hashes.
+
+    Reading 128 KB per file keeps folder scans fast even for large libraries,
+    while still detecting the same comic saved under a different name.
+    """
+    import hashlib
+
+    path = Path(filepath)
+    try:
+        size = path.stat().st_size
+        digest = hashlib.sha1()
+        with open(path, "rb") as handle:
+            digest.update(handle.read(chunk_size))
+            if size > chunk_size * 2:
+                handle.seek(-chunk_size, os.SEEK_END)
+                digest.update(handle.read(chunk_size))
+        return f"{size}:{digest.hexdigest()}"
+    except OSError:
+        return None
 
 
 # Global database instance

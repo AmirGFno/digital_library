@@ -1,251 +1,200 @@
 """
-Series panel widget for the sidebar.
-"""
-from typing import Optional
+Sidebar with library sections and series.
 
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-    QPushButton, QListWidget, QListWidgetItem, QMenu,
-    QMessageBox
-)
-from PyQt6.QtGui import QAction, QFont
+Pseudo entries "All books" and "Unsorted" are always present; every series is
+listed with its unread/total counter and can be renamed or deleted from the
+context menu.
+"""
+
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QAction, QColor
+from PyQt6.QtWidgets import (
+    QAbstractItemView,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMenu,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from database import db
-from utils.logger import logger
 
 
 class SeriesPanel(QWidget):
     """Panel for displaying and managing series."""
-    
-    series_selected = pyqtSignal(object)  # series_id or None for all
-    series_changed = pyqtSignal()  # Emitted when series are added/edited/deleted
-    
+
+    series_selected = pyqtSignal(object)  # series_id, "unsorted" or None
+    series_changed = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._setup_ui()
         self.refresh_series()
-    
+
+    # ------------------------------------------------------------------
+    # UI
+    # ------------------------------------------------------------------
     def _setup_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(5)
-        
-        # Header with title and add button
-        header_widget = QWidget()
-        header_widget.setStyleSheet("""
-            QWidget {
-                background-color: #3a3a3a;
-                border-radius: 5px;
-                padding: 5px;
-            }
-        """)
-        header_layout = QHBoxLayout(header_widget)
-        header_layout.setContentsMargins(8, 5, 8, 5)
-        
-        # Title
-        title_label = QLabel("Series")
-        title_font = QFont()
-        title_font.setBold(True)
-        title_font.setPointSize(11)
-        title_label.setFont(title_font)
-        title_label.setStyleSheet("color: #ffffff;")
-        header_layout.addWidget(title_label)
-        
-        header_layout.addStretch()
-        
-        # Add button
+        layout.setContentsMargins(12, 14, 12, 12)
+        layout.setSpacing(10)
+
+        header = QHBoxLayout()
+        header.setSpacing(6)
+
+        title_box = QVBoxLayout()
+        title_box.setSpacing(0)
+        title = QLabel("LIBRARY")
+        title.setObjectName("SectionLabel")
+        self.subtitle = QLabel("All books")
+        self.subtitle.setObjectName("SubtitleLabel")
+        title_box.addWidget(title)
+        title_box.addWidget(self.subtitle)
+        header.addLayout(title_box)
+        header.addStretch()
+
         self.add_btn = QPushButton("+")
-        self.add_btn.setFixedSize(28, 28)
-        self.add_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4a7;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                font-weight: bold;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #5b8;
-            }
-            QPushButton:pressed {
-                background-color: #396;
-            }
-        """)
-        self.add_btn.setToolTip("Add new series")
+        self.add_btn.setFixedSize(30, 30)
+        self.add_btn.setObjectName("PrimaryButton")
+        self.add_btn.setToolTip("Add a new series")
         self.add_btn.clicked.connect(self._add_series)
-        header_layout.addWidget(self.add_btn)
-        
-        layout.addWidget(header_widget)
-        
-        # Series list container
-        list_container = QWidget()
-        list_container.setStyleSheet("""
-            QWidget {
-                background-color: #2a2a2a;
-                border-radius: 5px;
-            }
-        """)
-        list_layout = QVBoxLayout(list_container)
-        list_layout.setContentsMargins(1, 1, 1, 1)
-        
-        # Series list
+        header.addWidget(self.add_btn)
+
+        layout.addLayout(header)
+
         self.series_list = QListWidget()
-        self.series_list.setStyleSheet("""
-            QListWidget {
-                background-color: transparent;
-                border: none;
-                outline: none;
-                font-size: 11px;
-            }
-            QListWidget::item {
-                padding: 8px 10px;
-                border-bottom: 1px solid #3a3a3a;
-                color: #dddddd;
-            }
-            QListWidget::item:selected {
-                background-color: #4a7;
-                color: white;
-            }
-            QListWidget::item:hover:!selected {
-                background-color: #3a3a3a;
-            }
-        """)
+        self.series_list.setObjectName("SeriesList")
+        self.series_list.setFrameShape(QFrame.Shape.NoFrame)
+        self.series_list.setSpacing(1)
+        self.series_list.setVerticalScrollMode(
+            QAbstractItemView.ScrollMode.ScrollPerPixel
+        )
         self.series_list.itemClicked.connect(self._on_series_clicked)
         self.series_list.setContextMenuPolicy(
             Qt.ContextMenuPolicy.CustomContextMenu
         )
         self.series_list.customContextMenuRequested.connect(self._show_context_menu)
-        
-        list_layout.addWidget(self.series_list)
-        layout.addWidget(list_container, 1)
-    
+        layout.addWidget(self.series_list, 1)
+
+        footer = QLabel("Right-click a series to rename or delete it.")
+        footer.setObjectName("SubtitleLabel")
+        footer.setWordWrap(True)
+        layout.addWidget(footer)
+
+    # ------------------------------------------------------------------
+    # Data
+    # ------------------------------------------------------------------
     def refresh_series(self):
-        """Refresh the series list from database."""
+        current = self._current_series_id()
         self.series_list.clear()
-        
-        # Add "All Books" option
-        all_item = QListWidgetItem("All Books")
+
+        total_books = db.get_total_book_count()
+        all_item = QListWidgetItem(f"All books   ({total_books})")
         all_item.setData(Qt.ItemDataRole.UserRole, None)
         self.series_list.addItem(all_item)
-        
-        # Add "Unsorted" option
+
         unsorted_count = len(db.get_books_without_series())
-        unsorted_text = "Unsorted"
-        if unsorted_count > 0:
-            unsorted_text = f"Unsorted ({unsorted_count})"
-        unsorted_item = QListWidgetItem(unsorted_text)
-        unsorted_item.setData(Qt.ItemDataRole.UserRole, "unsorted")
-        self.series_list.addItem(unsorted_item)
-        
-        # Add separator
-        separator = QListWidgetItem("─" * 30)
-        separator.setFlags(Qt.ItemFlag.NoItemFlags)
-        separator.setForeground(Qt.GlobalColor.gray)
-        self.series_list.addItem(separator)
-        
-        # Add series
+        if unsorted_count:
+            unsorted_item = QListWidgetItem(f"Unsorted   ({unsorted_count})")
+            unsorted_item.setData(Qt.ItemDataRole.UserRole, "unsorted")
+            self.series_list.addItem(unsorted_item)
+
         series_list = db.get_all_series_with_counts()
+        if series_list:
+            separator = QListWidgetItem("SERIES")
+            separator.setFlags(Qt.ItemFlag.NoItemFlags)
+            separator.setForeground(QColor("#6b7280"))
+            separator.setData(Qt.ItemDataRole.UserRole, "__separator__")
+            self.series_list.addItem(separator)
+
         for series in series_list:
-            unread = series.get('unread_count', 0) or 0
-            total = series.get('book_count', 0) or 0
-            
-            # Create item text
-            text = series['name']
-            if total > 0:
-                text = f"{series['name']} ({unread}/{total})"
-            
-            item = QListWidgetItem(text)
-            item.setData(Qt.ItemDataRole.UserRole, series['id'])
-            
-            # Highlight if has unread books
-            if unread > 0:
-                item.setForeground(Qt.GlobalColor.white)
-            else:
-                item.setForeground(Qt.GlobalColor.lightGray)
-            
+            unread = series.get("unread_count", 0) or 0
+            total = series.get("book_count", 0) or 0
+            label = series["name"]
+            if total:
+                label = f"{series['name']}   ({unread}/{total})"
+            item = QListWidgetItem(label)
+            item.setData(Qt.ItemDataRole.UserRole, series["id"])
+            item.setToolTip(f"{series['name']} — {total} books, {unread} unread")
             self.series_list.addItem(item)
-        
-        # Select "All Books" by default
-        self.series_list.setCurrentRow(0)
-    
+
+        # Restore the previous selection when possible.
+        if not self._select_series(current):
+            self.series_list.setCurrentRow(0)
+
+    def _current_series_id(self):
+        item = self.series_list.currentItem()
+        return item.data(Qt.ItemDataRole.UserRole) if item else None
+
+    def _select_series(self, series_id) -> bool:
+        for row in range(self.series_list.count()):
+            item = self.series_list.item(row)
+            if item.data(Qt.ItemDataRole.UserRole) == series_id:
+                self.series_list.setCurrentRow(row)
+                return True
+        return False
+
     def _on_series_clicked(self, item: QListWidgetItem):
-        """Handle series item click."""
         series_id = item.data(Qt.ItemDataRole.UserRole)
-        if series_id != "unsorted" and item.flags() != Qt.ItemFlag.NoItemFlags:
-            self.series_selected.emit(series_id)
-    
+        if series_id == "__separator__" or not (item.flags() & Qt.ItemFlag.ItemIsSelectable):
+            return
+        self.subtitle.setText(item.text().split("   ")[0])
+        self.series_selected.emit(series_id)
+
+    # ------------------------------------------------------------------
+    # Actions
+    # ------------------------------------------------------------------
     def _add_series(self):
-        """Add a new series."""
         from ui.dialogs import AddSeriesDialog
+
         dialog = AddSeriesDialog(self)
         if dialog.exec():
             self.refresh_series()
             self.series_changed.emit()
-            QMessageBox.information(
-                self, "Success", 
-                "Series added successfully!"
-            )
-    
+
     def _show_context_menu(self, pos):
-        """Show context menu for series item."""
         item = self.series_list.itemAt(pos)
         if not item:
             return
-        
         series_id = item.data(Qt.ItemDataRole.UserRole)
-        if series_id is None or series_id == "unsorted":
+        if series_id is None or isinstance(series_id, str):
             return
-        
+
         menu = QMenu(self)
-        menu.setStyleSheet("""
-            QMenu {
-                background-color: #3a3a3a;
-                color: white;
-                border: 1px solid #555;
-            }
-            QMenu::item:selected {
-                background-color: #5a9;
-            }
-        """)
-        
-        # Edit action
-        edit_action = QAction("Edit", self)
+        edit_action = QAction("Rename...", self)
         edit_action.triggered.connect(lambda: self._edit_series(series_id))
         menu.addAction(edit_action)
-        
-        # Delete action
-        delete_action = QAction("Delete", self)
+        delete_action = QAction("Delete series...", self)
         delete_action.triggered.connect(lambda: self._delete_series(series_id))
         menu.addAction(delete_action)
-        
         menu.exec(self.series_list.mapToGlobal(pos))
-    
+
     def _edit_series(self, series_id: int):
-        """Edit a series."""
         from ui.dialogs import EditSeriesDialog
-        series = db.get_series(series_id)
-        if series:
-            dialog = EditSeriesDialog(series_id, series['name'], self)
-            if dialog.exec():
-                self.refresh_series()
-                self.series_changed.emit()
-    
-    def _delete_series(self, series_id: int):
-        """Delete a series."""
-        from ui.dialogs import ConfirmDialog
+
         series = db.get_series(series_id)
         if not series:
             return
-        
+        dialog = EditSeriesDialog(series_id, series["name"], self)
+        if dialog.exec():
+            self.refresh_series()
+            self.series_changed.emit()
+
+    def _delete_series(self, series_id: int):
+        from ui.dialogs import ConfirmDialog
+
+        series = db.get_series(series_id)
+        if not series:
+            return
         dialog = ConfirmDialog(
-            "Delete Series",
-            f"Are you sure you want to delete '{series['name']}'?\n"
-            "Books in this series will become unsorted.",
-            parent=self
+            "Delete series",
+            f"Delete '{series['name']}'?\nThe books in it will become unsorted.",
+            parent=self,
         )
-        
         if dialog.exec():
             db.delete_series(series_id)
             self.refresh_series()

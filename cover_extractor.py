@@ -12,20 +12,15 @@ from typing import Optional
 from PIL import Image, ImageDraw, ImageFont
 
 from config import (
-    THUMBNAILS_DIR, ASSETS_DIR, CUSTOM_COVERS_DIR,
-    THUMBNAIL_SIZE, THUMBNAIL_FORMAT, THUMBNAIL_QUALITY,
+    THUMBNAILS_DIR, ASSETS_DIR, THUMBNAIL_SIZE, THUMBNAIL_FORMAT, THUMBNAIL_QUALITY,
     SUPPORTED_EXTENSIONS
 )
 from utils.logger import logger
 from utils.helpers import get_file_extension, get_filename_without_extension
 
+import pdf_engine
+
 # Optional imports
-try:
-    import fitz  # PyMuPDF
-    HAS_PYMUPDF = True
-except ImportError:
-    HAS_PYMUPDF = False
-    logger.warning("PyMuPDF not installed. PDF cover extraction disabled.")
 
 try:
     import rarfile
@@ -91,11 +86,11 @@ class CoverExtractor:
             return str(cache_path)
         
         # Extract cover based on file type
-        logger.debug(f"Extracting new cover...")
+        logger.debug("Extracting new cover...")
         cover_image = self._extract_cover(filepath)
         
         if cover_image:
-            logger.debug(f"Cover extracted successfully")
+            logger.debug("Cover extracted successfully")
             # Resize and save to cache
             try:
                 cover_image = self._resize_cover(cover_image)
@@ -110,12 +105,12 @@ class CoverExtractor:
                 logger.error(f"Failed to save cover for {filepath}: {e}")
         
         # Generate fallback cover
-        logger.debug(f"Generating fallback cover")
+        logger.debug("Generating fallback cover")
         fallback = self._generate_fallback_cover(filepath)
         if fallback:
             try:
                 fallback.save(cache_path, THUMBNAIL_FORMAT, quality=THUMBNAIL_QUALITY)
-                logger.debug(f"Fallback cover saved")
+                logger.debug("Fallback cover saved")
                 return str(cache_path)
             except Exception as e:
                 logger.error(f"Failed to save fallback cover: {e}")
@@ -136,7 +131,7 @@ class CoverExtractor:
                 return self._extract_zip_cover(filepath)
             elif ext in ['.cbr', '.rar']:
                 return self._extract_rar_cover(filepath)
-            elif ext == '.7z':
+            elif ext in ('.7z', '.cb7'):
                 return self._extract_7z_cover(filepath)
             elif ext in ['.tar', '.tar.gz', '.tgz']:
                 return self._extract_tar_cover(filepath)
@@ -147,25 +142,10 @@ class CoverExtractor:
     
     def _extract_pdf_cover(self, filepath: str) -> Optional[Image.Image]:
         """Extract the first page of a PDF as cover."""
-        if not HAS_PYMUPDF:
+        if not pdf_engine.is_available():
             return None
-        
-        try:
-            doc = fitz.open(filepath)
-            if len(doc) > 0:
-                page = doc[0]
-                # Higher resolution for better quality
-                mat = fitz.Matrix(2.0, 2.0)
-                pix = page.get_pixmap(matrix=mat)
-                img_data = pix.tobytes("png")
-                doc.close()
-                return Image.open(io.BytesIO(img_data)).convert('RGB')
-            doc.close()
-        except Exception as e:
-            logger.error(f"PDF extraction error for {filepath}: {e}")
-        
-        return None
-    
+        return pdf_engine.render_first_page(filepath)
+
     def _extract_image_cover(self, filepath: str) -> Optional[Image.Image]:
         """Use the image file itself as cover."""
         try:

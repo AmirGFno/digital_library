@@ -1,54 +1,181 @@
 #!/usr/bin/env python3
 """
-Digital Library - Main Entry Point
+Digital Library - entry point.
 
-A desktop application for managing digital book collections.
+A desktop comic & digital book library built with PyQt6 and SQLite.
 """
-import sys
 import os
+import sys
+import traceback
 
-# Add project root to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# When running from source, make the project importable from any cwd.
+if not getattr(sys, "frozen", False):
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import QApplication, QMessageBox
 
-from ui.main_window import MainWindow
+from config import APP_NAME, APP_VERSION, ASSETS_DIR
 from utils.logger import logger
-from config import ASSETS_DIR
+from ui.main_window import MainWindow
+from ui.theme import apply_theme
+
+SELF_TEST = "--self-test" in sys.argv
 
 
-def main():
-    """Main entry point for the application."""
-    logger.info("Starting Digital Library application")
-    
-    # Enable high DPI scaling
+def _install_exception_hook():
+    """Log uncaught exceptions and show a friendly message instead of dying."""
+
+    def handle_exception(exc_type, exc_value, exc_traceback):
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+            return
+        details = "".join(
+            traceback.format_exception(exc_type, exc_value, exc_traceback)
+        )
+        logger.critical("Unhandled exception:\n%s", details)
+        if SELF_TEST:
+            # Never block a headless CI run with a modal dialog.
+            os._exit(3)
+        try:
+            QMessageBox.critical(
+                None,
+                f"{APP_NAME} - unexpected error",
+                "Something went wrong, but your library is safe.\n\n"
+                f"{exc_type.__name__}: {exc_value}\n\n"
+                "Details were written to the logs folder.",
+            )
+        except Exception:
+            pass
+
+    sys.excepthook = handle_exception
+
+
+def _run_self_test() -> bool:
+    """Prove the packaged application can really read comics and PDFs.
+
+    Importing a module is not enough: the PDF engine keeps working with a stub
+    when its native library is missing, so a broken bundle would only show up
+    later as missing covers. This renders an actual page.
+    """
+    ok = True
+
+    try:
+        import tempfile
+        from pathlib import Path
+
+        import pdf_engine
+
+        if not pdf_engine.HAS_PDFIUM:
+            logger.error("Self-test: the bundled PDF library is not available")
+            ok = False
+        else:
+            import pypdfium2 as pdfium
+
+            folder = Path(tempfile.mkdtemp(prefix="dl-self-test-"))
+            sample = folder / "sample.pdf"
+            document = pdfium.PdfDocument.new()
+            document.new_page(400, 600)
+            document.save(str(sample))
+            document.close()
+
+            pages = pdf_engine.get_page_count(str(sample))
+            image = pdf_engine.render_first_page(str(sample), max_width=200)
+            if pages != 1 or image is None or image.width < 10:
+                logger.error(
+                    "Self-test: PDF rendering failed (pages=%s, cover=%s)", pages, image
+                )
+                ok = False
+            else:
+                logger.info("Self-test: PDF page rendered at %sx%s", *image.size)
+
+            for path in folder.iterdir():
+                try:
+                    path.unlink()
+                except OSError:
+                    pass
+            try:
+                folder.rmdir()
+            except OSError:
+                pass
+    except Exception:
+        logger.exception("Self-test: PDF check raised an error")
+        ok = False
+
+    try:
+        from utils.reader_manager import reader_manager
+
+        available = reader_manager.available_readers()
+        logger.info("Self-test: %d reader(s) available", len(available))
+        if not available:
+            logger.error("Self-test: no readers were detected")
+            ok = False
+    except Exception:
+        logger.exception("Self-test: reader detection raised an error")
+        ok = False
+
+    try:
+        from database import db
+
+        logger.info("Self-test: %d book(s) in the library", db.get_total_book_count())
+    except Exception:
+        logger.exception("Self-test: database check raised an error")
+        ok = False
+
+    if ok:
+        logger.info("Self-test: all checks passed")
+    return ok
+
+
+def main() -> int:
+    """Start the application and return the exit code."""
+    logger.info("Starting %s %s", APP_NAME, APP_VERSION)
+
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
-    
+
     app = QApplication(sys.argv)
-    app.setApplicationName("Digital Library")
+    app.setApplicationName(APP_NAME)
+    app.setApplicationDisplayName(APP_NAME)
+    app.setApplicationVersion(APP_VERSION)
     app.setOrganizationName("DigitalLibrary")
-    
-    # Set application icon if exists
-    icon_path = ASSETS_DIR / "icon.png"
-    if icon_path.exists():
-        app.setWindowIcon(QIcon(str(icon_path)))
-    
-    # Create and show main window
-    window = MainWindow()
+
+    icon_file = ASSETS_DIR / ("icon.ico" if sys.platform == "win32" else "icon.png")
+    if not icon_file.exists():
+        icon_file = ASSETS_DIR / "icon.png"
+    if icon_file.exists():
+        app.setWindowIcon(QIcon(str(icon_file)))
+
+    apply_theme(app)
+    _install_exception_hook()
+
+    # The self-test must never block on the first-run welcome dialog.
+    window = MainWindow(run_startup=not SELF_TEST)
     window.show()
-    
     logger.info("Application window displayed")
-    
-    # Run event loop
-    exit_code = app.exec()
-    
-    logger.info(f"Application exiting with code {exit_code}")
-    return exit_code
+
+    # Headless self-test used by CI (and for troubleshooting a packaged build).
+    if SELF_TEST:
+        if not _run_self_test():
+            os._exit(4)
+        logger.info("Self-test mode: closing automatically")
+        QTimer.singleShot(300, app.quit)
+
+    return app.exec()
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    if "--version" in sys.argv:
+        print(f"{APP_NAME} {APP_VERSION}")
+        sys.exit(0)
+    try:
+        sys.exit(main())
+    except SystemExit:
+        raise
+    except Exception:
+        logger.critical("Fatal error during startup:\n%s", traceback.format_exc())
+        if SELF_TEST:
+            os._exit(3)
+        raise

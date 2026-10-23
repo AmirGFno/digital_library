@@ -4,19 +4,21 @@ Dialog windows for the application.
 from typing import Optional, List
 from pathlib import Path
 import os
-import subprocess
 
 from PyQt6.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QComboBox, QFileDialog,
     QMessageBox, QListWidget, QListWidgetItem, QCheckBox,
-    QRadioButton, QGroupBox, QTextEdit
+    QProgressDialog,
+    QApplication
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap, QIcon
+from PyQt6.QtGui import QPixmap
 
+from comic_metadata import read_metadata
 from config import ALL_EXTENSIONS
 from database import db
+from importer import scan_folder
 from utils.settings import settings
 
 
@@ -79,40 +81,71 @@ class AddBookDialog(QDialog):
         extensions = " ".join(f"*{ext}" for ext in ALL_EXTENSIONS)
         files, _ = QFileDialog.getOpenFileNames(
             self, "Select Books", "",
-            f"Book Files ({extensions});;All Files (*)"
+            f"Comic & book files ({extensions});;All Files (*)"
         )
         if files:
             self.filepaths = files
             if len(files) == 1:
                 self.file_label.setText(files[0])
+                self._autofill_from_metadata(files[0])
             else:
                 self.file_label.setText(f"{len(files)} files selected")
+
+    def _autofill_from_metadata(self, filepath: str):
+        """Pre-fill the form with embedded ComicInfo.xml values."""
+        try:
+            metadata = read_metadata(filepath)
+        except Exception:
+            return
+        if not metadata:
+            return
+        if not self.title_input.text().strip() and metadata.get('title'):
+            self.title_input.setText(str(metadata['title']))
+        if not self.volume_input.text().strip() and metadata.get('volume'):
+            self.volume_input.setText(str(metadata['volume']))
+        if metadata.get('series_name'):
+            index = self.series_combo.findText(str(metadata['series_name']))
+            if index >= 0:
+                self.series_combo.setCurrentIndex(index)
     
     def _add_book(self):
         if not self.filepaths:
             QMessageBox.warning(self, "Error", "Please select at least one file.")
             return
-        
+
+        from importer import importer
+        from ui.name_preview_dialog import preview_when_needed
+        from utils.settings import settings
+
         series_id = self.series_combo.currentData()
         volume = self.volume_input.text().strip() or None
         title = self.title_input.text().strip() or None
-        
-        success = 0
-        skipped = 0
-        
-        for filepath in self.filepaths:
-            book_title = title if len(self.filepaths) == 1 else None
-            if db.add_book(filepath, book_title, series_id, volume):
-                success += 1
-            else:
-                skipped += 1
-        
-        if skipped > 0:
-            QMessageBox.information(
-                self, "Import Complete",
-                f"Added: {success}, Skipped (duplicates): {skipped}"
-            )
-        
+        if len(self.filepaths) > 1:
+            # A single manual title cannot describe several files.
+            title = None
+
+        # The automatic title comes from the file name; show it before saving.
+        clean_names = settings.get_clean_names()
+        if title is None and clean_names:
+            preview = preview_when_needed(self.filepaths, self)
+            if preview is not None:
+                if not preview.exec():
+                    return
+                clean_names = preview.use_clean_names
+
+        result = importer.import_files(
+            self.filepaths,
+            series_id=series_id,
+            title=title,
+            volume=volume,
+            use_metadata=True,
+            clean_names=clean_names,
+        )
+
+        message = result.summary()
+        if result.errors:
+            message += "\n\n" + "\n".join(result.errors[:5])
+        QMessageBox.information(self, "Import finished", message)
         self.accept()
 
 
@@ -292,12 +325,22 @@ class BulkImportDialog(QDialog):
         folder_layout.addWidget(folder_btn)
         layout.addLayout(folder_layout)
         
-        # Recursive option
+        # Options
+        options_row = QHBoxLayout()
         self.recursive_check = QCheckBox("Include subfolders")
         self.recursive_check.setChecked(True)
         self.recursive_check.stateChanged.connect(self._scan_folder)
-        layout.addWidget(self.recursive_check)
-        
+        options_row.addWidget(self.recursive_check)
+
+        self.metadata_check = QCheckBox("Read ComicInfo.xml metadata")
+        self.metadata_check.setChecked(True)
+        self.metadata_check.setToolTip(
+            "Use embedded series, volume, writer and publisher information"
+        )
+        options_row.addWidget(self.metadata_check)
+        options_row.addStretch()
+        layout.addLayout(options_row)
+
         # Files list
         layout.addWidget(QLabel("Files found:"))
         self.files_list = QListWidget()
@@ -326,49 +369,60 @@ class BulkImportDialog(QDialog):
         layout.addLayout(btn_layout)
     
     def _browse_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "Select Folder")
+        start = settings.get_last_import_folder()
+        folder = QFileDialog.getExistingDirectory(self, "Select Folder", start)
         if folder:
             self.folder_path = folder
             self.folder_label.setText(folder)
+            settings.set_last_import_folder(folder)
             self._scan_folder()
-    
+
     def _scan_folder(self):
         if not self.folder_path:
             return
-        
-        self.files.clear()
+
+        self.files = scan_folder(
+            self.folder_path, recursive=self.recursive_check.isChecked()
+        )
         self.files_list.clear()
-        
-        folder = Path(self.folder_path)
-        pattern = "**/*" if self.recursive_check.isChecked() else "*"
-        
-        for ext in ALL_EXTENSIONS:
-            for file_path in folder.glob(f"{pattern}{ext}"):
-                if file_path.is_file():
-                    self.files.append(str(file_path))
-                    self.files_list.addItem(file_path.name)
-        
-        self.files_list.sortItems()
+        for filepath in self.files:
+            item = QListWidgetItem(Path(filepath).name)
+            item.setToolTip(filepath)
+            self.files_list.addItem(item)
     
     def _import_books(self):
         if not self.files:
             QMessageBox.warning(self, "Error", "No files to import.")
             return
-        
+
+        from importer import importer
+
         series_id = self.series_combo.currentData()
-        
-        books = [
-            {'filepath': f, 'series_id': series_id}
-            for f in self.files
-        ]
-        
-        success, skipped = db.bulk_add_books(books)
-        
-        QMessageBox.information(
-            self, "Import Complete",
-            f"Added: {success}\nSkipped (duplicates): {skipped}"
+
+        progress = QProgressDialog("Importing comics...", "Cancel", 0, len(self.files), self)
+        progress.setWindowTitle("Bulk import")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(0)
+        progress.setValue(0)
+
+        def on_progress(index, total, filepath):
+            progress.setMaximum(total)
+            progress.setValue(index - 1)
+            progress.setLabelText(f"Importing {Path(filepath).name}...")
+            QApplication.processEvents()
+
+        result = importer.import_files(
+            self.files,
+            series_id=series_id,
+            use_metadata=self.metadata_check.isChecked(),
+            progress=on_progress,
         )
-        
+        progress.setValue(len(self.files))
+
+        message = result.summary()
+        if result.errors:
+            message += "\n\n" + "\n".join(result.errors[:5])
+        QMessageBox.information(self, "Import finished", message)
         self.accept()
 
 
@@ -531,189 +585,3 @@ class SetCustomCoverDialog(QDialog):
                 self, "Error", 
                 f"Failed to set custom cover: {str(e)}"
             )
-
-
-class ReaderSettingsDialog(QDialog):
-    """Dialog for configuring custom reader application."""
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Reader Settings")
-        self.setMinimumWidth(500)
-        self._setup_ui()
-        self._load_settings()
-    
-    def _setup_ui(self):
-        layout = QVBoxLayout(self)
-        
-        # Title
-        title_label = QLabel("Configure Reader Application")
-        title_label.setStyleSheet("font-weight: bold; font-size: 14px;")
-        layout.addWidget(title_label)
-        
-        layout.addSpacing(10)
-        
-        # Reader selection group
-        selection_group = QGroupBox("Reader Selection")
-        selection_layout = QVBoxLayout(selection_group)
-        
-        # System default radio
-        self.system_radio = QRadioButton("Use system default application")
-        self.system_radio.toggled.connect(self._on_selection_changed)
-        selection_layout.addWidget(self.system_radio)
-        
-        # Custom reader radio
-        self.custom_radio = QRadioButton("Use custom reader application")
-        self.custom_radio.toggled.connect(self._on_selection_changed)
-        selection_layout.addWidget(self.custom_radio)
-        
-        layout.addWidget(selection_group)
-        
-        # Custom reader settings (initially disabled)
-        self.custom_group = QGroupBox("Custom Reader Settings")
-        self.custom_group.setEnabled(False)
-        custom_layout = QVBoxLayout(self.custom_group)
-        
-        # Path selection
-        path_layout = QHBoxLayout()
-        path_layout.addWidget(QLabel("Reader path:"))
-        self.path_input = QLineEdit()
-        self.path_input.setPlaceholderText("Select .exe file...")
-        path_layout.addWidget(self.path_input, 1)
-        
-        browse_btn = QPushButton("Browse...")
-        browse_btn.clicked.connect(self._browse_exe)
-        path_layout.addWidget(browse_btn)
-        custom_layout.addLayout(path_layout)
-        
-        # Reader name
-        name_layout = QHBoxLayout()
-        name_layout.addWidget(QLabel("Reader name:"))
-        self.name_input = QLineEdit()
-        self.name_input.setPlaceholderText("e.g., CDisplayEx, SumatraPDF, etc.")
-        name_layout.addWidget(self.name_input, 1)
-        custom_layout.addLayout(name_layout)
-        
-        # Test button
-        test_btn = QPushButton("Test Reader")
-        test_btn.clicked.connect(self._test_reader)
-        custom_layout.addWidget(test_btn)
-        
-        layout.addWidget(self.custom_group)
-        
-        # Info text
-        info_label = QLabel(
-            "Note: Custom reader will be used for opening all book files. "
-            "Make sure the selected application supports the file formats you use."
-        )
-        info_label.setWordWrap(True)
-        info_label.setStyleSheet("color: #888; font-size: 10px;")
-        layout.addWidget(info_label)
-        
-        layout.addStretch()
-        
-        # Buttons
-        btn_layout = QHBoxLayout()
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        save_btn = QPushButton("Save Settings")
-        save_btn.clicked.connect(self._save_settings)
-        save_btn.setDefault(True)
-        
-        btn_layout.addStretch()
-        btn_layout.addWidget(cancel_btn)
-        btn_layout.addWidget(save_btn)
-        layout.addLayout(btn_layout)
-    
-    def _load_settings(self):
-        """Load current settings."""
-        reader_settings = settings.get_reader_settings()
-        
-        if reader_settings.get('use_system_default', False):
-            self.system_radio.setChecked(True)
-            self.custom_group.setEnabled(False)
-        else:
-            self.custom_radio.setChecked(True)
-            self.custom_group.setEnabled(True)
-        
-        self.path_input.setText(reader_settings.get('path', ''))
-        self.name_input.setText(reader_settings.get('name', ''))
-    
-    def _on_selection_changed(self):
-        """Handle radio button selection change."""
-        self.custom_group.setEnabled(self.custom_radio.isChecked())
-    
-    def _browse_exe(self):
-        """Browse for executable file."""
-        filepath, _ = QFileDialog.getOpenFileName(
-            self, "Select Reader Application", "",
-            "Executable files (*.exe);;All files (*.*)"
-        )
-        if filepath:
-            self.path_input.setText(filepath)
-            
-            # Auto-fill name from filename
-            if not self.name_input.text():
-                name = Path(filepath).stem
-                self.name_input.setText(name)
-    
-    def _test_reader(self):
-        """Test the selected reader."""
-        path = self.path_input.text().strip()
-        
-        if not path:
-            QMessageBox.warning(self, "Error", "Please select a reader application first.")
-            return
-        
-        if not os.path.exists(path):
-            QMessageBox.warning(self, "Error", f"File not found:\n{path}")
-            return
-        
-        try:
-            # Try to run the application without arguments
-            subprocess.Popen([path], shell=True)
-            QMessageBox.information(
-                self, "Success", 
-                f"Reader application started successfully!\n\n"
-                f"Application: {Path(path).name}"
-            )
-        except Exception as e:
-            QMessageBox.critical(
-                self, "Error", 
-                f"Failed to start reader application:\n{str(e)}"
-            )
-    
-    def _save_settings(self):
-        """Save settings and close dialog."""
-        use_system_default = self.system_radio.isChecked()
-        
-        if not use_system_default:
-            # Validate custom reader
-            path = self.path_input.text().strip()
-            name = self.name_input.text().strip()
-            
-            if not path:
-                QMessageBox.warning(self, "Error", "Please select a reader application.")
-                return
-            
-            if not os.path.exists(path):
-                QMessageBox.warning(self, "Error", "Selected file does not exist.")
-                return
-            
-            if not name:
-                name = Path(path).stem
-        
-        # Save settings
-        settings.set_reader_settings(
-            enabled=True,  # Always enabled when we get here
-            path=self.path_input.text().strip() if not use_system_default else "",
-            name=self.name_input.text().strip() if not use_system_default else "",
-            use_system_default=use_system_default
-        )
-        
-        QMessageBox.information(
-            self, "Settings Saved",
-            "Reader settings have been saved successfully."
-        )
-        
-        self.accept()
