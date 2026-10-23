@@ -33,4 +33,4 @@ jobs:
       - name: GUI smoke test
         env:
           QT_QPA_PLATFORM: offscreen
-        run: python scripts/smoke_test.py
+        run: python scripts/smoke.py

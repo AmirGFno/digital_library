@@ -31,7 +31,7 @@ jobs:
       - name: GUI smoke test
         env:
           QT_QPA_PLATFORM: offscreen
-        run: python scripts/smoke_test.py
+        run: python scripts/smoke.py
 
       - name: Build executable
         run: pyinstaller --noconfirm --clean DigitalLibrary.spec

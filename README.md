@@ -121,7 +121,7 @@ python -m pytest -q
 آزمون رابط گرافیکی (بدون نمایشگر):
 
 ```bash
-python scripts/smoke_test.py
+python scripts/smoke.py
 ```
 
 ### میان‌برهای صفحه‌کلید
