@@ -52,6 +52,82 @@ def _install_exception_hook():
     sys.excepthook = handle_exception
 
 
+def _run_self_test() -> bool:
+    """Prove the packaged application can really read comics and PDFs.
+
+    Importing a module is not enough: the PDF engine keeps working with a stub
+    when its native library is missing, so a broken bundle would only show up
+    later as missing covers. This renders an actual page.
+    """
+    ok = True
+
+    try:
+        import tempfile
+        from pathlib import Path
+
+        import pdf_engine
+
+        if not pdf_engine.HAS_PDFIUM:
+            logger.error("Self-test: the bundled PDF library is not available")
+            ok = False
+        else:
+            import pypdfium2 as pdfium
+
+            folder = Path(tempfile.mkdtemp(prefix="dl-self-test-"))
+            sample = folder / "sample.pdf"
+            document = pdfium.PdfDocument.new()
+            document.new_page(400, 600)
+            document.save(str(sample))
+            document.close()
+
+            pages = pdf_engine.get_page_count(str(sample))
+            image = pdf_engine.render_first_page(str(sample), max_width=200)
+            if pages != 1 or image is None or image.width < 10:
+                logger.error(
+                    "Self-test: PDF rendering failed (pages=%s, cover=%s)", pages, image
+                )
+                ok = False
+            else:
+                logger.info("Self-test: PDF page rendered at %sx%s", *image.size)
+
+            for path in folder.iterdir():
+                try:
+                    path.unlink()
+                except OSError:
+                    pass
+            try:
+                folder.rmdir()
+            except OSError:
+                pass
+    except Exception:
+        logger.exception("Self-test: PDF check raised an error")
+        ok = False
+
+    try:
+        from utils.reader_manager import reader_manager
+
+        available = reader_manager.available_readers()
+        logger.info("Self-test: %d reader(s) available", len(available))
+        if not available:
+            logger.error("Self-test: no readers were detected")
+            ok = False
+    except Exception:
+        logger.exception("Self-test: reader detection raised an error")
+        ok = False
+
+    try:
+        from database import db
+
+        logger.info("Self-test: %d book(s) in the library", db.get_total_book_count())
+    except Exception:
+        logger.exception("Self-test: database check raised an error")
+        ok = False
+
+    if ok:
+        logger.info("Self-test: all checks passed")
+    return ok
+
+
 def main() -> int:
     """Start the application and return the exit code."""
     logger.info("Starting %s %s", APP_NAME, APP_VERSION)
@@ -82,8 +158,10 @@ def main() -> int:
 
     # Headless self-test used by CI (and for troubleshooting a packaged build).
     if SELF_TEST:
+        if not _run_self_test():
+            os._exit(4)
         logger.info("Self-test mode: closing automatically")
-        QTimer.singleShot(700, app.quit)
+        QTimer.singleShot(300, app.quit)
 
     return app.exec()
 
