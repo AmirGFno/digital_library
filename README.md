@@ -1,85 +1,213 @@
-# Digital Library
+<p align="center">
+  <img src="assets/icon.png" width="120" alt="Digital Library icon">
+</p>
 
-یک برنامه دسکتوب برای مدیریت کتابخانه دیجیتال کتاب‌ها، ساخته شده با Python و PyQt6.
+<h1 align="center">Digital Library</h1>
 
-## ویژگی‌ها
+<p align="center">
+  مدیر کتابخانه‌ی کمیک و کتاب دیجیتال برای ویندوز، لینوکس و مک<br>
+  A comic &amp; digital book library manager for Windows, Linux and macOS
+</p>
 
-- 📚 مدیریت کتاب‌های PDF، عکس و آرشیو (CBZ, CBR, 7z, ZIP, TAR)
-- 🖼 استخراج خودکار کاور از فایل‌ها (اولین صفحه PDF، اولین عکس آرشیو و غیره)
-- 📂 دسته‌بندی کتاب در سری‌ها و مرتب‌سازی بر اساس جلد (volume)
-- ✅ علامت‌گذاری کتاب‌های خوانده/نشده
-- 🎨 کاور سفارشی برای هر کتاب
-- 🔍 جستجو در کتاب‌ها
-- 📥 وارد کردن گروهی از یک پوشه (Bulk Import)
-- 🌙 تم تیره (Dark Theme)
-- 🖥 انتخاب برنامه خواننده سفارشی یا استفاده از برنامه پیش‌فرض سیستم
+<p align="center">
+  <a href="../../actions/workflows/tests.yml"><img alt="Tests" src="../../actions/workflows/tests.yml/badge.svg"></a>
+  <a href="../../actions/workflows/build-windows.yml"><img alt="Windows build" src="../../actions/workflows/build-windows.yml/badge.svg"></a>
+  <img alt="Version" src="https://img.shields.io/badge/version-2.1.0-e8552d">
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-blue">
+</p>
 
-## نصب و اجرا
+---
 
-### پیش‌نیازها
+## فارسی
 
-- Python 3.7+
-- وابستگی‌ها در `requirements.txt`:
-  - PyQt6
-  - Pillow
-  - PyMuPDF
-  - rarfile
-  - py7zr
+### درباره
 
-### نصب
+**Digital Library** یک برنامه‌ی دسکتاپ برای مدیریت کمیک‌ها و کتاب‌های دیجیتال است.
+فایل‌ها را دسته‌بندی می‌کند، کاور می‌سازد، اطلاعات کمیک را از فایل می‌خواند و هر
+کتاب را با یکی از خواننده‌های کمیک نصب‌شده روی سیستم باز می‌کند.
+
+### ویژگی‌ها
+
+- پشتیبانی از **CBZ، CBR، CB7، CBT، ZIP، RAR، 7z، TAR، PDF و تصویر**
+- خواندن خودکار **ComicInfo.xml** (سری، جلد، نویسنده، ناشر، سال، خلاصه، تعداد صفحه)
+- ساخت خودکار سری از روی اطلاعات کمیک و شمارش خوانده‌نشده‌ها
+- استخراج کاور از اولین صفحه‌ی PDF یا اولین تصویر آرشیو، همراه با کش
+- کاور سفارشی برای هر کتاب
+- برچسب **علاقه‌مندی**، امتیاز پنج‌ستاره و تاریخچه‌ی مطالعه
+- جستجو در عنوان، سری، نویسنده و ناشر
+- فیلتر خوانده/نخوانده/در حال مطالعه و فیلتر نوع فایل
+- مرتب‌سازی بر اساس سری، عنوان، تازگی افزودن، آخرین مطالعه، امتیاز و حجم
+- کشیدن و رها کردن فایل یا پوشه روی پنجره‌ی برنامه برای افزودن سریع
+- ویرایش اطلاعات هر کتاب از پنجره‌ی جزئیات
+- تشخیص خودکار خواننده‌های کمیک و امکان افزودن هر برنامه‌ی دلخواه
+- انتخاب خواننده‌ی پیش‌فرض، یا خواننده‌ی جداگانه برای هر نوع فایل
+- رابط تیره‌ی مدرن، ذخیره‌ی چیدمان پنجره و پشتیبانی از DPI بالا
+- نسخه‌ی **EXE تک‌فایل** بدون نیاز به نصب پایتون
+
+### خواننده‌های پشتیبانی‌شده
+
+| برنامه | ویندوز | لینوکس | مک |
+|---|:---:|:---:|:---:|
+| CDisplayEx | ✅ | — | — |
+| YACReader | ✅ | ✅ | ✅ |
+| ComicRack | ✅ | — | — |
+| MComix | ✅ | ✅ | — |
+| SumatraPDF | ✅ | — | — |
+| Honeyview | ✅ | — | — |
+| Comic Seer | ✅ | — | — |
+| Calibre Viewer | ✅ | ✅ | ✅ |
+| qComicBook / Okular / Gwenview | — | ✅ | — |
+| Preview / Simple Comic | — | — | ✅ |
+
+هر برنامه‌ی دیگری را هم می‌توانید از مسیر
+**File → Reader settings → Add custom reader** اضافه کنید.
+
+### نصب و اجرا از سورس
 
 ```bash
 git clone https://github.com/AmirGFno/digital_library.git
 cd digital_library
-pip install -r requirements.txt
-```
-
-### اجرا
-
-**ویندوز:**
-```cmd
-run.bat
-```
-
-**لینوکس / مک:**
-```bash
+python -m pip install -r requirements.txt
 python main.py
 ```
 
-## ساختار پروژه
+در ویندوز می‌توانید `run.bat` را اجرا کنید.
 
+### دریافت نسخه‌ی EXE
+
+از بخش [Releases](../../releases) فایل
+`DigitalLibrary-2.1.0-windows-x64.zip` را دانلود کنید، از حالت فشرده خارج کنید
+و `DigitalLibrary.exe` را اجرا کنید. پایتون لازم نیست.
+
+> ویندوز ممکن است بار اول هشدار SmartScreen نشان دهد، چون فایل امضای دیجیتال
+> ندارد. با «More info → Run anyway» ادامه دهید.
+
+برنامه **قابل حمل (portable)** است: پوشه‌های `data`، `logs`، `thumbnails` و
+`custom_covers` کنار فایل EXE ساخته می‌شوند. برای انتقال کتابخانه کافی است
+پوشه‌ی برنامه را جابه‌جا کنید. اگر برنامه در مسیری بدون دسترسی نوشتن (مثلاً
+`Program Files`) اجرا شود، به‌طور خودکار از پوشه‌ی داده‌ی کاربر استفاده می‌کند.
+
+### نکته درباره‌ی CBR / RAR
+
+برای خواندن فایل‌های RAR، کتابخانه‌ی `rarfile` به یکی از ابزارهای
+`UnRAR`، `unar`، `bsdtar` یا `7z` نیاز دارد. اگر WinRAR یا 7-Zip نصب باشد
+معمولاً به‌طور خودکار پیدا می‌شود؛ در غیر این صورت فایل را به CBZ تبدیل کنید
+یا ابزار را نصب کنید. فایل‌های CBZ و ZIP بدون هیچ ابزار اضافه‌ای کار می‌کنند.
+
+### ساخت EXE
+
+```bat
+build_windows.bat
 ```
+
+یا به‌صورت دستی:
+
+```bat
+pip install -r requirements-dev.txt
+pyinstaller --noconfirm --clean DigitalLibrary.spec
+```
+
+خروجی: `dist\DigitalLibrary.exe`
+
+در گیت‌هاب، ورک‌فلوی **Build Windows executable** به‌صورت دستی یا با ساختن
+تگ `v*` اجرا می‌شود و فایل EXE را به‌عنوان Artifact/Release منتشر می‌کند.
+
+### آزمون‌ها
+
+```bash
+python -m pytest -q
+```
+
+آزمون رابط گرافیکی (بدون نمایشگر):
+
+```bash
+python scripts/smoke_test.py
+```
+
+### میان‌برهای صفحه‌کلید
+
+| کلید | کار |
+|---|---|
+| `Ctrl+O` | افزودن کتاب |
+| `Ctrl+Shift+O` | افزودن یک پوشه |
+| `Ctrl+F` | جستجو |
+| `Ctrl+D` | نمایش علاقه‌مندی‌ها |
+| `Ctrl+,` | تنظیمات خواننده |
+| `Ctrl+I` | آمار کتابخانه |
+| `Ctrl++` / `Ctrl+-` | کم و زیاد کردن ستون‌ها |
+| `F5` | تازه‌سازی |
+| دوبار کلیک | باز کردن کتاب |
+| کلیک راست | منوی «Open with» و سایر گزینه‌ها |
+
+---
+
+## English
+
+### Features
+
+- CBZ, CBR, CB7, CBT, ZIP, RAR, 7z, TAR, PDF and image support
+- Automatic **ComicInfo.xml** import (series, volume, writer, publisher, year,
+  summary, page count)
+- Auto-created series, unread counters and reading history
+- Cover extraction with cache and custom covers
+- Favorites, five-star ratings, read/started filters
+- Full-text search over title, series, writer and publisher
+- Six sort orders, drag &amp; drop import, metadata editor and statistics
+- Detects popular comic readers and can launch any custom executable, globally
+  or per file type
+- Modern dark UI, saved layout, high-DPI friendly
+- Single-file Windows executable (no Python required)
+
+### Quick start
+
+```bash
+git clone https://github.com/AmirGFno/digital_library.git
+cd digital_library
+python -m pip install -r requirements.txt
+python main.py
+```
+
+### Project layout
+
+```text
 digital_library/
-├── main.py              # نقطه ورود برنامه
-├── config.py            # تنظیمات و ثابت‌ها
-├── database.py          # مدیریت دیتابیس SQLite
-├── cover_extractor.py   # استخراج کاور از فایل‌ها
-├── fix_volume_sorting.py# ابزار Repair ترتیب جلد‌ها
-├── requirements.txt     # وابستگی‌های Python
-├── run.bat              # اسکریپت اجرا در ویندوز
-├── README.md            # این فایل
-├── .gitignore           # فایل‌های نادیده گرفته‌شده توسط گیت
-├── data/                # دیتابیس و تنظیمات کاربر (نادیده گرفته می‌شود)
-├── logs/                # لاگ‌های برنامه (نادیده گرفته می‌شود)
-├── thumbnails/          # کاورهای کش‌شده (نادیده گرفته می‌شود)
-├── assets/              # فایل‌های استاتیک (کاور پیش‌فرض)
-└── ui/                  # رابط کاربری
-    ├── __init__.py
-    ├── main_window.py   # پنل اصلی
-    ├── book_card.py     # کارت نمایش کتاب
-    ├── series_panel.py  # پنل سری‌ها (sidebar)
-    └── dialogs.py       # دایالگ‌ها
-└── utils/               # ابزارها
-    ├── __init__.py
-    ├── logger.py        # لاگر
-    ├── helpers.py       # توابع کمکی
-    └── settings.py      # تنظیمات کاربر
+├── main.py                     # application entry point
+├── config.py                   # paths, version, supported formats
+├── database.py                 # SQLite schema, migrations and queries
+├── cover_extractor.py          # PDF/archive cover extraction + cache
+├── comic_metadata.py           # ComicInfo.xml / PDF metadata + page count
+├── importer.py                 # import pipeline used by dialogs and drag & drop
+├── ui/
+│   ├── main_window.py          # library window
+│   ├── book_card.py            # book card + context menu ("Open with")
+│   ├── series_panel.py         # sidebar
+│   ├── dialogs.py              # add/edit/import/cover dialogs
+│   ├── details_dialog.py       # metadata viewer/editor
+│   ├── reader_settings_dialog.py
+│   └── theme.py                # global dark stylesheet
+├── utils/
+│   ├── reader_manager.py       # reader detection and launching
+│   ├── settings.py             # atomic JSON settings
+│   ├── helpers.py
+│   └── logger.py
+├── scripts/
+│   ├── smoke_test.py           # headless GUI test
+│   └── make_icon.py            # generates assets/icon.png + icon.ico
+├── tests/                      # pytest test-suite
+├── DigitalLibrary.spec         # PyInstaller build definition
+└── build_windows.bat
 ```
 
-## مشارکت
+### Building the executable
 
-بازخوردها و پیشنهادات شما خوش می‌آمد. می‌توانیدIssue باز کنید یا Pull Request بفرستید.
+```bat
+build_windows.bat
+```
 
-## لایسنس
+The GitHub Actions workflow `Build Windows executable` builds and tests the
+application on `windows-latest`, then publishes the EXE as an artifact (and as a
+release when a `v*` tag is pushed).
 
-इस проект injuries؟ (لایسنس هنوز تعریف نشده است)
+### License
+
+MIT — see [LICENSE](LICENSE).

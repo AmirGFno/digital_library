@@ -1,0 +1,81 @@
+name: Build Windows executable
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Unit tests
+        run: pytest -q
+
+      - name: GUI smoke test
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python scripts/smoke_test.py
+
+      - name: Build executable
+        run: pyinstaller --noconfirm --clean DigitalLibrary.spec
+
+      - name: Packaged application self-test
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath "dist\DigitalLibrary.exe" `
+            -ArgumentList "--self-test" -PassThru
+          if (-not $process.WaitForExit(180000)) {
+            $process.Kill()
+            throw "Packaged application self-test timed out"
+          }
+          if ($process.ExitCode -ne 0) {
+            Get-Content dist\logs\*.log -ErrorAction SilentlyContinue | Select-Object -Last 80
+            throw "Packaged application self-test failed with exit code $($process.ExitCode)"
+          }
+
+      - name: Package artifact
+        shell: pwsh
+        run: |
+          $version = (Get-Content config.py | Select-String 'APP_VERSION = "([^"]+)"').Matches.Groups[1].Value
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Copy-Item dist\DigitalLibrary.exe "release\DigitalLibrary-$version-windows-x64.exe"
+          Compress-Archive -Path "release\DigitalLibrary-$version-windows-x64.exe" `
+            -DestinationPath "release\DigitalLibrary-$version-windows-x64.zip"
+          (Get-FileHash "release\DigitalLibrary-$version-windows-x64.zip" -Algorithm SHA256).Hash `
+            | Out-File "release\SHA256.txt"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DigitalLibrary-windows-x64
+          path: release/*
+          if-no-files-found: error
+
+      - name: Publish release (tags only)
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = (Get-Content config.py | Select-String 'APP_VERSION = "([^"]+)"').Matches.Groups[1].Value
+          gh release create ${{ github.ref_name }} `
+            "release\DigitalLibrary-$version-windows-x64.zip" `
+            "release\SHA256.txt" `
+            --title "Digital Library $version" `
+            --notes "Windows build of Digital Library $version (single executable, no Python required)."

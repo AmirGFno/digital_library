@@ -1,305 +1,414 @@
 """
 Main window of the Digital Library application.
+
+Features: series sidebar, search, read/favorite/format filters, multiple sort
+orders, drag & drop import, reader integration ("Open with" for every detected
+comic reader), details editor, statistics and persisted layout.
 """
+from __future__ import annotations
+
 import os
-from typing import Optional, List
 from pathlib import Path
+from typing import Dict, List, Optional
 
+from PyQt6.QtCore import QByteArray, QSize, Qt, QTimer
+from PyQt6.QtGui import QAction, QDragEnterEvent, QDropEvent, QIcon, QKeySequence
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QScrollArea, QGridLayout, QMenuBar, QMenu, QMessageBox,
-    QLabel, QStatusBar, QSpinBox, QToolBar, QLineEdit,
-    QComboBox, QSplitter, QFrame, QDialog, QVBoxLayout as QVBox,
-    QHBoxLayout as QHBox
+    QApplication,
+    QComboBox,
+    QDialog,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QMessageBox,
+    QProgressDialog,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QSpinBox,
+    QSplitter,
+    QStatusBar,
+    QToolBar,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
 )
-from PyQt6.QtGui import QAction, QKeySequence
-from PyQt6.QtCore import Qt, QSize
 
-from database import db
+from config import (
+    APP_NAME,
+    APP_VERSION,
+    ASSETS_DIR,
+    CARD_WIDTH,
+    DEFAULT_COLUMNS,
+)
 from cover_extractor import cover_extractor
-from config import DEFAULT_COLUMNS, CARD_WIDTH, CARD_HEIGHT
+from database import db
+from importer import importer, scan_folder
+from utils.helpers import (
+    format_file_size,
+    open_containing_folder,
+    sort_books_naturally,
+)
 from utils.logger import logger
-from utils.helpers import open_file_with_default_app
+from utils.reader_manager import reader_manager
 from utils.settings import settings
 from ui.book_card import BookCard
-from ui.series_panel import SeriesPanel
+from ui.details_dialog import DetailsDialog
 from ui.dialogs import (
-    AddBookDialog, EditVolumeDialog, ConfirmDialog, 
-    BulkImportDialog, AddSeriesDialog, SetCustomCoverDialog,
-    ReaderSettingsDialog
+    AddBookDialog,
+    AddSeriesDialog,
+    BulkImportDialog,
+    ConfirmDialog,
+    EditVolumeDialog,
+    SetCustomCoverDialog,
 )
+from ui.reader_settings_dialog import ReaderSettingsDialog
+from ui.series_panel import SeriesPanel
+
+SORT_OPTIONS = [
+    ("Series && volume", "series"),
+    ("Title (A-Z)", "title"),
+    ("Recently added", "added"),
+    ("Recently read", "opened"),
+    ("Rating (high to low)", "rating"),
+    ("File size (large first)", "size"),
+]
+
+FORMAT_OPTIONS = [
+    ("All formats", "all"),
+    ("Comics (CBZ/CBR)", "comic"),
+    ("PDF", "pdf"),
+    ("Images", "image"),
+    ("Archives", "archive"),
+]
 
 
 class MainWindow(QMainWindow):
     """Main application window."""
-    
+
     def __init__(self):
         super().__init__()
-        self.current_series_filter: Optional[int] = None
-        self.current_search: str = ""
-        self.columns = DEFAULT_COLUMNS
+        self.current_series_filter = None  # None = all books, "unsorted", or series id
+        self.current_search = ""
+        self.columns = settings.get_columns()
         self.book_cards: List[BookCard] = []
-        
+        self.books: List[Dict] = []
+
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(180)
+        self._search_timer.timeout.connect(self.refresh_books)
+
+        self.setAcceptDrops(True)
         self._setup_ui()
+        self._setup_actions()
         self._setup_menu()
         self._setup_toolbar()
         self._setup_statusbar()
-        self._apply_theme()
-        
-        # Load initial data
+        self._restore_window_state()
         self.refresh_books()
-    
+
+    # ------------------------------------------------------------------
+    # UI construction
+    # ------------------------------------------------------------------
     def _setup_ui(self):
-        self.setWindowTitle("Digital Library")
-        self.setMinimumSize(1000, 700)
-        self.resize(1200, 800)
-        
-        # Central widget
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
-        
-        # Main layout with splitter
-        main_layout = QHBoxLayout(central_widget)
+        self.setWindowTitle(f"{APP_NAME} {APP_VERSION}")
+        self.setMinimumSize(1040, 700)
+        self.resize(1280, 820)
+
+        icon_path = ASSETS_DIR / "icon.png"
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
+
+        central = QWidget()
+        self.setCentralWidget(central)
+        main_layout = QHBoxLayout(central)
         main_layout.setContentsMargins(0, 0, 0, 0)
-        
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        main_layout.addWidget(splitter)
-        
-        # Series panel (sidebar)
+        main_layout.setSpacing(0)
+
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        main_layout.addWidget(self.splitter)
+
         self.series_panel = SeriesPanel()
-        self.series_panel.setMinimumWidth(200)
-        self.series_panel.setMaximumWidth(300)
+        self.series_panel.setObjectName("Sidebar")
+        self.series_panel.setMinimumWidth(210)
+        self.series_panel.setMaximumWidth(340)
         self.series_panel.series_selected.connect(self._on_series_selected)
-        self.series_panel.series_changed.connect(self.refresh_books)
-        splitter.addWidget(self.series_panel)
-        
-        # Books area
+        self.series_panel.series_changed.connect(self._on_series_changed)
+        self.splitter.addWidget(self.series_panel)
+
         books_container = QWidget()
         books_layout = QVBoxLayout(books_container)
-        books_layout.setContentsMargins(10, 10, 10, 10)
-        
-        # Scroll area for books grid
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setHorizontalScrollBarPolicy(
+        books_layout.setContentsMargins(14, 12, 14, 8)
+        books_layout.setSpacing(8)
+
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         )
-        scroll_area.setStyleSheet("""
-            QScrollArea {
-                border: none;
-                background-color: transparent;
-            }
-        """)
-        
-        # Grid container
         self.grid_container = QWidget()
         self.grid_layout = QGridLayout(self.grid_container)
-        self.grid_layout.setSpacing(15)
+        self.grid_layout.setSpacing(14)
+        self.grid_layout.setContentsMargins(6, 6, 6, 6)
         self.grid_layout.setAlignment(
             Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
         )
-        
-        scroll_area.setWidget(self.grid_container)
-        books_layout.addWidget(scroll_area)
-        
-        splitter.addWidget(books_container)
-        splitter.setSizes([220, 980])
-    
+        self.scroll_area.setWidget(self.grid_container)
+        books_layout.addWidget(self.scroll_area)
+
+        self.splitter.addWidget(books_container)
+        self.splitter.setSizes([230, 1050])
+        self.splitter.setStretchFactor(1, 1)
+
+    def _setup_actions(self):
+        self.add_action = QAction("Add books...", self)
+        self.add_action.setShortcut(QKeySequence.StandardKey.Open)
+        self.add_action.triggered.connect(self._add_book)
+
+        self.import_folder_action = QAction("Import folder...", self)
+        self.import_folder_action.setShortcut(QKeySequence("Ctrl+Shift+O"))
+        self.import_folder_action.triggered.connect(self._bulk_import)
+
+        self.focus_search_action = QAction("Focus search", self)
+        self.focus_search_action.setShortcut(QKeySequence.StandardKey.Find)
+        self.focus_search_action.triggered.connect(self._focus_search)
+
+        self.refresh_action = QAction("Refresh", self)
+        self.refresh_action.setShortcut(QKeySequence("F5"))
+        self.refresh_action.triggered.connect(self.refresh_books)
+
+        self.reader_settings_action = QAction("Reader settings...", self)
+        self.reader_settings_action.setShortcut(QKeySequence("Ctrl+,"))
+        self.reader_settings_action.triggered.connect(self._show_reader_settings)
+
+        self.stats_action = QAction("Library statistics...", self)
+        self.stats_action.setShortcut(QKeySequence("Ctrl+I"))
+        self.stats_action.triggered.connect(self._show_statistics)
+
+        self.favorites_action = QAction("Show favorites", self)
+        self.favorites_action.setShortcut(QKeySequence("Ctrl+D"))
+        self.favorites_action.setCheckable(True)
+        self.favorites_action.triggered.connect(self._toggle_favorites_filter)
+
+        self.clear_cache_action = QAction("Clear cover cache", self)
+        self.clear_cache_action.triggered.connect(self._clear_cache)
+
+        self.exit_action = QAction("Exit", self)
+        self.exit_action.setShortcut(QKeySequence("Alt+F4"))
+        self.exit_action.triggered.connect(self.close)
+
+        self.about_action = QAction("About", self)
+        self.about_action.triggered.connect(self._show_about)
+
+        self.shortcuts_action = QAction("Keyboard shortcuts", self)
+        self.shortcuts_action.triggered.connect(self._show_shortcuts)
+
     def _setup_menu(self):
         menubar = self.menuBar()
-        
-        # File menu
-        file_menu = menubar.addMenu("File")
-        
-        add_action = QAction("Add Book...", self)
-        add_action.setShortcut(QKeySequence("Ctrl+O"))
-        add_action.triggered.connect(self._add_book)
-        file_menu.addAction(add_action)
-        
-        bulk_action = QAction("Bulk Import...", self)
-        bulk_action.setShortcut(QKeySequence("Ctrl+Shift+O"))
-        bulk_action.triggered.connect(self._bulk_import)
-        file_menu.addAction(bulk_action)
-        
+
+        file_menu = menubar.addMenu("&File")
+        file_menu.addAction(self.add_action)
+        file_menu.addAction(self.import_folder_action)
         file_menu.addSeparator()
-        
-        reader_action = QAction("Reader Settings...", self)
-        reader_action.triggered.connect(self._show_reader_settings)
-        file_menu.addAction(reader_action)
-        
+        file_menu.addAction(self.focus_search_action)
+        file_menu.addAction(self.reader_settings_action)
         file_menu.addSeparator()
-        
-        refresh_action = QAction("Refresh", self)
-        refresh_action.setShortcut(QKeySequence("F5"))
-        refresh_action.triggered.connect(self.refresh_books)
-        file_menu.addAction(refresh_action)
-        
+        file_menu.addAction(self.refresh_action)
         file_menu.addSeparator()
-        
-        exit_action = QAction("Exit", self)
-        exit_action.setShortcut(QKeySequence("Alt+F4"))
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
-        
-        # Series menu
-        series_menu = menubar.addMenu("Series")
-        
-        add_series_action = QAction("Add Series...", self)
-        add_series_action.triggered.connect(self._add_series)
-        series_menu.addAction(add_series_action)
-        
-        # View menu
-        view_menu = menubar.addMenu("View")
-        
-        clear_cache_action = QAction("Clear Cover Cache", self)
-        clear_cache_action.triggered.connect(self._clear_cache)
-        view_menu.addAction(clear_cache_action)
-        
-        # Help menu
-        help_menu = menubar.addMenu("Help")
-        
-        about_action = QAction("About", self)
-        about_action.triggered.connect(self._show_about)
-        help_menu.addAction(about_action)
-    
+        file_menu.addAction(self.exit_action)
+
+        library_menu = menubar.addMenu("&Library")
+        library_menu.addAction(self.favorites_action)
+        library_menu.addAction(self.stats_action)
+        library_menu.addSeparator()
+        clear_cache = library_menu.addAction("Clear cover cache")
+        clear_cache.triggered.connect(self._clear_cache)
+
+        series_menu = menubar.addMenu("&Series")
+        add_series = series_menu.addAction("Add series...")
+        add_series.triggered.connect(self._add_series)
+
+        view_menu = menubar.addMenu("&View")
+        zoom_in = view_menu.addAction("More columns")
+        zoom_in.setShortcut(QKeySequence("Ctrl++"))
+        zoom_in.triggered.connect(lambda: self._change_columns(1))
+        zoom_out = view_menu.addAction("Fewer columns")
+        zoom_out.setShortcut(QKeySequence("Ctrl+-"))
+        zoom_out.triggered.connect(lambda: self._change_columns(-1))
+        reset_view = view_menu.addAction("Reset layout")
+        reset_view.triggered.connect(self._reset_view)
+
+        help_menu = menubar.addMenu("&Help")
+        help_menu.addAction(self.shortcuts_action)
+        help_menu.addSeparator()
+        help_menu.addAction(self.about_action)
+
     def _setup_toolbar(self):
-        toolbar = QToolBar("Main Toolbar")
+        toolbar = QToolBar("Main toolbar", self)
         toolbar.setMovable(False)
         toolbar.setIconSize(QSize(20, 20))
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.addToolBar(toolbar)
-        
-        # Search box
-        search_label = QLabel("Search: ")
-        toolbar.addWidget(search_label)
-        
+
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search books...")
-        self.search_input.setMaximumWidth(250)
+        self.search_input.setPlaceholderText("Search title, series, writer, publisher...")
+        self.search_input.setClearButtonEnabled(True)
+        self.search_input.setMinimumWidth(280)
         self.search_input.textChanged.connect(self._on_search_changed)
         toolbar.addWidget(self.search_input)
-        
+
         toolbar.addSeparator()
-        
-        # Columns spinner
-        columns_label = QLabel("Columns: ")
-        toolbar.addWidget(columns_label)
-        
+
+        self.read_filter_combo = QComboBox()
+        self.read_filter_combo.addItem("All books", "all")
+        self.read_filter_combo.addItem("Unread", "unread")
+        self.read_filter_combo.addItem("Read", "read")
+        self.read_filter_combo.addItem("Started", "started")
+        self.read_filter_combo.currentIndexChanged.connect(self.refresh_books)
+        toolbar.addWidget(self.read_filter_combo)
+
+        self.format_combo = QComboBox()
+        for label, value in FORMAT_OPTIONS:
+            self.format_combo.addItem(label, value)
+        self.format_combo.currentIndexChanged.connect(self.refresh_books)
+        toolbar.addWidget(self.format_combo)
+
+        self.sort_combo = QComboBox()
+        for label, value in SORT_OPTIONS:
+            self.sort_combo.addItem(label, value)
+        self.sort_combo.currentIndexChanged.connect(self._on_sort_changed)
+        toolbar.addWidget(self.sort_combo)
+
+        self.favorites_button = QToolButton()
+        self.favorites_button.setText("★ Favorites")
+        self.favorites_button.setCheckable(True)
+        self.favorites_button.setToolTip("Show only favorites (Ctrl+D)")
+        self.favorites_button.toggled.connect(self._on_favorites_toggled)
+        toolbar.addWidget(self.favorites_button)
+
+        spacer = QWidget()
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        toolbar.addWidget(spacer)
+
+        toolbar.addWidget(QLabel("Columns:"))
         self.columns_spin = QSpinBox()
         self.columns_spin.setRange(2, 10)
         self.columns_spin.setValue(self.columns)
         self.columns_spin.valueChanged.connect(self._on_columns_changed)
         toolbar.addWidget(self.columns_spin)
-        
-        toolbar.addSeparator()
-        
-        # Filter combo
-        filter_label = QLabel("Filter: ")
-        toolbar.addWidget(filter_label)
-        
-        self.filter_combo = QComboBox()
-        self.filter_combo.addItem("All", "all")
-        self.filter_combo.addItem("Unread", "unread")
-        self.filter_combo.addItem("Read", "read")
-        self.filter_combo.currentIndexChanged.connect(self._on_filter_changed)
-        toolbar.addWidget(self.filter_combo)
-    
+
+        self._restore_view_controls()
+
     def _setup_statusbar(self):
-        self.statusbar = QStatusBar()
-        self.setStatusBar(self.statusbar)
+        statusbar = QStatusBar()
+        self.setStatusBar(statusbar)
+        self.shown_label = QLabel()
+        self.stats_label = QLabel()
+        self.stats_label.setObjectName("SubtitleLabel")
+        statusbar.addWidget(self.shown_label, 1)
+        statusbar.addPermanentWidget(self.stats_label)
         self._update_statusbar()
-    
-    def _apply_theme(self):
-        """Apply dark theme to the application."""
-        self.setStyleSheet("""
-            QMainWindow, QWidget {
-                background-color: #2b2b2b;
-                color: #ffffff;
-            }
-            QMenuBar {
-                background-color: #3a3a3a;
-                padding: 5px;
-            }
-            QMenuBar::item:selected {
-                background-color: #4a7;
-            }
-            QMenu {
-                background-color: #3a3a3a;
-                border: 1px solid #555;
-            }
-            QMenu::item:selected {
-                background-color: #4a7;
-            }
-            QToolBar {
-                background-color: #3a3a3a;
-                border: none;
-                padding: 5px;
-                spacing: 5px;
-            }
-            QLineEdit {
-                background-color: #2a2a2a;
-                border: 1px solid #555;
-                border-radius: 4px;
-                padding: 5px;
-                color: white;
-            }
-            QLineEdit:focus {
-                border: 1px solid #4a7;
-            }
-            QSpinBox, QComboBox {
-                background-color: #2a2a2a;
-                border: 1px solid #555;
-                border-radius: 4px;
-                padding: 5px;
-                color: white;
-            }
-            QPushButton {
-                background-color: #4a4a4a;
-                border: 1px solid #555;
-                border-radius: 4px;
-                padding: 5px 15px;
-                color: white;
-            }
-            QPushButton:hover {
-                background-color: #5a5a5a;
-            }
-            QPushButton:pressed {
-                background-color: #4a7;
-            }
-            QScrollBar:vertical {
-                background-color: #2a2a2a;
-                width: 12px;
-                border-radius: 6px;
-            }
-            QScrollBar::handle:vertical {
-                background-color: #555;
-                border-radius: 6px;
-                min-height: 30px;
-            }
-            QScrollBar::handle:vertical:hover {
-                background-color: #666;
-            }
-            QStatusBar {
-                background-color: #3a3a3a;
-            }
-            QSplitter::handle {
-                background-color: #444;
-            }
-        """)
-    
+
+    # ------------------------------------------------------------------
+    # State persistence
+    # ------------------------------------------------------------------
+    def _restore_view_controls(self):
+        for widget in (self.sort_combo, self.read_filter_combo, self.format_combo,
+                       self.favorites_button, self.columns_spin):
+            widget.blockSignals(True)
+        sort_value = settings.get_view("sort", "series")
+        index = self.sort_combo.findData(sort_value)
+        self.sort_combo.setCurrentIndex(index if index >= 0 else 0)
+
+        filter_value = settings.get_view("filter", "all")
+        index = self.read_filter_combo.findData(filter_value)
+        self.read_filter_combo.setCurrentIndex(index if index >= 0 else 0)
+
+        format_value = settings.get_view("format", "all")
+        index = self.format_combo.findData(format_value)
+        self.format_combo.setCurrentIndex(index if index >= 0 else 0)
+
+        favorites_only = bool(settings.get_view("favorites_only", False))
+        self.favorites_action.setChecked(favorites_only)
+        self.favorites_button.setChecked(favorites_only)
+
+        for widget in (self.sort_combo, self.read_filter_combo, self.format_combo,
+                       self.favorites_button, self.columns_spin):
+            widget.blockSignals(False)
+
+    def _restore_window_state(self):
+        geometry = settings.get_view("window_geometry", "")
+        if geometry:
+            try:
+                self.restoreGeometry(QByteArray.fromBase64(geometry.encode("ascii")))
+            except Exception:
+                logger.debug("Could not restore window geometry")
+        splitter_state = settings.get_view("splitter_state", "")
+        if splitter_state:
+            try:
+                self.splitter.restoreState(
+                    QByteArray.fromBase64(splitter_state.encode("ascii"))
+                )
+            except Exception:
+                logger.debug("Could not restore splitter state")
+
+    def _save_state(self):
+        try:
+            geometry = bytes(self.saveGeometry().toBase64()).decode("ascii")
+            splitter = bytes(self.splitter.saveState().toBase64()).decode("ascii")
+            settings.set_many_view(
+                {
+                    "window_geometry": geometry,
+                    "splitter_state": splitter,
+                    "columns": self.columns,
+                    "sort": self.sort_combo.currentData(),
+                    "filter": self.read_filter_combo.currentData(),
+                    "format": self.format_combo.currentData(),
+                    "favorites_only": self.favorites_button.isChecked(),
+                }
+            )
+        except Exception as exc:
+            logger.warning(f"Could not save window state: {exc}")
+
+    def closeEvent(self, event):
+        self._save_state()
+        logger.info("Application window closing")
+        super().closeEvent(event)
+
+    # ------------------------------------------------------------------
+    # Data loading
+    # ------------------------------------------------------------------
     def refresh_books(self):
-        """Refresh the books grid."""
-        # Clear existing cards
+        """Reload the grid using the current filters and sort order."""
+        # Clear cards and grid
         for card in self.book_cards:
+            card.setParent(None)
             card.deleteLater()
         self.book_cards.clear()
-        
-        # Clear grid layout
         while self.grid_layout.count():
             item = self.grid_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-        
-        # Get books based on current filter
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+        books = self._load_books()
+        self.books = books
+
+        if not books:
+            self._show_empty_state()
+        else:
+            for index, book in enumerate(books):
+                card = self._create_card(book)
+                row, column = divmod(index, self.columns)
+                self.grid_layout.addWidget(card, row, column)
+                self.book_cards.append(card)
+
+        self._update_statusbar()
+
+    def _load_books(self) -> List[Dict]:
         if self.current_search:
             books = db.search_books(self.current_search)
         elif self.current_series_filter == "unsorted":
@@ -308,276 +417,494 @@ class MainWindow(QMainWindow):
             books = db.get_all_books(series_id=self.current_series_filter)
         else:
             books = db.get_all_books()
-        
-        # Apply read filter
-        read_filter = self.filter_combo.currentData()
+
+        # Read-state filter
+        read_filter = self.read_filter_combo.currentData()
         if read_filter == "unread":
-            books = [b for b in books if not b.get('is_read')]
+            books = [book for book in books if not book.get("is_read")]
         elif read_filter == "read":
-            books = [b for b in books if b.get('is_read')]
-        
-        # Create cards
-        for i, book in enumerate(books):
-            card = BookCard(book)
-            card.open_requested.connect(self._open_book)
-            card.toggle_read_requested.connect(self._toggle_read)
-            card.edit_volume_requested.connect(self._edit_volume)
-            card.delete_requested.connect(self._delete_book)
-            card.edit_series_requested.connect(self._change_series)
-            card.set_custom_cover_requested.connect(self._set_custom_cover)
-            card.remove_custom_cover_requested.connect(self._remove_custom_cover)
-            
-            row = i // self.columns
-            col = i % self.columns
-            self.grid_layout.addWidget(card, row, col)
-            self.book_cards.append(card)
-        
-        self._update_statusbar()
-    
-    def _update_statusbar(self):
-        """Update status bar with current stats."""
-        total = db.get_total_book_count()
-        unread = db.get_total_unread_count()
-        self.statusbar.showMessage(
-            f"Total: {total} books | Unread: {unread} | "
-            f"Showing: {len(self.book_cards)} books"
+            books = [book for book in books if book.get("is_read")]
+        elif read_filter == "started":
+            books = [book for book in books if book.get("last_opened_at")]
+
+        # Favorites filter
+        if self.favorites_button.isChecked():
+            books = [book for book in books if book.get("favorite")]
+
+        # Format filter
+        format_filter = self.format_combo.currentData()
+        if format_filter != "all":
+            books = [book for book in books if self._format_group(book) == format_filter]
+
+        return self._apply_sort(books)
+
+    @staticmethod
+    def _format_group(book: Dict) -> str:
+        path = str(book.get("filepath", "")).lower()
+        if path.endswith((".cbz", ".cbr", ".cb7", ".cbt")):
+            return "comic"
+        if path.endswith(".pdf"):
+            return "pdf"
+        if path.endswith((".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff")):
+            return "image"
+        return "archive"
+
+    def _apply_sort(self, books: List[Dict]) -> List[Dict]:
+        sort_mode = self.sort_combo.currentData() if hasattr(self, "sort_combo") else "series"
+        try:
+            if sort_mode == "title":
+                return sorted(
+                    books,
+                    key=lambda book: str(book.get("title") or book.get("filepath", "")).lower(),
+                )
+            if sort_mode == "added":
+                return sorted(
+                    books,
+                    key=lambda book: str(book.get("created_at") or ""),
+                    reverse=True,
+                )
+            if sort_mode == "opened":
+                return sorted(
+                    books,
+                    key=lambda book: str(book.get("last_opened_at") or ""),
+                    reverse=True,
+                )
+            if sort_mode == "rating":
+                return sorted(
+                    sort_books_naturally(books),
+                    key=lambda book: int(book.get("rating") or 0),
+                    reverse=True,
+                )
+            if sort_mode == "size":
+                return sorted(
+                    books,
+                    key=lambda book: int(book.get("file_size") or 0),
+                    reverse=True,
+                )
+            return sort_books_naturally(books)
+        except Exception as exc:
+            logger.warning(f"Sorting failed ({sort_mode}): {exc}")
+            return books
+
+    def _create_card(self, book: Dict) -> BookCard:
+        card = BookCard(book)
+        card.open_requested.connect(self._open_book)
+        card.open_with_requested.connect(self._open_book_with)
+        card.details_requested.connect(self._show_details)
+        card.toggle_read_requested.connect(self._toggle_read)
+        card.favorite_requested.connect(self._toggle_favorite)
+        card.edit_volume_requested.connect(self._edit_volume)
+        card.edit_series_requested.connect(self._change_series)
+        card.delete_requested.connect(self._delete_book)
+        card.set_custom_cover_requested.connect(self._set_custom_cover)
+        card.remove_custom_cover_requested.connect(self._remove_custom_cover)
+        card.open_folder_requested.connect(self._open_folder)
+        return card
+
+    def _show_empty_state(self):
+        empty = QWidget()
+        empty.setMinimumHeight(320)
+        layout = QVBoxLayout(empty)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        title = QLabel("No books here")
+        title.setObjectName("TitleLabel")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        subtitle = QLabel(
+            "Drop CBZ / CBR / CB7 / PDF files anywhere on this window,\n"
+            "or use File → Add books... / Import folder..."
         )
-    
+        subtitle.setObjectName("SubtitleLabel")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        layout.addWidget(title)
+        layout.addSpacing(6)
+        layout.addWidget(subtitle)
+
+        self.grid_layout.addWidget(empty, 0, 0)
+
+    def _update_statusbar(self):
+        stats = db.get_statistics()
+        self.shown_label.setText(
+            f"Showing {len(self.book_cards)} of {stats['total']} books"
+        )
+        unread = stats.get("unread_count", 0)
+        favorites = stats.get("favorites", 0)
+        size = format_file_size(stats.get("total_size") or 0)
+        self.stats_label.setText(
+            f"Read {stats.get('read_count', 0)}  •  Unread {unread}  •  "
+            f"★ {favorites}  •  {stats.get('series_count', 0)} series  •  {size}"
+        )
+
+    def _refresh_card(self, book_id: int):
+        book = db.get_book(book_id)
+        if not book:
+            self.refresh_books()
+            return
+        for card in self.book_cards:
+            if card.book_id == book_id:
+                card.update_data(book)
+                break
+        self._update_statusbar()
+
+    # ------------------------------------------------------------------
+    # Filters and toolbar handlers
+    # ------------------------------------------------------------------
+    def _focus_search(self):
+        self.search_input.setFocus()
+        self.search_input.selectAll()
+
     def _on_series_selected(self, series_id):
-        """Handle series selection from sidebar."""
         self.current_series_filter = series_id
         self.refresh_books()
-    
+
+    def _on_series_changed(self):
+        self.series_panel.refresh_series()
+        self.refresh_books()
+
     def _on_search_changed(self, text: str):
-        """Handle search text change."""
         self.current_search = text.strip()
-        self.refresh_books()
-    
+        self._search_timer.start()
+
     def _on_columns_changed(self, value: int):
-        """Handle columns spinner change."""
-        self.columns = value
+        self.columns = int(value)
+        settings.set_columns(self.columns)
         self.refresh_books()
-    
-    def _on_filter_changed(self):
-        """Handle read filter change."""
+
+    def _change_columns(self, delta: int):
+        value = max(2, min(10, self.columns + delta))
+        self.columns_spin.setValue(value)
+
+    def _on_sort_changed(self):
+        settings.set_view("sort", self.sort_combo.currentData())
         self.refresh_books()
-    
+
+    def _on_favorites_toggled(self, checked: bool):
+        if self.favorites_action.isChecked() != checked:
+            self.favorites_action.setChecked(checked)
+        settings.set_view("favorites_only", checked)
+        self.refresh_books()
+
+    def _toggle_favorites_filter(self, checked: bool):
+        self.favorites_button.setChecked(checked)
+
+    def _reset_view(self):
+        self.columns_spin.setValue(DEFAULT_COLUMNS)
+        self.sort_combo.setCurrentIndex(0)
+        self.read_filter_combo.setCurrentIndex(0)
+        self.format_combo.setCurrentIndex(0)
+        self.favorites_button.setChecked(False)
+        self.resize(1280, 820)
+        self.splitter.setSizes([230, 1050])
+        self.refresh_books()
+
+    # ------------------------------------------------------------------
+    # Book operations
+    # ------------------------------------------------------------------
     def _add_book(self):
-        """Show add book dialog."""
         dialog = AddBookDialog(self)
         if dialog.exec():
             self.refresh_books()
             self.series_panel.refresh_series()
-    
+
     def _bulk_import(self):
-        """Show bulk import dialog."""
         dialog = BulkImportDialog(self)
         if dialog.exec():
             self.refresh_books()
             self.series_panel.refresh_series()
-    
+
     def _add_series(self):
-        """Show add series dialog."""
         dialog = AddSeriesDialog(self)
         if dialog.exec():
             self.series_panel.refresh_series()
-    
+
     def _show_reader_settings(self):
-        """Show reader settings dialog."""
         dialog = ReaderSettingsDialog(self)
         dialog.exec()
-    
+
+    def _show_details(self, book_id: int):
+        dialog = DetailsDialog(book_id, self)
+        dialog.exec()
+        if dialog.updated:
+            self._refresh_card(book_id)
+            self.series_panel.refresh_series()
+
     def _open_book(self, book_id: int):
-        """Open a book with system default application."""
+        self._launch(book_id, reader_id=None)
+
+    def _open_book_with(self, book_id: int, reader_id: str):
+        self._launch(book_id, reader_id=reader_id)
+
+    def _launch(self, book_id: int, reader_id: Optional[str]):
         book = db.get_book(book_id)
-        if book:
-            filepath = book['filepath']
-            if os.path.exists(filepath):
-                if open_file_with_default_app(filepath):
-                    logger.info(f"Opened book: {filepath}")
-                else:
-                    QMessageBox.warning(
-                        self, "Error", 
-                        "Failed to open the file."
-                    )
-            else:
-                QMessageBox.warning(
-                    self, "File Not Found",
-                    f"The file no longer exists:\n{filepath}"
-                )
-    
+        if not book:
+            return
+        filepath = book["filepath"]
+        if not Path(filepath).exists():
+            QMessageBox.warning(
+                self,
+                "File not found",
+                f"The file no longer exists:\n{filepath}\n\n"
+                "It was moved or deleted outside the library.",
+            )
+            return
+
+        if reader_id is None:
+            ok, message = reader_manager.open_file(filepath)
+        else:
+            ok, message = reader_manager.open_with(reader_id, filepath)
+
+        if not ok:
+            QMessageBox.warning(self, "Could not open book", message)
+            return
+
+        db.mark_book_opened(book_id, mark_read=settings.get_view("mark_read_on_open", True))
+        self._refresh_card(book_id)
+
     def _toggle_read(self, book_id: int):
-        """Toggle read status of a book."""
         new_status = db.toggle_book_read(book_id)
         if new_status is not None:
+            self._refresh_card(book_id)
+
+    def _toggle_favorite(self, book_id: int):
+        db.toggle_favorite(book_id)
+        self._refresh_card(book_id)
+        if self.favorites_button.isChecked():
             self.refresh_books()
-            self.series_panel.refresh_series()
-    
+
     def _edit_volume(self, book_id: int, current_volume: str):
-        """Edit volume of a book."""
         dialog = EditVolumeDialog(current_volume, self)
         if dialog.exec():
-            new_volume = dialog.get_volume()
-            db.update_book(book_id, volume=new_volume)
-            self.refresh_books()
-    
+            db.update_book(book_id, volume=dialog.get_volume())
+            self._refresh_card(book_id)
+
     def _change_series(self, book_id: int):
-        """Change series of a book."""
         dialog = QDialog(self)
-        dialog.setWindowTitle("Change Series")
-        dialog.setMinimumWidth(300)
-        
+        dialog.setWindowTitle("Change series")
+        dialog.setMinimumWidth(340)
+
         layout = QVBoxLayout(dialog)
-        
+        layout.addWidget(QLabel("Series:"))
         combo = QComboBox()
-        combo.addItem("None (Unsorted)", None)
+        combo.addItem("None (unsorted)", None)
         for series in db.get_all_series():
-            combo.addItem(series['name'], series['id'])
-        
-        # Select current series
+            combo.addItem(series["name"], series["id"])
+
         book = db.get_book(book_id)
-        if book and book.get('series_id'):
-            for i in range(combo.count()):
-                if combo.itemData(i) == book['series_id']:
-                    combo.setCurrentIndex(i)
-                    break
-        
+        if book and book.get("series_id"):
+            index = combo.findData(book["series_id"])
+            if index >= 0:
+                combo.setCurrentIndex(index)
         layout.addWidget(combo)
-        
-        btn_layout = QHBoxLayout()
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(dialog.reject)
-        save_btn = QPushButton("Save")
-        save_btn.clicked.connect(dialog.accept)
-        btn_layout.addStretch()
-        btn_layout.addWidget(cancel_btn)
-        btn_layout.addWidget(save_btn)
-        layout.addLayout(btn_layout)
-        
+
+        buttons = QHBoxLayout()
+        cancel = QPushButton("Cancel")
+        cancel.clicked.connect(dialog.reject)
+        save = QPushButton("Save")
+        save.setObjectName("PrimaryButton")
+        save.clicked.connect(dialog.accept)
+        buttons.addStretch()
+        buttons.addWidget(cancel)
+        buttons.addWidget(save)
+        layout.addLayout(buttons)
+
         if dialog.exec():
-            new_series_id = combo.currentData()
-            db.update_book(book_id, series_id=new_series_id)
-            self.refresh_books()
+            db.update_book(book_id, series_id=combo.currentData())
+            self._refresh_card(book_id)
             self.series_panel.refresh_series()
-    
+
     def _set_custom_cover(self, book_id: int):
-        """Show dialog to set custom cover."""
         book = db.get_book(book_id)
         if not book:
             return
-        
-        dialog = SetCustomCoverDialog(book_id, book.get('title', 'Untitled'), self)
+        dialog = SetCustomCoverDialog(book_id, book.get("title") or "Untitled", self)
         if dialog.exec():
-            # Refresh card
-            self.refresh_books()
-    
+            self._refresh_card(book_id)
+
     def _remove_custom_cover(self, book_id: int):
-        """Remove custom cover from book."""
         dialog = ConfirmDialog(
-            "Remove Custom Cover",
-            "Are you sure you want to remove the custom cover?",
-            parent=self
+            "Remove custom cover",
+            "Remove the custom cover and use the automatically extracted one?",
+            parent=self,
         )
-        
-        if dialog.exec():
-            # Delete physical file
-            book = db.get_book(book_id)
-            if book and book.get('custom_cover'):
-                cover_path = book['custom_cover']
-                if os.path.exists(cover_path):
-                    try:
-                        os.remove(cover_path)
-                    except Exception as e:
-                        logger.error(f"Failed to delete custom cover file: {e}")
-            
-            # Remove from database
-            db.remove_custom_cover(book_id)
-            
-            # Refresh
-            self.refresh_books()
-            
-            QMessageBox.information(
-                self, "Success", 
-                "Custom cover removed successfully!"
-            )
-    
+        if not dialog.exec():
+            return
+        book = db.get_book(book_id)
+        if book and book.get("custom_cover"):
+            path = book["custom_cover"]
+            if os.path.exists(path):
+                try:
+                    os.remove(path)
+                except OSError as exc:
+                    logger.error(f"Failed to delete custom cover: {exc}")
+        db.remove_custom_cover(book_id)
+        self._refresh_card(book_id)
+
+    def _open_folder(self, book_id: int):
+        book = db.get_book(book_id)
+        if book:
+            open_containing_folder(book["filepath"])
+
     def _delete_book(self, book_id: int):
-        """Delete a book."""
         book = db.get_book(book_id)
         if not book:
             return
-        
+
         dialog = ConfirmDialog(
-            "Delete Book",
-            f"Are you sure you want to delete this book?\n\n"
-            f"File: {Path(book['filepath']).name}",
+            "Delete book",
+            f"Remove this book from the library?\n\n{Path(book['filepath']).name}",
             checkbox_text="Also delete the file from disk",
-            parent=self
+            parent=self,
         )
-        
-        if dialog.exec():
-            # Clear cover cache
-            cover_extractor.clear_cache(book['filepath'])
-            
-            # Delete custom cover file if exists
-            if book.get('custom_cover'):
-                try:
-                    if os.path.exists(book['custom_cover']):
-                        os.remove(book['custom_cover'])
-                except Exception as e:
-                    logger.error(f"Failed to delete custom cover: {e}")
-            
-            # Delete file if requested
-            if dialog.is_checkbox_checked():
-                try:
-                    if os.path.exists(book['filepath']):
-                        os.remove(book['filepath'])
-                        logger.info(f"Deleted file: {book['filepath']}")
-                except Exception as e:
-                    logger.error(f"Failed to delete file: {e}")
-                    QMessageBox.warning(
-                        self, "Error",
-                        f"Failed to delete file: {e}"
-                    )
-            
-            # Delete from database
-            db.delete_book(book_id)
-            self.refresh_books()
-            self.series_panel.refresh_series()
-    
+        if not dialog.exec():
+            return
+
+        cover_extractor.clear_cache(book["filepath"])
+        if book.get("custom_cover") and os.path.exists(book["custom_cover"]):
+            try:
+                os.remove(book["custom_cover"])
+            except OSError as exc:
+                logger.error(f"Failed to delete custom cover: {exc}")
+
+        if dialog.is_checkbox_checked() and os.path.exists(book["filepath"]):
+            try:
+                os.remove(book["filepath"])
+                logger.info(f"Deleted file: {book['filepath']}")
+            except OSError as exc:
+                logger.error(f"Failed to delete file: {exc}")
+                QMessageBox.warning(self, "Delete file", f"The file could not be deleted:\n{exc}")
+
+        db.delete_book(book_id)
+        self.refresh_books()
+        self.series_panel.refresh_series()
+
     def _clear_cache(self):
-        """Clear cover cache."""
         dialog = ConfirmDialog(
-            "Clear Cache",
-            "Are you sure you want to clear all cached cover images?\n"
-            "They will be regenerated when needed.",
-            parent=self
+            "Clear cover cache",
+            "Clear all cached cover images? They will be extracted again when needed.",
+            parent=self,
         )
-        
         if dialog.exec():
             cover_extractor.clear_cache()
             self.refresh_books()
+            QMessageBox.information(self, "Cache", "Cover cache cleared.")
+
+    # ------------------------------------------------------------------
+    # Drag & drop
+    # ------------------------------------------------------------------
+    def dragEnterEvent(self, event: QDragEnterEvent):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event: QDropEvent):
+        paths: List[str] = []
+        for url in event.mimeData().urls():
+            local = url.toLocalFile()
+            if not local:
+                continue
+            path = Path(local)
+            if path.is_dir():
+                paths.extend(scan_folder(str(path), recursive=True))
+            elif path.is_file():
+                paths.append(str(path))
+
+        if not paths:
             QMessageBox.information(
-                self, "Cache Cleared",
-                "Cover cache has been cleared."
+                self, "Import", "No supported comic or book files were found."
             )
-    
+            return
+
+        progress = QProgressDialog("Importing dropped files...", None, 0, len(paths), self)
+        progress.setWindowTitle("Import")
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
+        progress.setMinimumDuration(0)
+
+        def on_progress(index, total, filepath):
+            progress.setMaximum(total)
+            progress.setValue(index - 1)
+            progress.setLabelText(f"Importing {Path(filepath).name}...")
+            QApplication.processEvents()
+
+        result = importer.import_files(paths, progress=on_progress)
+        progress.setValue(len(paths))
+
+        self.refresh_books()
+        self.series_panel.refresh_series()
+        QMessageBox.information(self, "Import finished", result.summary())
+
+    # ------------------------------------------------------------------
+    # Dialogs
+    # ------------------------------------------------------------------
+    def _show_statistics(self):
+        stats = db.get_statistics()
+        formats = stats.get("formats", {})
+        format_lines = "".join(
+            f"<tr><td>{label}</td><td align='right'>{formats.get(key, 0)}</td></tr>"
+            for key, label in (
+                ("comic", "Comics (CBZ/CBR/CB7/CBT)"),
+                ("pdf", "PDF"),
+                ("image", "Images"),
+                ("archive", "Archives"),
+                ("other", "Other"),
+            )
+        )
+        resume = 0
+        if stats["total"]:
+            resume = round(100 * stats["read_count"] / stats["total"])
+
+        QMessageBox.information(
+            self,
+            "Library statistics",
+            f"<h3>Library statistics</h3>"
+            f"<table cellpadding='3'>"
+            f"<tr><td>Books</td><td align='right'><b>{stats['total']}</b></td></tr>"
+            f"<tr><td>Series</td><td align='right'>{stats['series_count']}</td></tr>"
+            f"<tr><td>Read</td><td align='right'>{stats['read_count']} ({resume}%)</td></tr>"
+            f"<tr><td>Unread</td><td align='right'>{stats['unread_count']}</td></tr>"
+            f"<tr><td>Favorites</td><td align='right'>{stats['favorites']}</td></tr>"
+            f"<tr><td>Started</td><td align='right'>{stats['started_count']}</td></tr>"
+            f"<tr><td>Pages known</td><td align='right'>{stats['total_pages']}</td></tr>"
+            f"<tr><td>Total size</td><td align='right'>{format_file_size(stats['total_size'])}</td></tr>"
+            f"</table>"
+            f"<h4>Formats</h4>"
+            f"<table cellpadding='3'>{format_lines}</table>",
+        )
+
+    def _show_shortcuts(self):
+        QMessageBox.information(
+            self,
+            "Keyboard shortcuts",
+            "<b>Ctrl+O</b> — Add books<br>"
+            "<b>Ctrl+Shift+O</b> — Import folder<br>"
+            "<b>Ctrl+F</b> — Focus search<br>"
+            "<b>Ctrl+D</b> — Toggle favorites<br>"
+            "<b>Ctrl+,</b> — Reader settings<br>"
+            "<b>Ctrl+I</b> — Library statistics<br>"
+            "<b>Ctrl++ / Ctrl+-</b> — Columns<br>"
+            "<b>F5</b> — Refresh<br>"
+            "<b>Double-click</b> — Open comic<br>"
+            "<b>Right-click</b> — Context menu / open with",
+        )
+
     def _show_about(self):
-        """Show about dialog."""
         QMessageBox.about(
             self,
-            "About Digital Library",
-            "<h2>Digital Library</h2>"
-            "<p>Version 2.0</p>"
-            "<p>A desktop application for managing your digital book collection.</p>"
-            "<p>Supports PDF, images, and archive formats (CBZ, CBR, 7z, etc.)</p>"
-            "<hr>"
-            "<p>Features:</p>"
+            f"About {APP_NAME}",
+            f"<h2>{APP_NAME} {APP_VERSION}</h2>"
+            "<p>A comic &amp; digital library manager for Windows, Linux and macOS.</p>"
             "<ul>"
-            "<li>Custom cover images</li>"
-            "<li>Custom reader application</li>"
-            "<li>Natural sorting of volume numbers</li>"
-            "<li>RAR/CBR support with cover extraction</li>"
+            "<li>CBZ, CBR, CB7, CBT, ZIP, RAR, 7z, TAR, PDF and image support</li>"
+            "<li>ComicInfo.xml metadata import</li>"
+            "<li>Detects CDisplayEx, YACReader, ComicRack, MComix, SumatraPDF and more</li>"
+            "<li>Series, volumes, favorites, ratings, reading history</li>"
+            "<li>Automatic cover extraction</li>"
             "</ul>"
-            "<p>Built with Python and PyQt6</p>"
+            "<p>Built with Python, PyQt6 and SQLite.</p>",
         )
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "book_cards"):
+            for card in self.book_cards:
+                card.favorite_badge.move(CARD_WIDTH - 36, 12)

@@ -24,3 +24,13 @@ Thumbs.db
 .idea/
 .vscode/
 *.env
+
+# Build outputs
+build/
+dist/
+release/
+artifacts/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/

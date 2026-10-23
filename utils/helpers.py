@@ -1,60 +1,73 @@
 """
 Helper utilities for the application.
 """
-import os
 import sys
 import subprocess
 import re
 import shutil
-import logging
 from pathlib import Path
 from typing import Optional, List
 
-# Import logger and settings
+# Import logger
 try:
     from .logger import logger
-    from .settings import settings
 except ImportError:
     from utils.logger import logger
-    from utils.settings import settings
 
 
 def open_file_with_default_app(filepath: str) -> bool:
-    """Open a file with the system's default application."""
+    """Open a file with the configured reader (or the system default)."""
     try:
-        # Check if custom reader is enabled
-        if settings.is_custom_reader_enabled():
-            reader_path = settings.get_reader_path()
-            if reader_path and os.path.exists(reader_path):
-                try:
-                    subprocess.Popen([reader_path, filepath], shell=True)
-                    logger.info(f"Opened with custom reader ({reader_path}): {filepath}")
-                    return True
-                except Exception as e:
-                    logger.warning(f"Custom reader failed: {e}, trying system default...")
-        
-        # Check if we should use system default
-        if settings.use_system_default():
-            logger.info("Using system default application")
-        
-        # Use system default application
-        if sys.platform == 'win32':
-            os.startfile(filepath)
-        elif sys.platform == 'darwin':
-            subprocess.run(['open', filepath], check=True)
-        else:
-            subprocess.run(['xdg-open', filepath], check=True)
-        
-        logger.info(f"Opened {filepath}")
-        return True
-            
+        from utils.reader_manager import reader_manager
+
+        ok, _message = reader_manager.open_file(filepath)
+        return ok
     except Exception as e:
         logger.error(f"Failed to open file {filepath}: {e}")
         return False
 
 
+def open_file_with_reader(reader_id: str, filepath: str):
+    """Open a file with a specific reader id. Returns (ok, message)."""
+    from utils.reader_manager import reader_manager
+
+    return reader_manager.open_with(reader_id, filepath)
+
+
+def open_containing_folder(filepath: str) -> bool:
+    """Reveal a file in the system file manager."""
+    path = Path(filepath)
+    folder = path.parent
+    try:
+        if sys.platform == "win32":
+            subprocess.Popen(["explorer", "/select,", str(path)])
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", "-R", str(path)])
+        else:
+            opener = shutil.which("xdg-open")
+            if not opener:
+                return False
+            subprocess.Popen([opener, str(folder)], stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to open containing folder for {filepath}: {e}")
+        return False
+
+
+def human_size(size_bytes) -> str:
+    """Format a byte count, returning '-' for unknown values."""
+    try:
+        return format_file_size(int(size_bytes))
+    except (TypeError, ValueError):
+        return "-"
+
+
 def get_file_extension(filepath: str) -> str:
-    """Get the lowercase file extension."""
+    """Get the lowercase file extension (``.tar.gz`` stays intact)."""
+    lower = str(filepath).lower()
+    if lower.endswith(".tar.gz"):
+        return ".tar.gz"
     return Path(filepath).suffix.lower()
 
 
