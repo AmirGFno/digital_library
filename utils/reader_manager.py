@@ -390,8 +390,29 @@ class ReaderManager:
             available=True,
         )
 
+    # Executables that identify a comic/book reader, used by the registry scan.
+    KNOWN_EXECUTABLES = (
+        "CDisplayEx.exe",
+        "YACReader.exe",
+        "ComicRack.exe",
+        "MComix.exe",
+        "SumatraPDF.exe",
+        "Honeyview.exe",
+        "ComicSeer.exe",
+        "ebook-viewer.exe",
+        "CDisplay.exe",
+    )
+
     def _windows_registered_executables(self) -> List[str]:
-        """Find executables registered as handlers for comic/book extensions."""
+        """Find reader executables installed anywhere on Windows.
+
+        Three sources are combined because comic readers are frequently
+        installed outside ``Program Files`` (portable builds, custom folders):
+
+        1. ``App Paths`` keys - written by the installer, independent of location.
+        2. ``Uninstall`` keys - ``DisplayIcon``/``InstallLocation`` of each app.
+        3. ``Open with`` handlers registered for comic extensions.
+        """
         if not WINDOWS:
             return []
         try:
@@ -399,47 +420,138 @@ class ReaderManager:
         except ImportError:
             return []
 
-        extensions = ("\\.cbz", "\\.cbr", "\\.pdf", "\\.cb7", "\\.zip")
         found: List[str] = []
-        for extension in extensions:
+        seen = set()
+
+        def add(candidate: Optional[str]) -> None:
+            if not candidate:
+                return
+            candidate = candidate.strip().strip('"')
+            candidate = candidate.split(",")[0].strip()  # DisplayIcon "path,0"
+            candidate = os.path.expandvars(candidate)
+            if not candidate.lower().endswith(".exe"):
+                return
+            path = Path(candidate)
+            if not path.is_file():
+                return
+            key = str(path).lower()
+            if key in seen:
+                return
+            seen.add(key)
+            found.append(str(path))
+
+        # 1) App Paths
+        app_path_roots = (
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths"),
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths"),
+            (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths"),
+        )
+        for hive, root in app_path_roots:
+            for exe_name in self.KNOWN_EXECUTABLES:
+                try:
+                    with winreg.OpenKey(hive, f"{root}\\{exe_name}") as key:
+                        value, _ = winreg.QueryValueEx(key, "")
+                        add(value)
+                except OSError:
+                    continue
+
+        # 2) Uninstall entries
+        uninstall_roots = (
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
+            (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
+        )
+        for hive, root in uninstall_roots:
             try:
-                with winreg.OpenKey(
-                    winreg.HKEY_CLASSES_ROOT, extension + r"\OpenWithList"
-                ) as key:
+                with winreg.OpenKey(hive, root) as base:
                     index = 0
                     while True:
                         try:
-                            _, value, _ = winreg.EnumValue(key, index)
+                            sub_name = winreg.EnumKey(base, index)
                         except OSError:
                             break
                         index += 1
-                        if not isinstance(value, str) or not value.lower().endswith(".exe"):
+                        try:
+                            with winreg.OpenKey(base, sub_name) as entry:
+                                display_name = ""
+                                try:
+                                    display_name, _ = winreg.QueryValueEx(entry, "DisplayName")
+                                except OSError:
+                                    pass
+                                if display_name and not any(
+                                    token in display_name.lower()
+                                    for token in ("comic", "cdisplay", "mcomix", "yacreader",
+                                                  "sumatra", "honeyview", "calibre")
+                                ):
+                                    continue
+                                for value_name in ("DisplayIcon", "InstallLocation"):
+                                    try:
+                                        value, _ = winreg.QueryValueEx(entry, value_name)
+                                    except OSError:
+                                        continue
+                                    if value_name == "InstallLocation" and value:
+                                        for exe_name in self.KNOWN_EXECUTABLES:
+                                            add(str(Path(value) / exe_name))
+                                    else:
+                                        add(value)
+                        except OSError:
                             continue
-                        path = self._registered_application_path(value)
-                        if path:
-                            found.append(path)
             except OSError:
                 continue
+
+        # 3) "Open with" handlers for comic extensions
+        for extension in (".cbz", ".cbr", ".cb7", ".cbt", ".pdf"):
+            for hive in (winreg.HKEY_CLASSES_ROOT, winreg.HKEY_CURRENT_USER):
+                try:
+                    with winreg.OpenKey(hive, f"{extension}\\OpenWithList") as key:
+                        index = 0
+                        while True:
+                            try:
+                                _, value, _ = winreg.EnumValue(key, index)
+                            except OSError:
+                                break
+                            index += 1
+                            if isinstance(value, str) and value.lower().endswith(".exe"):
+                                add(self._registered_application_path(value))
+                except OSError:
+                    continue
+
+        if found:
+            logger.info("Windows registry found readers: %s", ", ".join(found))
         return found
 
     @staticmethod
     def _registered_application_path(exe_name: str) -> Optional[str]:
         try:
             import winreg
-
-            with winreg.OpenKey(
-                winreg.HKEY_CLASSES_ROOT,
-                f"Applications\\{exe_name}\\shell\\open\\command",
-            ) as key:
-                command, _ = winreg.QueryValueEx(key, "")
-        except Exception:
+        except ImportError:
             return None
 
-        match = re.match(r'^"?([^"]+\\.exe)"?', command.strip(), re.IGNORECASE)
-        if not match:
-            return None
-        path = os.path.expandvars(match.group(1))
-        return path if Path(path).is_file() else None
+        for hive in (winreg.HKEY_CLASSES_ROOT, winreg.HKEY_CURRENT_USER):
+            try:
+                with winreg.OpenKey(
+                    hive, f"Applications\\{exe_name}\\shell\\open\\command"
+                ) as key:
+                    command, _ = winreg.QueryValueEx(key, "")
+            except OSError:
+                continue
+            match = re.match(r'^"?([^"]+?\.exe)"?', command.strip(), re.IGNORECASE)
+            if match:
+                path = os.path.expandvars(match.group(1))
+                if Path(path).is_file():
+                    return path
+        return None
+
+    def find_executable(self, exe_name: str) -> Optional[str]:
+        """Locate an executable by name using PATH and the registry."""
+        found = shutil.which(exe_name)
+        if found:
+            return found
+        if WINDOWS:
+            for path in self._windows_registered_executables():
+                if Path(path).name.lower() == exe_name.lower():
+                    return path
+        return None
 
     # ------------------------------------------------------------------
     # Queries

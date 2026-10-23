@@ -2,8 +2,9 @@
 Database module for the Digital Library application.
 Uses SQLite with proper connection handling and PRAGMA settings.
 """
-import sqlite3
+import os
 import re
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Tuple
@@ -12,6 +13,23 @@ from contextlib import contextmanager
 from config import DATABASE_PATH
 from utils.logger import logger
 from utils.helpers import sort_books_naturally
+
+
+def normalize_path(filepath: str) -> str:
+    """Return a canonical absolute path used for duplicate detection.
+
+    Windows paths are case-insensitive, so they are lower-cased; on Linux and
+    macOS the real case is preserved (macOS is case-insensitive too, but keeping
+    the original path readable matters more than an edge case there).
+    """
+    try:
+        resolved = os.path.abspath(os.path.expanduser(str(filepath)))
+        resolved = os.path.normpath(resolved)
+    except Exception:
+        resolved = str(filepath)
+    if os.name == "nt":
+        resolved = resolved.lower()
+    return resolved
 
 
 class Database:
@@ -145,11 +163,24 @@ class Database:
                 except Exception as e:
                     logger.warning(f"Could not add {column}: {e}")
 
+            # --- Schema v4: duplicate detection -----------------------------
+            cursor.execute("PRAGMA table_info(books)")
+            existing_columns = [col[1] for col in cursor.fetchall()]
+            if 'file_hash' not in existing_columns:
+                try:
+                    cursor.execute("ALTER TABLE books ADD COLUMN file_hash TEXT")
+                    logger.info("Added file_hash column")
+                except Exception as e:
+                    logger.warning(f"Could not add file_hash: {e}")
+
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_books_favorite ON books(favorite)"
             )
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_books_last_opened ON books(last_opened_at)"
+            )
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_books_file_hash ON books(file_hash)"
             )
             
             # Create basic indexes
@@ -182,7 +213,7 @@ class Database:
             # Set schema version
             cursor.execute("""
                 INSERT OR REPLACE INTO metadata (key, value, updated_at)
-                VALUES ('schema_version', '3.0', CURRENT_TIMESTAMP)
+                VALUES ('schema_version', '4.0', CURRENT_TIMESTAMP)
             """)
             
             logger.info("Database initialized successfully")
@@ -298,7 +329,8 @@ class Database:
 
     def add_book(self, filepath: str, title: Optional[str] = None,
                  series_id: Optional[int] = None, volume: Optional[str] = None,
-                 metadata: Optional[Dict] = None) -> Optional[int]:
+                 metadata: Optional[Dict] = None,
+                 file_hash: Optional[str] = None) -> Optional[int]:
         """Add a new book and return its ID.
 
         ``metadata`` may contain ComicInfo.xml values such as writer,
@@ -306,17 +338,18 @@ class Database:
         """
         try:
             metadata = metadata or {}
-            volume = volume or metadata.get('volume')
+            volume = volume if volume is not None else metadata.get('volume')
             title = title or metadata.get('title')
             volume_num = self._extract_volume_number(volume)
 
             record = {
                 'title': title,
                 'series_id': series_id,
-                'volume': volume,
+                'volume': str(volume) if volume is not None else None,
                 'volume_num': volume_num,
-                'filepath': filepath,
+                'filepath': str(filepath),
                 'file_size': self._file_size(filepath),
+                'file_hash': file_hash or compute_file_hash(filepath),
             }
             for key in ('writer', 'publisher', 'year', 'summary', 'page_count', 'genre', 'language'):
                 value = metadata.get(key)
@@ -714,14 +747,76 @@ class Database:
             return row
     
     def book_exists(self, filepath: str) -> bool:
-        """Check if a book with the given filepath exists."""
+        """Check if a book with the same path already exists (case-insensitive)."""
+        return self.find_duplicate(filepath) is not None
+
+    def find_duplicate(self, filepath: str,
+                       file_hash: Optional[str] = None) -> Optional[Dict]:
+        """Return the existing book matching *filepath* or *file_hash*.
+
+        Two books are the same when their normalised path matches, or when the
+        content fingerprint matches (the file was renamed or moved). This is what
+        keeps repeated folder imports from adding the same comic twice.
+        """
+        target = normalize_path(filepath)
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM books")
+            for row in cursor.fetchall():
+                book = dict(row)
+                if normalize_path(book.get("filepath", "")) == target:
+                    return book
+            if file_hash:
+                cursor.execute(
+                    "SELECT * FROM books WHERE file_hash = ? LIMIT 1", (file_hash,)
+                )
+                row = cursor.fetchone()
+                if row:
+                    return dict(row)
+        return None
+
+    def get_library_index(self) -> Tuple[Dict[str, int], Dict[str, int]]:
+        """Return (normalised path -> id, file hash -> id) for the whole library.
+
+        Building the index once makes importing a large folder linear instead of
+        comparing every file with every book.
+        """
+        paths: Dict[str, int] = {}
+        hashes: Dict[str, int] = {}
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, filepath, file_hash FROM books")
+            for row in cursor.fetchall():
+                paths[normalize_path(row["filepath"])] = row["id"]
+                if row["file_hash"]:
+                    hashes[row["file_hash"]] = row["id"]
+        return paths, hashes
+
+    def get_series_volume_numbers(self, series_id: Optional[int]) -> set:
+        """Volume numbers already used inside a series (for the numbering plan)."""
+        if series_id is None:
+            return set()
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT 1 FROM books WHERE filepath = ?",
-                (filepath,)
+                "SELECT volume_num FROM books WHERE series_id = ? "
+                "AND volume_num IS NOT NULL",
+                (series_id,),
             )
-            return cursor.fetchone() is not None
+            return {int(row[0]) for row in cursor.fetchall() if row[0] is not None}
+
+    def get_series_by_name_ci(self, name: str) -> Optional[Dict]:
+        """Find a series by name, ignoring case and surrounding spaces."""
+        if not name:
+            return None
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT * FROM series WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))",
+                (name,),
+            )
+            row = cursor.fetchone()
+            return dict(row) if row else None
     
     def update_all_volume_numbers(self) -> int:
         """
@@ -748,6 +843,28 @@ class Database:
             
             logger.info(f"Updated volume numbers for {updated_count} books")
             return updated_count
+
+
+def compute_file_hash(filepath: str, chunk_size: int = 65536) -> Optional[str]:
+    """Cheap content fingerprint: size + head and tail hashes.
+
+    Reading 128 KB per file keeps folder scans fast even for large libraries,
+    while still detecting the same comic saved under a different name.
+    """
+    import hashlib
+
+    path = Path(filepath)
+    try:
+        size = path.stat().st_size
+        digest = hashlib.sha1()
+        with open(path, "rb") as handle:
+            digest.update(handle.read(chunk_size))
+            if size > chunk_size * 2:
+                handle.seek(-chunk_size, os.SEEK_END)
+                digest.update(handle.read(chunk_size))
+        return f"{size}:{digest.hexdigest()}"
+    except OSError:
+        return None
 
 
 # Global database instance

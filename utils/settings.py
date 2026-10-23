@@ -45,10 +45,14 @@ class Settings:
                 "splitter_state": "",
             },
             "library": {
+                "root_folder": "",
+                "first_run_done": False,
+                "auto_sync": True,
+                "clean_names": True,
                 "last_import_folder": "",
             },
             "app": {
-                "version": "2.1.0",
+                "version": "2.2.0",
             },
         }
         self.settings = self._load_settings()
@@ -251,6 +255,43 @@ class Settings:
     def set_many_view(self, values: Dict[str, Any]):
         view = self.settings.setdefault("view", {})
         view.update(values)
+        self.save()
+
+    # ------------------------------------------------------------------
+    # Library folder (watched on every start)
+    # ------------------------------------------------------------------
+    def get_library_root(self) -> str:
+        return str(self.settings.get("library", {}).get("root_folder", "") or "")
+
+    def set_library_root(self, folder: str):
+        library = self.settings.setdefault("library", {})
+        library["root_folder"] = folder or ""
+        self.save()
+
+    def has_library_root(self) -> bool:
+        folder = self.get_library_root()
+        return bool(folder) and Path(folder).is_dir()
+
+    def is_first_run(self) -> bool:
+        library = self.settings.get("library", {})
+        return not bool(library.get("first_run_done", False))
+
+    def mark_first_run_done(self):
+        self.settings.setdefault("library", {})["first_run_done"] = True
+        self.save()
+
+    def get_auto_sync(self) -> bool:
+        return bool(self.settings.get("library", {}).get("auto_sync", True))
+
+    def set_auto_sync(self, enabled: bool):
+        self.settings.setdefault("library", {})["auto_sync"] = bool(enabled)
+        self.save()
+
+    def get_clean_names(self) -> bool:
+        return bool(self.settings.get("library", {}).get("clean_names", True))
+
+    def set_clean_names(self, enabled: bool):
+        self.settings.setdefault("library", {})["clean_names"] = bool(enabled)
         self.save()
 
     def get_last_import_folder(self) -> str:

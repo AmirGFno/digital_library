@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml/badge.svg"></a>
   <a href="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml"><img alt="Windows build" src="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-2.1.0-e8552d">
+  <img alt="Version" src="https://img.shields.io/badge/version-2.2.0-e8552d">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
@@ -40,9 +40,23 @@
 - کشیدن و رها کردن فایل یا پوشه روی پنجره‌ی برنامه برای افزودن سریع
 - ویرایش اطلاعات هر کتاب از پنجره‌ی جزئیات
 - تشخیص خودکار خواننده‌های کمیک و امکان افزودن هر برنامه‌ی دلخواه
-- انتخاب خواننده‌ی پیش‌فرض، یا خواننده‌ی جداگانه برای هر نوع فایل
+- انتخاب خواننده‌ی پیش‌فرض، یا خواننده‌ی جداگانه برای هر نوع فایل؛ ذخیره‌ی
+  تنظیمات خواننده با بررسی صحت فایل ذخیره‌شده
+- **پوشه‌ی پیش‌فرض کتابخانه**: فقط بار اول پرسیده می‌شود و هر کمیک تازه‌ای که
+  در آن گذاشته شود، به‌صورت خودکار وارد کتابخانه می‌شود
+- **افزودن پوشه‌ای**: هر زیرپوشه می‌تواند یک سری شود؛ پیش از افزودن، پرسیده
+  می‌شود «سری با همین نام ساخته شود؟» و نام‌ها قابل ویرایش‌اند
+- **جلوگیری از تکرار**: فایل تکراری (حتی با نام یا مسیر جدید) دوباره اضافه
+  نمی‌شود و افزودن دوباره‌ی یک پوشه فقط فایل‌های تازه را وارد می‌کند
+- **شماره‌ی جلد هوشمند**: عدد ۱ تا ۳ رقمی نام فایل شماره‌ی جلد می‌شود، تکراری
+  هرگز ساخته نمی‌شود و در صورت نبود الگو، ترتیب تاریخی فایل‌ها ملاک است
+- **انتخاب چندگانه** با `Ctrl`/`Shift` و کشیدن کادر، همراه با منوی کلیک راست
+  گروهی (باز کردن، خوانده/نخوانده، علاقه‌مندی، تغییر سری و حذف)
+- **پاک‌سازی نام**: حذف آیدی کانال تلگرام، نشانی سایت و عبارت‌های تبلیغاتی از
+  نام کمیک، با پیش‌نمایش قبل از ذخیره
 - رابط تیره‌ی مدرن، ذخیره‌ی چیدمان پنجره و پشتیبانی از DPI بالا
-- نسخه‌ی **EXE تک‌فایل** بدون نیاز به نصب پایتون
+- نسخه‌ی **EXE تک‌فایل** بدون نیاز به نصب پایتون و با حجم بسیار کمتر (موتور PDF
+  سبک جایگزین شد)
 
 ### خواننده‌های پشتیبانی‌شده
 
@@ -76,7 +90,7 @@ python main.py
 ### دریافت نسخه‌ی EXE
 
 از بخش [Releases](https://github.com/AmirGFno/digital_library/releases) فایل
-`DigitalLibrary-2.1.0-windows-x64.zip` را دانلود کنید، از حالت فشرده خارج کنید
+`DigitalLibrary-2.2.0-windows-x64.zip` را دانلود کنید، از حالت فشرده خارج کنید
 و `DigitalLibrary.exe` را اجرا کنید. پایتون لازم نیست.
 
 > ویندوز ممکن است بار اول هشدار SmartScreen نشان دهد، چون فایل امضای دیجیتال
@@ -137,7 +151,10 @@ python scripts/smoke.py
 | `Ctrl++` / `Ctrl+-` | کم و زیاد کردن ستون‌ها |
 | `F5` | تازه‌سازی |
 | دوبار کلیک | باز کردن کتاب |
-| کلیک راست | منوی «Open with» و سایر گزینه‌ها |
+| `Ctrl+A` | انتخاب همه |
+| `Ctrl` + کلیک | افزودن/حذف از انتخاب |
+| `Shift` + کلیک | انتخاب بازه |
+| کلیک راست | منوی «Open with» یا منوی گروهی برای چند کتاب |
 
 ---
 
@@ -153,10 +170,19 @@ python scripts/smoke.py
 - Favorites, five-star ratings, read/started filters
 - Full-text search over title, series, writer and publisher
 - Six sort orders, drag &amp; drop import, metadata editor and statistics
-- Detects popular comic readers and can launch any custom executable, globally
-  or per file type
+- Detects popular comic readers (including CDisplayEx) and can launch any custom
+  executable, globally or per file type; reader choices are verified on disk
+- Default library folder asked once, then watched: new comics are imported
+  automatically
+- Folder import with a per-folder "create a series with this name?" choice
+- Duplicate-proof importing (path and content hash) so a second folder import
+  only adds the new files
+- Unique volume numbers from 1-3 digit file numbers, falling back to file dates
+- Multi-selection with Ctrl/Shift/rubber band and a group right-click menu
+- Cleans channel IDs, site links and advertising text out of comic names, with a
+  preview before saving
 - Modern dark UI, saved layout, high-DPI friendly
-- Single-file Windows executable (no Python required)
+- Single-file Windows executable (no Python required) with a much smaller size
 
 ### Quick start
 
@@ -177,6 +203,8 @@ digital_library/
 ├── cover_extractor.py          # PDF/archive cover extraction + cache
 ├── comic_metadata.py           # ComicInfo.xml / PDF metadata + page count
 ├── importer.py                 # import pipeline used by dialogs and drag & drop
+├── volume_planner.py           # unique volume numbers from names or dates
+├── pdf_engine.py               # lightweight PDF backend (pypdfium2)
 ├── ui/
 │   ├── main_window.py          # library window
 │   ├── book_card.py            # book card + context menu ("Open with")
@@ -184,14 +212,18 @@ digital_library/
 │   ├── dialogs.py              # add/edit/import/cover dialogs
 │   ├── details_dialog.py       # metadata viewer/editor
 │   ├── reader_settings_dialog.py
+│   ├── folder_import_dialog.py # folder preview, series names and volumes
+│   ├── library_grid.py         # grid with rubber-band selection
+│   ├── welcome_dialog.py       # first-run library folder
 │   └── theme.py                # global dark stylesheet
 ├── utils/
-│   ├── reader_manager.py       # reader detection and launching
+│   ├── reader_manager.py       # reader detection (incl. registry) and launching
 │   ├── settings.py             # atomic JSON settings
+│   ├── text_cleaner.py         # removes ads/links from comic names
 │   ├── helpers.py
 │   └── logger.py
 ├── scripts/
-│   ├── smoke_test.py           # headless GUI test
+│   ├── smoke.py                # headless GUI test
 │   └── make_icon.py            # generates assets/icon.png + icon.ico
 ├── tests/                      # pytest test-suite
 ├── DigitalLibrary.spec         # PyInstaller build definition

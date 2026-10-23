@@ -18,13 +18,9 @@ from config import (
 from utils.logger import logger
 from utils.helpers import get_file_extension, get_filename_without_extension
 
+import pdf_engine
+
 # Optional imports
-try:
-    import fitz  # PyMuPDF
-    HAS_PYMUPDF = True
-except ImportError:
-    HAS_PYMUPDF = False
-    logger.warning("PyMuPDF not installed. PDF cover extraction disabled.")
 
 try:
     import rarfile
@@ -146,25 +142,10 @@ class CoverExtractor:
     
     def _extract_pdf_cover(self, filepath: str) -> Optional[Image.Image]:
         """Extract the first page of a PDF as cover."""
-        if not HAS_PYMUPDF:
+        if not pdf_engine.is_available():
             return None
-        
-        try:
-            doc = fitz.open(filepath)
-            if len(doc) > 0:
-                page = doc[0]
-                # Higher resolution for better quality
-                mat = fitz.Matrix(2.0, 2.0)
-                pix = page.get_pixmap(matrix=mat)
-                img_data = pix.tobytes("png")
-                doc.close()
-                return Image.open(io.BytesIO(img_data)).convert('RGB')
-            doc.close()
-        except Exception as e:
-            logger.error(f"PDF extraction error for {filepath}: {e}")
-        
-        return None
-    
+        return pdf_engine.render_first_page(filepath)
+
     def _extract_image_cover(self, filepath: str) -> Optional[Image.Image]:
         """Use the image file itself as cover."""
         try:

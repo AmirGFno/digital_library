@@ -75,7 +75,8 @@ def main() -> int:
     apply_theme(app)
     _install_exception_hook()
 
-    window = MainWindow()
+    # The self-test must never block on the first-run welcome dialog.
+    window = MainWindow(run_startup=not SELF_TEST)
     window.show()
     logger.info("Application window displayed")
 

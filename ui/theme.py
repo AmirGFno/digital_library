@@ -32,6 +32,15 @@ QLabel#SubtitleLabel {{
     color: #9aa3ad;
     font-size: 12px;
 }}
+QLabel#QuestionLabel {{
+    color: #e7c46a;
+    background-color: #24211a;
+    border: 1px solid #3a3427;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-weight: 600;
+}}
 QLabel#SectionLabel {{
     color: #9aa3ad;
     font-size: 11px;
@@ -292,6 +301,10 @@ def apply_theme(app):
 
 # Card state accents (dynamic properties set by BookCard)
 CARD_STATE_STYLESHEET = """
+QFrame#BookCard[selected="true"] {
+    border: 2px solid #e8552d;
+    background-color: #23262d;
+}
 QFrame#BookCard[isRead="true"] {
     border: 1px solid #2b5f3f;
 }

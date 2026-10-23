@@ -12,7 +12,8 @@ hiddenimports = [
     "py7zr",
     "PIL",
     "PIL.Image",
-    "fitz",
+    "pypdfium2",
+    "pypdfium2_raw",
 ]
 
 excludes = [
@@ -48,9 +49,14 @@ excludes = [
     "PyQt6.QtDataVisualization",
     "PyQt6.Qt3DCore",
     "PyQt6.Qt3DRender",
+    "pymupdf",
     "pymupdf4llm",
     "pymupdf_layout",
+    "fitz",
     "numpy",
+    "scipy",
+    "matplotlib",
+    "pandas",
     "onnxruntime",
 ]
 

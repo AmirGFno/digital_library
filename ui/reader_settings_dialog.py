@@ -1,15 +1,18 @@
 """
 Reader settings dialog.
 
-Lets the user choose the application used to open comics, override the choice
-per file type, and register custom readers (any executable that accepts a file
-path).
+The whole dialog is built around one question: *which application should open my
+comics?* Pick a reader from the list, press **Save settings** and it is used from
+then on.
+
+A reader can also be overridden per file type (comics / PDF / images), and any
+executable can be registered manually when automatic detection misses it.
 """
 from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
@@ -28,7 +31,6 @@ from PyQt6.QtWidgets import (
     QListWidgetItem,
     QMessageBox,
     QPushButton,
-    QRadioButton,
     QVBoxLayout,
 )
 
@@ -36,7 +38,6 @@ from utils.logger import logger
 from utils.reader_manager import (
     FORMAT_GROUPS,
     FORMAT_LABELS,
-    SYSTEM_READER_ID,
     ReaderInfo,
     reader_manager,
 )
@@ -44,22 +45,25 @@ from utils.settings import settings
 
 
 class CustomReaderDialog(QDialog):
-    """Small dialog to register an external application as a reader."""
+    """Register an external application as a reader."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, preselect: str = ""):
         super().__init__(parent)
-        self.setWindowTitle("Add custom reader")
-        self.setMinimumWidth(520)
+        self.setWindowTitle("Add a reader")
+        self.setMinimumWidth(560)
         self._reader_data: Optional[Dict] = None
         self._build_ui()
+        if preselect:
+            self.path_input.setText(preselect)
+            self.name_input.setText(Path(preselect).stem)
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
 
         intro = QLabel(
-            "Point to the executable of any comic reader (for example a portable "
-            "CDisplayEx / ComicRack build) and choose which files it should open."
+            "Choose the .exe of any comic reader — a portable CDisplayEx build in "
+            "your Downloads folder works just as well as an installed one."
         )
         intro.setWordWrap(True)
         intro.setObjectName("SubtitleLabel")
@@ -113,8 +117,10 @@ class CustomReaderDialog(QDialog):
         layout.addWidget(buttons)
 
     def _browse(self):
-        filters = "Applications (*.exe *.app *.sh);;All files (*)"
-        path, _ = QFileDialog.getOpenFileName(self, "Select reader executable", "", filters)
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select the reader executable", "",
+            "Applications (*.exe *.app *.sh);;All files (*)",
+        )
         if path:
             self.path_input.setText(path)
             if not self.name_input.text().strip():
@@ -143,15 +149,14 @@ class CustomReaderDialog(QDialog):
 
 
 class ReaderSettingsDialog(QDialog):
-    """Configure the application used to open comic files."""
+    """Select the application used to open comics."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Reader settings")
-        self.setMinimumSize(640, 620)
-        self._readers: List[ReaderInfo] = reader_manager.refresh()
+        self.setMinimumSize(700, 640)
         self._build_ui()
-        self._populate()
+        self.reload()
 
     # ------------------------------------------------------------------
     # UI
@@ -161,44 +166,62 @@ class ReaderSettingsDialog(QDialog):
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(12)
 
-        title = QLabel("Comic reader")
+        title = QLabel("Which app should open your comics?")
         title.setObjectName("TitleLabel")
         layout.addWidget(title)
 
         subtitle = QLabel(
-            "Choose which application opens your comics. Popular readers are detected "
-            "automatically; you can also point the app to any executable."
+            "Select a reader below and press Save settings. The chosen application is "
+            "used for double-click, the Open menu and the “Open with” submenu."
         )
         subtitle.setWordWrap(True)
         subtitle.setObjectName("SubtitleLabel")
         layout.addWidget(subtitle)
 
-        # Default reader -------------------------------------------------
-        default_group = QGroupBox("Default application")
-        default_layout = QVBoxLayout(default_group)
-        self.system_radio = QRadioButton("Use the system default application")
-        self.reader_radio = QRadioButton("Always open with:")
-        default_layout.addWidget(self.system_radio)
-        default_layout.addWidget(self.reader_radio)
+        # Reader list ----------------------------------------------------
+        list_group = QGroupBox("Available readers")
+        list_layout = QVBoxLayout(list_group)
+        self.readers_list = QListWidget()
+        self.readers_list.setMinimumHeight(210)
+        self.readers_list.currentItemChanged.connect(self._on_selection_changed)
+        self.readers_list.itemDoubleClicked.connect(lambda _item: self._save())
+        list_layout.addWidget(self.readers_list)
 
-        reader_row = QHBoxLayout()
-        reader_row.addSpacing(22)
-        self.default_combo = QComboBox()
-        self.default_combo.currentIndexChanged.connect(self._update_default_path)
-        reader_row.addWidget(self.default_combo, 1)
-        default_layout.addLayout(reader_row)
+        self.detail_label = QLabel("")
+        self.detail_label.setObjectName("SubtitleLabel")
+        self.detail_label.setWordWrap(True)
+        self.detail_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        list_layout.addWidget(self.detail_label)
 
-        self.default_path_label = QLabel("")
-        self.default_path_label.setObjectName("SubtitleLabel")
-        self.default_path_label.setWordWrap(True)
-        default_layout.addWidget(self.default_path_label)
+        button_row = QHBoxLayout()
+        self.add_button = QPushButton("Add custom reader...")
+        self.add_button.clicked.connect(self._add_custom_reader)
+        self.browse_button = QPushButton("Browse executable...")
+        self.browse_button.setToolTip(
+            "Point the app directly at CDisplayEx.exe or any other reader"
+        )
+        self.browse_button.clicked.connect(self._browse_executable)
+        self.remove_button = QPushButton("Remove")
+        self.remove_button.clicked.connect(self._remove_custom_reader)
+        self.refresh_button = QPushButton("Detect again")
+        self.refresh_button.clicked.connect(self._refresh_detection)
+        self.test_button = QPushButton("Test launch")
+        self.test_button.setToolTip("Start the selected reader to verify it works")
+        self.test_button.clicked.connect(self._test_reader)
 
-        self.system_radio.toggled.connect(self._on_default_mode_changed)
-        self.reader_radio.toggled.connect(self._on_default_mode_changed)
-        layout.addWidget(default_group)
+        button_row.addWidget(self.add_button)
+        button_row.addWidget(self.browse_button)
+        button_row.addWidget(self.remove_button)
+        button_row.addStretch()
+        button_row.addWidget(self.refresh_button)
+        button_row.addWidget(self.test_button)
+        list_layout.addLayout(button_row)
+        layout.addWidget(list_group, 1)
 
         # Per-format overrides -------------------------------------------
-        format_group = QGroupBox("Per file type (optional)")
+        format_group = QGroupBox("Different reader per file type (optional)")
         grid = QGridLayout(format_group)
         grid.setHorizontalSpacing(12)
         grid.setVerticalSpacing(8)
@@ -207,37 +230,11 @@ class ReaderSettingsDialog(QDialog):
             label = QLabel(FORMAT_LABELS[group])
             label.setWordWrap(True)
             combo = QComboBox()
-            combo.setMinimumWidth(280)
+            combo.setMinimumWidth(260)
             self.format_combos[group] = combo
             grid.addWidget(label, row, 0)
             grid.addWidget(combo, row, 1)
         layout.addWidget(format_group)
-
-        # Detected readers -----------------------------------------------
-        detected_group = QGroupBox("Readers on this computer")
-        detected_layout = QVBoxLayout(detected_group)
-        self.readers_list = QListWidget()
-        self.readers_list.setMinimumHeight(150)
-        self.readers_list.itemSelectionChanged.connect(self._update_buttons)
-        detected_layout.addWidget(self.readers_list)
-
-        button_row = QHBoxLayout()
-        self.add_button = QPushButton("Add custom reader...")
-        self.add_button.clicked.connect(self._add_custom_reader)
-        self.remove_button = QPushButton("Remove")
-        self.remove_button.clicked.connect(self._remove_custom_reader)
-        self.refresh_button = QPushButton("Detect again")
-        self.refresh_button.clicked.connect(self._refresh_detection)
-        self.test_button = QPushButton("Launch")
-        self.test_button.setToolTip("Start the selected reader to verify it works")
-        self.test_button.clicked.connect(self._test_reader)
-        button_row.addWidget(self.add_button)
-        button_row.addWidget(self.remove_button)
-        button_row.addWidget(self.refresh_button)
-        button_row.addStretch()
-        button_row.addWidget(self.test_button)
-        detected_layout.addLayout(button_row)
-        layout.addWidget(detected_group, 1)
 
         self.status_label = QLabel("")
         self.status_label.setObjectName("SubtitleLabel")
@@ -246,6 +243,7 @@ class ReaderSettingsDialog(QDialog):
         buttons = QDialogButtonBox()
         save_button = QPushButton("Save settings")
         save_button.setObjectName("PrimaryButton")
+        save_button.setDefault(True)
         cancel_button = QPushButton("Cancel")
         buttons.addButton(save_button, QDialogButtonBox.ButtonRole.AcceptRole)
         buttons.addButton(cancel_button, QDialogButtonBox.ButtonRole.RejectRole)
@@ -254,72 +252,60 @@ class ReaderSettingsDialog(QDialog):
         layout.addWidget(buttons)
 
     # ------------------------------------------------------------------
-    # Population
+    # Data
     # ------------------------------------------------------------------
-    def _populate(self):
-        readers = reader_manager.readers
-        available = [reader for reader in readers if reader.available]
+    def reload(self):
+        reader_manager.refresh()
+        self._fill_list()
+        self._fill_format_combos()
+        self._select_current_default()
 
-        self.default_combo.blockSignals(True)
-        self.default_combo.clear()
-        for reader in available:
-            if reader.is_system:
+        available = [reader for reader in reader_manager.readers if reader.available]
+        self.status_label.setText(
+            f"{len(available) - 1} reader(s) detected on this computer"
+        )
+
+    def _fill_list(self):
+        self.readers_list.clear()
+        for reader in reader_manager.readers:
+            if reader.source == "detected" and not reader.available:
                 continue
-            self.default_combo.addItem(reader.name, reader.id)
-        self.default_combo.blockSignals(False)
-
-        default_id = settings.get_default_reader_id()
-        if default_id == SYSTEM_READER_ID or self.default_combo.count() == 0:
-            self.system_radio.setChecked(True)
-        else:
-            index = self.default_combo.findData(default_id)
-            if index >= 0:
-                self.reader_radio.setChecked(True)
-                self.default_combo.setCurrentIndex(index)
+            if reader.is_system:
+                text = "System default  —  let Windows decide"
             else:
-                # Configured reader disappeared: fall back gracefully.
-                self.reader_radio.setChecked(True)
-                self.default_combo.setCurrentIndex(0)
+                state = "" if reader.available else "   (missing)"
+                source = "  •  added manually" if reader.source == "custom" else ""
+                text = f"{reader.name}{state}{source}\n{reader.executable}"
+            item = QListWidgetItem(text)
+            item.setData(Qt.ItemDataRole.UserRole, reader.id)
+            if not reader.available:
+                item.setToolTip("This path does not exist any more")
+            self.readers_list.addItem(item)
 
+    def _fill_format_combos(self):
+        available = [reader for reader in reader_manager.readers if reader.available]
+        per_format = settings.get_reader_settings().get("per_format", {})
         for group, combo in self.format_combos.items():
             combo.blockSignals(True)
             combo.clear()
-            combo.addItem("Use the default application", "")
+            combo.addItem("Use the default reader", "")
             for reader in available:
                 if reader.is_system or not reader.supports(group):
                     continue
                 combo.addItem(reader.name, reader.id)
-            current = settings.get_reader_settings().get("per_format", {}).get(group, "")
+            current = per_format.get(group, "") or ""
             index = combo.findData(current)
             combo.setCurrentIndex(index if index >= 0 else 0)
             combo.blockSignals(False)
 
-        self._fill_readers_list()
-        self._on_default_mode_changed()
-        self.status_label.setText(
-            f"{len([r for r in readers if r.available])} readers detected on this computer"
-        )
-
-    def _fill_readers_list(self):
-        self.readers_list.clear()
-        for reader in reader_manager.readers:
-            if not reader.available and reader.source != "custom":
-                continue
-            location = reader.executable or "managed by the operating system"
-            if reader.is_system:
-                location = "uses the operating system association"
-            item = QListWidgetItem(f"{reader.name}\n{location}")
-            item.setData(Qt.ItemDataRole.UserRole, reader.id)
-            if not reader.available:
-                item.setToolTip("The configured path no longer exists")
-            self.readers_list.addItem(item)
-        self._update_buttons()
-
-    def _update_buttons(self):
-        reader = self._selected_reader()
-        is_custom = bool(reader and reader.source == "custom")
-        self.remove_button.setEnabled(is_custom)
-        self.test_button.setEnabled(bool(reader and reader.available and not reader.is_system))
+    def _select_current_default(self):
+        default_id = settings.get_default_reader_id()
+        for row in range(self.readers_list.count()):
+            item = self.readers_list.item(row)
+            if item.data(Qt.ItemDataRole.UserRole) == default_id:
+                self.readers_list.setCurrentRow(row)
+                return
+        self.readers_list.setCurrentRow(0)
 
     def _selected_reader(self) -> Optional[ReaderInfo]:
         item = self.readers_list.currentItem()
@@ -327,21 +313,31 @@ class ReaderSettingsDialog(QDialog):
             return None
         return reader_manager.get(item.data(Qt.ItemDataRole.UserRole))
 
-    # ------------------------------------------------------------------
-    # Interactions
-    # ------------------------------------------------------------------
-    def _on_default_mode_changed(self):
-        custom = self.reader_radio.isChecked()
-        self.default_combo.setEnabled(custom)
-        self._update_default_path()
-
-    def _update_default_path(self):
-        reader = reader_manager.get(self.default_combo.currentData())
-        if self.system_radio.isChecked() or reader is None:
-            self.default_path_label.setText("")
+    def _on_selection_changed(self, *_args):
+        reader = self._selected_reader()
+        if reader is None:
+            self.detail_label.setText("")
+            self.remove_button.setEnabled(False)
+            self.test_button.setEnabled(False)
             return
-        self.default_path_label.setText(reader.executable)
 
+        if reader.is_system:
+            self.detail_label.setText(
+                "Windows will pick the application registered for each file type."
+            )
+        elif reader.available:
+            self.detail_label.setText(f"Path: {reader.executable}")
+        else:
+            self.detail_label.setText(
+                "This reader is no longer at the saved path. Use “Browse executable...” "
+                "to point to it again."
+            )
+        self.remove_button.setEnabled(reader.source == "custom")
+        self.test_button.setEnabled(reader.available and not reader.is_system)
+
+    # ------------------------------------------------------------------
+    # Actions
+    # ------------------------------------------------------------------
     def _add_custom_reader(self):
         dialog = CustomReaderDialog(self)
         if not dialog.exec():
@@ -355,36 +351,58 @@ class ReaderSettingsDialog(QDialog):
         if not reader:
             QMessageBox.warning(self, "Custom reader", "The reader could not be registered.")
             return
-        reader_manager.refresh()
-        self._populate()
-        index = self.default_combo.findData(reader.id)
-        if index >= 0:
-            self.reader_radio.setChecked(True)
-            self.default_combo.setCurrentIndex(index)
-        self.status_label.setText(f"Added {reader.name}")
+        self.reload()
+        self._select_reader(reader.id)
+        self.status_label.setText(f"Added {reader.name}. Press Save settings to use it.")
+
+    def _browse_executable(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select the reader executable", "",
+            "Applications (*.exe *.app *.sh);;All files (*)",
+        )
+        if not path:
+            return
+        dialog = CustomReaderDialog(self, preselect=path)
+        if not dialog.exec():
+            return
+        data = dialog.reader_data()
+        if not data:
+            return
+        reader = reader_manager.add_custom_reader(
+            data["name"], data["path"], data["formats"], data["arguments"]
+        )
+        if reader:
+            self.reload()
+            self._select_reader(reader.id)
+            self.status_label.setText(
+                f"Added {reader.name}. Press Save settings to use it."
+            )
+
+    def _select_reader(self, reader_id: str):
+        for row in range(self.readers_list.count()):
+            item = self.readers_list.item(row)
+            if item.data(Qt.ItemDataRole.UserRole) == reader_id:
+                self.readers_list.setCurrentRow(row)
+                return
 
     def _remove_custom_reader(self):
         reader = self._selected_reader()
         if not reader or reader.source != "custom":
             return
         answer = QMessageBox.question(
-            self,
-            "Remove reader",
-            f"Remove '{reader.name}' from the list of readers?",
+            self, "Remove reader", f"Remove '{reader.name}' from the list of readers?"
         )
         if answer != QMessageBox.StandardButton.Yes:
             return
         reader_manager.remove_custom_reader(reader.id)
-        reader_manager.refresh()
-        self._populate()
+        self.reload()
 
     def _refresh_detection(self):
-        reader_manager.refresh()
-        self._populate()
+        self.reload()
         QMessageBox.information(
             self,
             "Reader detection",
-            "Detection finished. Installed readers are listed below.",
+            "Detection finished. Readers installed on this computer are listed above.",
         )
 
     def _test_reader(self):
@@ -404,20 +422,48 @@ class ReaderSettingsDialog(QDialog):
             )
 
     def _save(self):
-        default_id = (
-            SYSTEM_READER_ID if self.system_radio.isChecked() else self.default_combo.currentData()
-        )
-        if not default_id:
-            default_id = SYSTEM_READER_ID
+        reader = self._selected_reader()
+        if reader is None:
+            QMessageBox.warning(self, "Reader", "Select a reader first.")
+            return
+        if not reader.available:
+            QMessageBox.warning(
+                self,
+                "Reader not found",
+                f"{reader.name} is not at its saved path:\n{reader.executable}\n\n"
+                "Use “Browse executable...” to point to it again.",
+            )
+            return
 
         reader_settings = settings.settings.setdefault("reader", {})
-        reader_settings["default"] = default_id
+        reader_settings["default"] = reader.id
         reader_settings.setdefault("per_format", {})
         for group, combo in self.format_combos.items():
             reader_settings["per_format"][group] = combo.currentData() or ""
-        if settings.save():
-            self.accept()
-        else:
+
+        if not settings.save():
+            QMessageBox.critical(self, "Settings", "The settings file could not be written.")
+            return
+
+        # Read the file back to prove the choice really persisted.
+        from utils.settings import Settings
+
+        on_disk = Settings(settings.settings_file)
+        saved_id = on_disk.get_default_reader_id()
+        if saved_id != reader.id:
             QMessageBox.critical(
-                self, "Settings", "The settings file could not be written."
+                self,
+                "Settings",
+                "The reader settings were not saved correctly.\n\n"
+                f"Expected: {reader.id}\nFound: {saved_id}",
             )
+            return
+
+        self.status_label.setText(f"Saved — {reader.name} will open your comics")
+        QMessageBox.information(
+            self,
+            "Settings saved",
+            f"“{reader.name}” is now the default reader.\n\n"
+            "Double-click a comic or use “Open” to test it.",
+        )
+        self.accept()

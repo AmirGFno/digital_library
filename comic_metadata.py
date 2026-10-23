@@ -189,22 +189,12 @@ def read_comic_info(filepath: str) -> Dict[str, object]:
 
 def read_pdf_metadata(filepath: str) -> Dict[str, object]:
     """Best-effort metadata extraction from a PDF file."""
-    try:
-        import fitz  # PyMuPDF
-    except ImportError:
-        return {}
+    import pdf_engine
 
-    metadata: Dict[str, object] = {}
-    try:
-        with fitz.open(filepath) as document:
-            info = document.metadata or {}
-            if info.get("title"):
-                metadata["title"] = info["title"].strip()
-            if info.get("author"):
-                metadata["writer"] = info["author"].strip()
-            metadata["page_count"] = document.page_count
-    except Exception as exc:
-        logger.debug(f"PDF metadata read failed for {filepath}: {exc}")
+    metadata: Dict[str, object] = dict(pdf_engine.get_metadata(filepath))
+    pages = pdf_engine.get_page_count(filepath)
+    if pages:
+        metadata["page_count"] = pages
     return metadata
 
 
@@ -223,10 +213,9 @@ def count_pages(filepath: str) -> int:
     suffix = path.suffix.lower()
     try:
         if suffix == ".pdf":
-            import fitz
+            import pdf_engine
 
-            with fitz.open(path) as document:
-                return int(document.page_count)
+            return pdf_engine.get_page_count(str(path))
         if suffix in (".cbz", ".zip"):
             with zipfile.ZipFile(path) as archive:
                 return sum(

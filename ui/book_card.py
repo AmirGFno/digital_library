@@ -33,22 +33,33 @@ class CoverLoaderWorker(QRunnable):
         self.filepath = filepath
         self.signals = CoverLoaderSignals()
 
+    def _emit(self, cover_path: str):
+        """Emit safely: the card may already be gone while the app closes."""
+        try:
+            self.signals.finished.emit(self.book_id, cover_path)
+        except RuntimeError:
+            # The Qt object was deleted (window closed mid-load); nothing to do.
+            pass
+
     def run(self):
         try:
             custom_cover = db.get_custom_cover(int(self.book_id))
             if custom_cover and Path(custom_cover).exists():
-                self.signals.finished.emit(self.book_id, custom_cover)
+                self._emit(custom_cover)
                 return
             cover_path = cover_extractor.get_cover(self.filepath, int(self.book_id))
-            self.signals.finished.emit(self.book_id, cover_path or "")
+            self._emit(cover_path or "")
         except Exception as exc:
             logger.error(f"Cover loading error for {self.filepath}: {exc}")
-            self.signals.finished.emit(self.book_id, "")
+            self._emit("")
 
 
 class BookCard(QFrame):
     """Widget representing a single book."""
 
+    clicked = pyqtSignal(int, object)          # book_id, keyboard modifiers
+    context_opened = pyqtSignal(int)           # right-click, before the menu shows
+    bulk_context_requested = pyqtSignal(int)   # right-click on a multi-selection
     open_requested = pyqtSignal(int)
     open_with_requested = pyqtSignal(int, str)
     details_requested = pyqtSignal(int)
@@ -82,6 +93,8 @@ class BookCard(QFrame):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
         layout.setSpacing(4)
+        self._selected = False
+        self._multi = False
 
         self.cover_label = QLabel("Loading...")
         self.cover_label.setFixedHeight(COVER_HEIGHT)
@@ -116,6 +129,21 @@ class BookCard(QFrame):
         self.favorite_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.favorite_badge.move(CARD_WIDTH - 36, 12)
         self.favorite_badge.setVisible(False)
+
+        self.check_badge = QLabel("✓", self)
+        self.check_badge.setStyleSheet(
+            "color: #ffffff; font-size: 13px; font-weight: bold;"
+            "background: #e8552d; border-radius: 11px;"
+        )
+        self.check_badge.setFixedSize(22, 22)
+        self.check_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.check_badge.move(10, 12)
+        self.check_badge.setVisible(False)
+
+        # Let clicks reach the card itself instead of the child labels.
+        for widget in (self.cover_label, self.title_label, self.info_label,
+                       self.status_label, self.favorite_badge, self.check_badge):
+            widget.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
         self._refresh_state()
 
@@ -186,9 +214,46 @@ class BookCard(QFrame):
         self.cover_label.setText("No cover")
 
     # ------------------------------------------------------------------
+    # Selection
+    # ------------------------------------------------------------------
+    def set_selected(self, selected: bool):
+        if self._selected == selected:
+            return
+        self._selected = selected
+        self.check_badge.setVisible(selected)
+        self.setProperty("selected", selected)
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+    def set_multi_selected(self, multi: bool):
+        self._multi = bool(multi)
+
+    @property
+    def is_selected(self) -> bool:
+        return self._selected
+
+    @property
+    def in_multi_selection(self) -> bool:
+        return self._selected and self._multi
+
+    def mousePressEvent(self, event: QMouseEvent):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit(self.book_id, event.modifiers())
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    # ------------------------------------------------------------------
     # Context menu
     # ------------------------------------------------------------------
     def contextMenuEvent(self, event):
+        # Let the window make this card the selection anchor when needed.
+        self.context_opened.emit(self.book_id)
+
+        if self._selected and self._multi:
+            self.bulk_context_requested.emit(self.book_id)
+            return
+
         menu = QMenu(self)
 
         details_action = QAction("Details && edit...", self)

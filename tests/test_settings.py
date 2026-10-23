@@ -74,3 +74,16 @@ def test_invalid_settings_file_falls_back_to_defaults(tmp_path):
     settings_file.write_text("{not valid json", encoding="utf-8")
     settings = Settings(settings_file)
     assert settings.get_default_reader_id() == SYSTEM_READER_ID
+
+
+def test_reader_choice_survives_a_restart(temp_settings):
+    """The reader picked in the dialog is still the default after reloading."""
+    from utils.settings import Settings
+
+    temp_settings.set_default_reader("custom-probe")
+    temp_settings.set_reader_for_format("archive", "custom-probe")
+    assert temp_settings.save()
+
+    reloaded = Settings(temp_settings.settings_file)
+    assert reloaded.get_default_reader_id() == "custom-probe"
+    assert reloaded.get_reader_for_format("archive") == "custom-probe"
