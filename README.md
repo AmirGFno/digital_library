@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="../../actions/workflows/tests.yml"><img alt="Tests" src="../../actions/workflows/tests.yml/badge.svg"></a>
-  <a href="../../actions/workflows/build-windows.yml"><img alt="Windows build" src="../../actions/workflows/build-windows.yml/badge.svg"></a>
+  <a href="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml/badge.svg"></a>
+  <a href="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml"><img alt="Windows build" src="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml/badge.svg"></a>
   <img alt="Version" src="https://img.shields.io/badge/version-2.1.0-e8552d">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
@@ -75,7 +75,7 @@ python main.py
 
 ### دریافت نسخه‌ی EXE
 
-از بخش [Releases](../../releases) فایل
+از بخش [Releases](https://github.com/AmirGFno/digital_library/releases) فایل
 `DigitalLibrary-2.1.0-windows-x64.zip` را دانلود کنید، از حالت فشرده خارج کنید
 و `DigitalLibrary.exe` را اجرا کنید. پایتون لازم نیست.
 
@@ -210,4 +210,4 @@ release when a `v*` tag is pushed).
 
 ### License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](https://github.com/AmirGFno/digital_library/blob/main/LICENSE).
