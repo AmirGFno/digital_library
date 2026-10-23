@@ -1,7 +1,16 @@
 from .main_window import MainWindow
 from .book_card import BookCard
 from .series_panel import SeriesPanel
-from .dialogs import AddBookDialog, EditVolumeDialog, AddSeriesDialog, ConfirmDialog
+from .dialogs import (
+    AddBookDialog,
+    EditVolumeDialog,
+    AddSeriesDialog,
+    EditSeriesDialog,
+    ConfirmDialog,
+    BulkImportDialog,
+    SetCustomCoverDialog,
+    ReaderSettingsDialog,
+)
 
 __all__ = [
     'MainWindow',
@@ -10,5 +19,9 @@ __all__ = [
     'AddBookDialog',
     'EditVolumeDialog',
     'AddSeriesDialog',
-    'ConfirmDialog'
+    'EditSeriesDialog',
+    'ConfirmDialog',
+    'BulkImportDialog',
+    'SetCustomCoverDialog',
+    'ReaderSettingsDialog',
 ]

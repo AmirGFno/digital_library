@@ -11,6 +11,7 @@ from contextlib import contextmanager
 
 from config import DATABASE_PATH
 from utils.logger import logger
+from utils.helpers import sort_books_naturally
 
 
 class Database:
@@ -320,31 +321,8 @@ class Database:
                 """)
             
             books = [dict(row) for row in cursor.fetchall()]
-            
-            # Safe sorting function
-            def safe_sort_key(book):
-                # Handle all values safely
-                series = book.get('series_name') or ''
-                if series is None:
-                    series = ''
-                
-                volume_num = book.get('volume_num')
-                if volume_num is None:
-                    volume_num = 999999
-                
-                volume = book.get('volume') or ''
-                if volume is None:
-                    volume = ''
-                
-                title = book.get('title') or book.get('filepath') or ''
-                if title is None:
-                    title = ''
-                
-                return (series, volume_num, volume, title.lower())
-            
-            books.sort(key=safe_sort_key)
-            return books
-    
+            return sort_books_naturally(books)
+
     def get_books_without_series(self) -> List[Dict]:
         """Get all books that don't belong to any series."""
         with self.get_connection() as conn:
@@ -356,25 +334,7 @@ class Database:
             """)
             
             books = [dict(row) for row in cursor.fetchall()]
-            
-            # Safe sorting function
-            def safe_sort_key(book):
-                volume_num = book.get('volume_num')
-                if volume_num is None:
-                    volume_num = 999999
-                
-                volume = book.get('volume') or ''
-                if volume is None:
-                    volume = ''
-                
-                title = book.get('title') or book.get('filepath') or ''
-                if title is None:
-                    title = ''
-                
-                return (volume_num, volume, title.lower())
-            
-            books.sort(key=safe_sort_key)
-            return books
+            return sort_books_naturally(books)
     
     def update_book(self, book_id: int, **kwargs) -> bool:
         """Update book fields. Accepts: title, series_id, volume, is_read, custom_cover."""
@@ -489,30 +449,8 @@ class Database:
             """, (limit,))
             
             books = [dict(row) for row in cursor.fetchall()]
-            
-            # Safe sorting
-            def safe_sort_key(book):
-                series = book.get('series_name') or ''
-                if series is None:
-                    series = ''
-                
-                volume_num = book.get('volume_num')
-                if volume_num is None:
-                    volume_num = 999999
-                
-                volume = book.get('volume') or ''
-                if volume is None:
-                    volume = ''
-                
-                title = book.get('title') or book.get('filepath') or ''
-                if title is None:
-                    title = ''
-                
-                return (series, volume_num, volume, title.lower())
-            
-            books.sort(key=safe_sort_key)
-            return books
-    
+            return sort_books_naturally(books)
+
     def get_unread_books(self) -> List[Dict]:
         """Get all unread books."""
         with self.get_connection() as conn:
@@ -525,29 +463,7 @@ class Database:
             """)
             
             books = [dict(row) for row in cursor.fetchall()]
-            
-            # Safe sorting
-            def safe_sort_key(book):
-                series = book.get('series_name') or ''
-                if series is None:
-                    series = ''
-                
-                volume_num = book.get('volume_num')
-                if volume_num is None:
-                    volume_num = 999999
-                
-                volume = book.get('volume') or ''
-                if volume is None:
-                    volume = ''
-                
-                title = book.get('title') or book.get('filepath') or ''
-                if title is None:
-                    title = ''
-                
-                return (series, volume_num, volume, title.lower())
-            
-            books.sort(key=safe_sort_key)
-            return books
+            return sort_books_naturally(books)
     
     def get_total_unread_count(self) -> int:
         """Get total count of unread books."""
@@ -576,30 +492,8 @@ class Database:
             """, (search_term, search_term))
             
             books = [dict(row) for row in cursor.fetchall()]
-            
-            # Safe sorting
-            def safe_sort_key(book):
-                series = book.get('series_name') or ''
-                if series is None:
-                    series = ''
-                
-                volume_num = book.get('volume_num')
-                if volume_num is None:
-                    volume_num = 999999
-                
-                volume = book.get('volume') or ''
-                if volume is None:
-                    volume = ''
-                
-                title = book.get('title') or book.get('filepath') or ''
-                if title is None:
-                    title = ''
-                
-                return (series, volume_num, volume, title.lower())
-            
-            books.sort(key=safe_sort_key)
-            return books
-    
+            return sort_books_naturally(books)
+
     def bulk_add_books(self, books: List[Dict]) -> Tuple[int, int]:
         """
         Bulk add books. Each dict should have 'filepath' and optionally

@@ -17,9 +17,9 @@ class Settings:
         self.default_settings = {
             'reader': {
                 'enabled': False,
-                'path': r"C:\Program Files\CDisplayEx\CDisplayEx.exe",
-                'name': "CDisplayEx",
-                'use_system_default': False
+                'path': '',
+                'name': '',
+                'use_system_default': True
             },
             'view': {
                 'columns': 4,
