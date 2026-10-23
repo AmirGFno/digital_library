@@ -1,0 +1,26 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Executables / binaries
+*.exe
+
+# Database and user-specific settings
+data/*.db
+data/settings.json
+
+# Logs
+logs/*.log
+
+# Cover thumbnail cache
+thumbnails/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.env
