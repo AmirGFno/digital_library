@@ -66,6 +66,7 @@ from ui.folder_import_dialog import FolderImportDialog
 from ui.library_grid import LibraryGrid
 from ui.reader_settings_dialog import ReaderSettingsDialog
 from ui.series_panel import SeriesPanel
+from ui.name_preview_dialog import preview_when_needed
 from ui.welcome_dialog import WelcomeDialog
 from utils.helpers import (
     format_file_size,
@@ -1272,6 +1273,16 @@ class MainWindow(QMainWindow):
             )
             return
 
+        # Never rename a file silently: show the cleaned title first.
+        clean_names = self.clean_names_action.isChecked()
+        if clean_names:
+            preview = preview_when_needed(files, self)
+            if preview is not None:
+                if not preview.exec():
+                    self.statusbar.showMessage("Import cancelled — nothing was added.")
+                    return
+                clean_names = preview.use_clean_names
+
         progress = QProgressDialog("Importing dropped files...", None, 0, len(files), self)
         progress.setWindowTitle("Import")
         progress.setWindowModality(Qt.WindowModality.WindowModal)
@@ -1285,7 +1296,7 @@ class MainWindow(QMainWindow):
 
         result = importer.import_files(
             files,
-            clean_names=self.clean_names_action.isChecked(),
+            clean_names=clean_names,
             progress=on_progress,
         )
         progress.setValue(len(files))

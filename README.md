@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml/badge.svg"></a>
   <a href="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml"><img alt="Windows build" src="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-2.2.1-e8552d">
+  <img alt="Version" src="https://img.shields.io/badge/version-2.2.2-e8552d">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
@@ -90,7 +90,7 @@ python main.py
 ### دریافت نسخه‌ی EXE
 
 از بخش [Releases](https://github.com/AmirGFno/digital_library/releases) فایل
-`DigitalLibrary-2.2.1-windows-x64.zip` را دانلود کنید، از حالت فشرده خارج کنید
+`DigitalLibrary-2.2.2-windows-x64.zip` را دانلود کنید، از حالت فشرده خارج کنید
 و `DigitalLibrary.exe` را اجرا کنید. پایتون لازم نیست.
 
 > ویندوز ممکن است بار اول هشدار SmartScreen نشان دهد، چون فایل امضای دیجیتال
@@ -213,6 +213,7 @@ digital_library/
 │   ├── details_dialog.py       # metadata viewer/editor
 │   ├── reader_settings_dialog.py
 │   ├── folder_import_dialog.py # folder preview, series names and volumes
+│   ├── name_preview_dialog.py  # cleaned titles shown before saving
 │   ├── library_grid.py         # grid with rubber-band selection
 │   ├── welcome_dialog.py       # first-run library folder
 │   └── theme.py                # global dark stylesheet

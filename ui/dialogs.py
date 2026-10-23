@@ -114,6 +114,8 @@ class AddBookDialog(QDialog):
             return
 
         from importer import importer
+        from ui.name_preview_dialog import preview_when_needed
+        from utils.settings import settings
 
         series_id = self.series_combo.currentData()
         volume = self.volume_input.text().strip() or None
@@ -122,12 +124,22 @@ class AddBookDialog(QDialog):
             # A single manual title cannot describe several files.
             title = None
 
+        # The automatic title comes from the file name; show it before saving.
+        clean_names = settings.get_clean_names()
+        if title is None and clean_names:
+            preview = preview_when_needed(self.filepaths, self)
+            if preview is not None:
+                if not preview.exec():
+                    return
+                clean_names = preview.use_clean_names
+
         result = importer.import_files(
             self.filepaths,
             series_id=series_id,
             title=title,
             volume=volume,
             use_metadata=True,
+            clean_names=clean_names,
         )
 
         message = result.summary()

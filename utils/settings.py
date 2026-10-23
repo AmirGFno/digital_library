@@ -52,7 +52,7 @@ class Settings:
                 "last_import_folder": "",
             },
             "app": {
-                "version": "2.2.1",
+                "version": "2.2.2",
             },
         }
         self.settings = self._load_settings()

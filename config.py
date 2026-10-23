@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 APP_NAME = "Digital Library"
-APP_VERSION = "2.2.1"
+APP_VERSION = "2.2.2"
 
 
 def _app_dir() -> Path:

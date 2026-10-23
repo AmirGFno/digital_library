@@ -112,6 +112,18 @@ def main() -> int:
     assert None in names.values()
     folder_dialog.close()
 
+    from ui.name_preview_dialog import preview_when_needed
+
+    advert = library / "Saga" / "Saga 002 [www.example.com] [t.me-channel].cbz"
+    make_comic(advert, "Saga", 2)
+    preview = preview_when_needed([str(advert)], window)
+    assert preview is not None, "advertising name was not detected"
+    app.processEvents()
+    assert preview.changed_count() == 1
+    assert preview.table.item(0, 1).text() == "Saga 002", preview.table.item(0, 1).text()
+    preview.close()
+    assert preview_when_needed([str(library / "Batman" / "Batman 001.cbz")]) is None
+
     book = db.get_all_books()[0]
     details = DetailsDialog(book["id"], window)
     app.processEvents()

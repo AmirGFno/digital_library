@@ -17,12 +17,12 @@ VSVersionInfo(
           [
             StringStruct('CompanyName', 'AmirGFno'),
             StringStruct('FileDescription', 'Digital Library - comic and book manager'),
-            StringStruct('FileVersion', '2.2.1'),
+            StringStruct('FileVersion', '2.2.2'),
             StringStruct('InternalName', 'DigitalLibrary'),
             StringStruct('LegalCopyright', 'Copyright (c) 2026 AmirGFno'),
             StringStruct('OriginalFilename', 'DigitalLibrary.exe'),
             StringStruct('ProductName', 'Digital Library'),
-            StringStruct('ProductVersion', '2.2.1')
+            StringStruct('ProductVersion', '2.2.2')
           ]
         )
       ]
