@@ -282,3 +282,18 @@ def test_the_filled_circle_is_drawn_with_a_white_tick(qt_app):
         and color.blue() > 230
     ]
     assert ring and min(x for x, _ in ring) < 4 and max(x for x, _ in ring) > 17
+
+
+def test_rebuilt_cards_keep_offering_their_circles(window):
+    from PyQt6.QtTest import QTest
+
+    picked = window.book_cards[1]
+    window._start_selection_mode(picked.book_id)
+
+    window.refresh_books()
+    QTest.qWait(20)
+
+    cards = window.book_cards
+    assert all(card.select_circle.isVisible() for card in cards)
+    assert sum(1 for card in cards if card.select_circle.is_selected()) == 1
+    assert window._selection_mode is True
