@@ -11,18 +11,6 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 
-@pytest.fixture(scope="module")
-def qt_app():
-    QtWidgets = pytest.importorskip("PyQt6.QtWidgets")
-    app = QtWidgets.QApplication.instance()
-    if app is None:
-        try:
-            app = QtWidgets.QApplication([])
-        except Exception as exc:  # no display / missing platform plugin
-            pytest.skip(f"Qt cannot start here: {exc}")
-    return app
-
-
 @pytest.fixture
 def host(qt_app):
     from PyQt6.QtWidgets import QWidget

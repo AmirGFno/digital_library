@@ -143,12 +143,15 @@ def _run_self_test() -> bool:
 
 
 def _apply_windows_app_id():
-    """Give the process its own taskbar identity.
+    """Give the running process its own taskbar identity.
 
-    Without this Windows groups the window under the interpreter (or shows a
-    generic document icon) instead of the icon embedded in the executable.
+    Only the source checkout needs this: there the process image is python.exe
+    and Windows would otherwise group the window under the interpreter. The
+    packaged executable already owns its identity (and its icon), and an
+    AppUserModelID that no shortcut is registered for can make Windows fall back
+    to a generic icon, which is exactly what must not happen.
     """
-    if sys.platform != "win32":
+    if sys.platform != "win32" or getattr(sys, "frozen", False):
         return
     try:
         import ctypes
@@ -156,23 +159,55 @@ def _apply_windows_app_id():
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
             "AmirGFno.DigitalLibrary"
         )
+        logger.info("Windows application id set for the source run")
     except Exception:
         logger.debug("Could not set the Windows application id", exc_info=True)
 
 
+def _fallback_icon() -> QIcon:
+    """Draw a simple app icon so the window never ends up without one."""
+    icon = QIcon()
+    try:
+        from PyQt6.QtGui import QColor, QPainter, QPixmap
+
+        for size in (16, 24, 32, 48, 64, 128, 256):
+            pixmap = QPixmap(size, size)
+            pixmap.fill(QColor(0, 0, 0, 0))
+            painter = QPainter(pixmap)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor("#e8552d"))
+            painter.drawRoundedRect(0, 0, size, size, size // 4, size // 4)
+            painter.setBrush(QColor("#ffffff"))
+            inset = max(3, size // 5)
+            painter.drawRoundedRect(
+                inset, inset // 2 + size // 6,
+                size - 2 * inset, size - inset * 2 - size // 6,
+                max(1, size // 16), max(1, size // 16),
+            )
+            painter.end()
+            icon.addPixmap(pixmap)
+    except Exception:
+        logger.debug("Could not draw the fallback icon", exc_info=True)
+    return icon
+
+
 def _application_icon() -> QIcon:
-    """Best icon for this platform (ICO on Windows keeps every size crisp)."""
-    candidates = []
-    if sys.platform == "win32":
-        candidates += [ASSETS_DIR / "icon.ico", ASSETS_DIR / "icon.png"]
-    else:
-        candidates += [ASSETS_DIR / "icon.png", ASSETS_DIR / "icon.ico"]
-    for path in candidates:
-        if path.exists():
-            icon = QIcon(str(path))
-            if not icon.isNull():
-                return icon
-    return QIcon()
+    """Icon with every size the shell may ask for (taskbar, alt-tab, dialogs)."""
+    icon = QIcon()
+    names = ("icon.ico", "icon.png") if sys.platform == "win32" else ("icon.png", "icon.ico")
+    for name in names:
+        path = ASSETS_DIR / name
+        if not path.exists():
+            continue
+        before = len(icon.availableSizes())
+        icon.addFile(str(path))
+        if len(icon.availableSizes()) != before or not icon.isNull():
+            logger.info("Icon loaded from %s", path)
+    if icon.isNull():
+        logger.warning("Application icon missing in %s, using the drawn one", ASSETS_DIR)
+        icon = _fallback_icon()
+    return icon
 
 
 def main() -> int:

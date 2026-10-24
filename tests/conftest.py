@@ -21,3 +21,19 @@ def temp_settings(tmp_path):
     from utils.settings import Settings
 
     return Settings(tmp_path / "settings.json")
+
+
+@pytest.fixture(scope="session")
+def qt_app():
+    """One offscreen QApplication for the widget tests."""
+    import os
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    QtWidgets = pytest.importorskip("PyQt6.QtWidgets")
+    app = QtWidgets.QApplication.instance()
+    if app is None:
+        try:
+            app = QtWidgets.QApplication([])
+        except Exception as exc:  # no display / missing platform plugin
+            pytest.skip(f"Qt cannot start here: {exc}")
+    return app

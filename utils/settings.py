@@ -54,7 +54,7 @@ class Settings:
                 "answered_folders": [],
             },
             "app": {
-                "version": "2.3.2",
+                "version": "2.3.3",
             },
         }
         self.settings = self._load_settings()

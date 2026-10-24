@@ -92,6 +92,7 @@ class BookCard(QFrame):
     clicked = pyqtSignal(int, object)          # book_id, keyboard modifiers
     context_opened = pyqtSignal(int)           # right-click, before the menu shows
     bulk_context_requested = pyqtSignal(int)   # right-click on a multi-selection
+    select_mode_requested = pyqtSignal(int)    # "Select" from the context menu
     open_requested = pyqtSignal(int)
     open_with_requested = pyqtSignal(int, str)
     details_requested = pyqtSignal(int)
@@ -112,6 +113,7 @@ class BookCard(QFrame):
         self.book_id = book_data["id"]
         self._selected = False
         self._multi = False
+        self._selection_mode = False
         self._cover_pixmap: QPixmap | None = None
         self._cover_zoomed: QPixmap | None = None
         self._hovered = False
@@ -428,6 +430,9 @@ class BookCard(QFrame):
     # ------------------------------------------------------------------
     def enterEvent(self, event):
         self._hovered = True
+        if self._selection_mode:
+            # No per-card buttons while books are being picked.
+            return
         # Show the buttons only after the pointer rests on the card, so a quick
         # click (or a Ctrl+click on the way to another book) is never swallowed.
         if not hasattr(self, "_hover_timer"):
@@ -452,7 +457,7 @@ class BookCard(QFrame):
         super().enterEvent(event)
 
     def _show_quick_actions(self):
-        if self._hovered and self.isVisible():
+        if self._hovered and self.isVisible() and not self._selection_mode:
             self.quick_bar.setVisible(True)
 
     def leaveEvent(self, event):
@@ -482,6 +487,12 @@ class BookCard(QFrame):
     def set_multi_selected(self, multi: bool):
         self._multi = bool(multi)
 
+    def set_selection_mode(self, active: bool):
+        """While the window is collecting a selection the card menu is hidden."""
+        self._selection_mode = bool(active)
+        if self._selection_mode and self.quick_bar is not None:
+            self.quick_bar.hide()
+
     @property
     def is_selected(self) -> bool:
         return self._selected
@@ -501,14 +512,23 @@ class BookCard(QFrame):
     # Context menu
     # ------------------------------------------------------------------
     def contextMenuEvent(self, event):
-        # Let the window make this card the selection anchor when needed.
-        self.context_opened.emit(self.book_id)
-
-        if self._selected and self._multi:
+        # While a selection is being built (or several cards are already
+        # marked) the card only offers the group menu.
+        if self._selection_mode or (self._selected and self._multi):
             self.bulk_context_requested.emit(self.book_id)
             return
 
+        # Let the window make this card the selection anchor when needed.
+        self.context_opened.emit(self.book_id)
+
         menu = QMenu(self)
+
+        select_action = QAction("Select several books…", self)
+        select_action.triggered.connect(
+            lambda: self.select_mode_requested.emit(self.book_id)
+        )
+        menu.addAction(select_action)
+        menu.addSeparator()
 
         details_action = QAction("Details && edit...", self)
         details_action.triggered.connect(lambda: self.details_requested.emit(self.book_id))

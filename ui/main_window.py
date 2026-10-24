@@ -153,6 +153,9 @@ class MainWindow(QMainWindow):
         self.books: List[Dict] = []
         self.selected_ids: set[int] = set()
         self._anchor_id: Optional[int] = None
+        # Selection is only collected on purpose: the user picks "Select several
+        # books…" in the card menu, then clicks the cards one by one.
+        self._selection_mode = False
         self._sync_worker: Optional[SyncWorker] = None
         self._syncing = False
         # Watches the library folder so freshly downloaded comics appear by
@@ -747,6 +750,21 @@ class MainWindow(QMainWindow):
                 self._toast("  ·  ".join(parts), "warning" if removed else "info")
         return removed
 
+    def showEvent(self, event):
+        """Re-assert the window icon right before the window is mapped.
+
+        Windows reads the taskbar icon when the window becomes visible; setting
+        it here as well keeps the taskbar button from falling back to a generic
+        icon after a theme or platform change.
+        """
+        super().showEvent(event)
+        icon = self.windowIcon()
+        app = QApplication.instance()
+        if icon.isNull() and app is not None:
+            icon = app.windowIcon()
+        if not icon.isNull():
+            self.setWindowIcon(icon)
+
     def closeEvent(self, event):
         self._save_state()
         if self._watch_timer.isActive():
@@ -1165,6 +1183,7 @@ class MainWindow(QMainWindow):
         card = BookCard(book)
         card.clicked.connect(self._on_card_clicked)
         card.bulk_context_requested.connect(self._show_bulk_menu)
+        card.select_mode_requested.connect(self._start_selection_mode)
         card.context_opened.connect(self._on_card_context)
         card.open_requested.connect(self._open_book)
         card.open_with_requested.connect(self._open_book_with)
@@ -1256,7 +1275,34 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Selection
     # ------------------------------------------------------------------
+    def _start_selection_mode(self, book_id: Optional[int] = None):
+        """Enter "pick several" mode, starting with *book_id* when given."""
+        self._selection_mode = True
+        if book_id is not None:
+            self.selected_ids.add(book_id)
+            self._anchor_id = book_id
+        self._update_card_selection()
+
+    def exit_selection_mode(self):
+        """Leave the multi-selection and drop the marks."""
+        if not self._selection_mode and not self.selected_ids:
+            return
+        self._selection_mode = False
+        self.selected_ids.clear()
+        self._anchor_id = None
+        self._update_card_selection()
+
     def _on_card_clicked(self, book_id: int, modifiers):
+        if self._selection_mode:
+            # Clicking cards one by one adds or removes them, no key needed.
+            if book_id in self.selected_ids:
+                self.selected_ids.discard(book_id)
+            else:
+                self.selected_ids.add(book_id)
+            self._anchor_id = book_id
+            self._update_card_selection()
+            return
+
         ctrl = bool(modifiers & Qt.KeyboardModifier.ControlModifier)
         shift = bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
 
@@ -1281,16 +1327,22 @@ class MainWindow(QMainWindow):
         self._update_card_selection()
 
     def _on_card_context(self, book_id: int):
+        if self._selection_mode:
+            # Never shrink the group when a card is right-clicked.
+            return
         if book_id not in self.selected_ids:
             self.selected_ids = {book_id}
             self._anchor_id = book_id
             self._update_card_selection()
 
     def _on_rubber_band(self, book_ids: List[int], additive: bool):
-        if additive:
+        if additive or self._selection_mode:
             self.selected_ids |= set(book_ids)
         else:
             self.selected_ids = set(book_ids)
+        if len(self.selected_ids) > 1:
+            # Dragging a box over several cards is a selection gesture too.
+            self._selection_mode = True
         self._update_card_selection()
 
     def _typing_text(self):
@@ -1308,35 +1360,42 @@ class MainWindow(QMainWindow):
             field.selectAll()
             return
         self.selected_ids = {book["id"] for book in self.books}
+        self._selection_mode = bool(self.selected_ids)
         self._update_card_selection()
 
     def clear_selection(self):
-        if not self.selected_ids:
+        if not self.selected_ids and not self._selection_mode:
             return
         self.selected_ids.clear()
+        self._selection_mode = False
+        self._anchor_id = None
         self._update_card_selection()
 
     def _update_card_selection(self):
-        multi = len(self.selected_ids) > 1
+        multi = self._selection_mode or len(self.selected_ids) > 1
         for card in self.book_cards:
             selected = card.book_id in self.selected_ids
+            card.set_selection_mode(self._selection_mode)
             card.set_selected(selected)
             card.set_multi_selected(selected and multi)
         self.update_selection_bars()
 
     def update_selection_bars(self):
         count = len(self.selected_ids)
-        self.selection_label.setText(f"{count} selected" if count else "")
+        # A single click only highlights a card; the group bar belongs to the
+        # "pick several books" mode (or to a real multi-selection).
+        grouping = self._selection_mode or count > 1
+        self.selection_label.setText(f"{count} selected" if grouping else "")
         self.delete_selection_action.setEnabled(count > 0)
 
         bar = getattr(self, "selection_bar", None)
         if bar is None:
             return
         bar.set_count(count)
-        bar.setVisible(count > 0)
+        bar.setVisible(count > 0 and grouping)
         if hasattr(self, "page_count"):
             self.page_count.setText(
-                f"{count} selected" if count else self._page_count_text
+                f"{count} selected" if count and grouping else self._page_count_text
             )
 
     def _open_selection(self):
@@ -1450,6 +1509,9 @@ class MainWindow(QMainWindow):
     # Book operations
     # ------------------------------------------------------------------
     def _open_book(self, book_id: int):
+        if self._selection_mode:
+            # While picking books a double-click must not open anything.
+            return
         self._launch(book_id, reader_id=None)
 
     def _open_book_with(self, book_id: int, reader_id: str):
@@ -1647,6 +1709,7 @@ class MainWindow(QMainWindow):
             db.delete_book(book["id"])
 
         self.selected_ids.clear()
+        self._selection_mode = False
         self.refresh_books()
         self.series_panel.refresh_series()
 
@@ -1709,7 +1772,7 @@ class MainWindow(QMainWindow):
         select_all = menu.addAction("Select all")
         select_all.triggered.connect(self.select_all)
         clear = menu.addAction("Clear selection")
-        clear.triggered.connect(self.clear_selection)
+        clear.triggered.connect(self.exit_selection_mode)
 
         menu.addSeparator()
 
