@@ -26,6 +26,7 @@ SELF_TEST = "--self-test" in sys.argv
 
 def _install_exception_hook():
     """Log uncaught exceptions and show a friendly message instead of dying."""
+    reported: set = set()
 
     def handle_exception(exc_type, exc_value, exc_traceback):
         if issubclass(exc_type, KeyboardInterrupt):
@@ -38,14 +39,27 @@ def _install_exception_hook():
         if SELF_TEST:
             # Never block a headless CI run with a modal dialog.
             os._exit(3)
+
+        # A timer that keeps failing must not bury the window under dialogs:
+        # every distinct problem is reported once per run.
+        signature = (exc_type.__name__, str(exc_value))
+        if signature in reported:
+            return
+        reported.add(signature)
+
         try:
-            QMessageBox.critical(
-                None,
-                f"{APP_NAME} - unexpected error",
-                "Something went wrong, but your library is safe.\n\n"
+            box = QMessageBox()
+            box.setIcon(QMessageBox.Icon.Critical)
+            box.setWindowTitle(f"{APP_NAME} - unexpected error")
+            box.setText("Something went wrong, but your library is safe.")
+            box.setInformativeText(
                 f"{exc_type.__name__}: {exc_value}\n\n"
-                "Details were written to the logs folder.",
+                "Details were written to the logs folder. The application keeps "
+                "running, so you can save your work and restart it if the "
+                "problem comes back."
             )
+            box.setStandardButtons(QMessageBox.StandardButton.Ok)
+            box.exec()
         except Exception:
             pass
 

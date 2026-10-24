@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Iterable, Optional, Sequence, Tuple
 
+from PyQt6 import sip
 from PyQt6.QtCore import (
     QEasingCurve,
     QPropertyAnimation,
@@ -165,8 +166,20 @@ class Banner(QFrame):
 
 
 # ---------------------------------------------------------------- toasts
+def is_alive(widget: Optional[QWidget]) -> bool:
+    """True while the C++ object behind a widget still exists.
+
+    Calling any method of a widget that was already deleted with
+    ``deleteLater()`` raises ``RuntimeError``; this check keeps references held
+    in Python (queues, managers) safe.
+    """
+    return widget is not None and not sip.isdeleted(widget)
+
+
 class Toast(QFrame):
     """Transient notification that fades in at the bottom of its parent."""
+
+    closed = pyqtSignal()
 
     def __init__(self, parent: QWidget, text: str, kind: str = "info",
                  msecs: int = 4200):
@@ -213,9 +226,25 @@ class Toast(QFrame):
         self.setFixedWidth(min(420, max(240, parent.width() - 80)))
         self.adjustSize()
         self._msecs = msecs
-        QTimer.singleShot(20, self._show_animated)
+        self._closing = False
+        self._closed = False
+
+        # Timers owned by the toast disappear together with it, so a queued
+        # callback can never run against a deleted C++ object.
+        self._show_timer = QTimer(self)
+        self._show_timer.setSingleShot(True)
+        self._show_timer.timeout.connect(self._show_animated)
+        self._show_timer.start(20)
+
+        self._hide_timer = QTimer(self)
+        self._hide_timer.setSingleShot(True)
+        self._hide_timer.timeout.connect(self._hide_animated)
+
+        self._animation.finished.connect(self._finished)
 
     def _show_animated(self):
+        if self._closing or not is_alive(self):
+            return
         self._reposition()
         self.show()
         self.raise_()
@@ -223,21 +252,40 @@ class Toast(QFrame):
         self._animation.setStartValue(0.0)
         self._animation.setEndValue(1.0)
         self._animation.start()
-        QTimer.singleShot(self._msecs, self._hide_animated)
+        self._hide_timer.start(self._msecs)
 
     def _hide_animated(self):
+        if self._closing or not is_alive(self):
+            return
+        self._closing = True
         try:
             self._animation.stop()
             self._animation.setStartValue(self._effect.opacity())
             self._animation.setEndValue(0.0)
-            self._animation.finished.connect(self.deleteLater)
             self._animation.start()
         except RuntimeError:
-            pass
+            self._finished()
+
+    def _finished(self):
+        if self._closing and not self._closed and is_alive(self):
+            self._closed = True
+            self.closed.emit()
+            self.deleteLater()
+
+    def dismiss(self):
+        """Remove the toast right away (used when too many are on screen)."""
+        if not is_alive(self):
+            return
+        self._show_timer.stop()
+        self._hide_timer.stop()
+        self._animation.stop()
+        self._closing = True
+        self.hide()
+        self._finished()
 
     def _reposition(self):
         parent = self.parentWidget()
-        if not parent:
+        if parent is None or not is_alive(parent):
             return
         margin = 22
         x = max(margin, (parent.width() - self.width()) // 2)
@@ -248,18 +296,43 @@ class Toast(QFrame):
 class ToastManager:
     """Keeps at most three toasts stacked above each other."""
 
+    MAX_VISIBLE = 3
+
     def __init__(self, parent: QWidget):
         self.parent = parent
         self._toasts: list[Toast] = []
 
+    def _forget(self, toast: Toast):
+        """Drop a toast that closed (or whose window was destroyed)."""
+        self._toasts = [item for item in self._toasts if item is not toast]
+
+    def _visible_toasts(self) -> list[Toast]:
+        alive = []
+        for item in self._toasts:
+            try:
+                if is_alive(item) and item.isVisible():
+                    alive.append(item)
+            except RuntimeError:
+                continue
+        self._toasts = alive
+        return alive
+
     def show(self, text: str, kind: str = "info", msecs: int = 4200):
-        toast = Toast(self.parent, text, kind=kind, msecs=msecs)
-        self._toasts = [item for item in self._toasts if item.isVisible()]
-        offset = 52 * len(self._toasts)
+        parent = self.parent
+        if not is_alive(parent):
+            return None
+        toast = Toast(parent, text, kind=kind, msecs=msecs)
+        existing = self._visible_toasts()
+        while len(existing) >= self.MAX_VISIBLE:
+            existing.pop(0).dismiss()
+        offset = 52 * len(existing)
         self._toasts.append(toast)
+        toast.closed.connect(lambda item=toast: self._forget(item))
         original = toast._reposition
 
         def reposition():
+            if not is_alive(toast):
+                return
             original()
             toast.move(toast.x(), toast.y() - offset)
 

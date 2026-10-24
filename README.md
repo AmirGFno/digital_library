@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml/badge.svg"></a>
   <a href="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml"><img alt="Windows build" src="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-2.3.1-e8552d">
+  <img alt="Version" src="https://img.shields.io/badge/version-2.3.2-e8552d">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
@@ -68,7 +68,7 @@
 - نسخه‌ی **EXE تک‌فایل** بدون نیاز به نصب پایتون و با حجم بسیار کمتر (موتور PDF
   سبک جایگزین شد)
 
-### چه چیزی در نسخه‌ی ۲.۳.۱ درست شد
+### چه چیزی در نسخه‌های ۲.۳.۱ و ۲.۳.۲ درست شد
 
 - **انتخاب چندگانه**: نوار انتخاب دیگر روی کارت‌ها نمی‌افتد و دکمه‌های میان‌بر کارت
   با تأخیر کوتاه ظاهر می‌شوند، پس کلیک ساده، `Ctrl` و `Shift` همیشه کار می‌کنند
@@ -80,6 +80,10 @@
 - **آیکون برنامه**: آیکون در پنجره، نوار وظیفه و فایل EXE نمایش داده می‌شود
 - **پرسش پوشه‌ها**: پوشه‌ای که یک‌بار پاسخ گرفته دیگر دوباره پرسیده نمی‌شود
 - `Ctrl+A` و `Delete` هنگام تایپ در کادر جستجو دیگر روی شبکه اثر نمی‌گذارند
+- **پیام خطای «Toast»**: پیام‌های پایین صفحه دیگر پس از محو شدن، مرجع مرده
+  باقی نمی‌گذارند؛ پیش‌تر نمایش پیام دوم باعث خطا و پنجره‌ی «unexpected error»
+  می‌شد. حالا حداکثر سه پیام هم‌زمان نمایش داده می‌شود و هر خطای تکراری فقط
+  یک‌بار گزارش می‌شود
 
 ### خواننده‌های پشتیبانی‌شده
 
@@ -113,7 +117,7 @@ python main.py
 ### دریافت نسخه‌ی EXE
 
 از بخش [Releases](https://github.com/AmirGFno/digital_library/releases) فایل
-`DigitalLibrary-2.3.1-windows-x64.zip` را دانلود کنید، از حالت فشرده خارج کنید
+`DigitalLibrary-2.3.2-windows-x64.zip` را دانلود کنید، از حالت فشرده خارج کنید
 و `DigitalLibrary.exe` را اجرا کنید. پایتون لازم نیست.
 
 > ویندوز ممکن است بار اول هشدار SmartScreen نشان دهد، چون فایل امضای دیجیتال
