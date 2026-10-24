@@ -1184,6 +1184,7 @@ class MainWindow(QMainWindow):
         card.clicked.connect(self._on_card_clicked)
         card.bulk_context_requested.connect(self._show_bulk_menu)
         card.select_mode_requested.connect(self._start_selection_mode)
+        card.select_toggled.connect(self._on_select_circle_clicked)
         card.context_opened.connect(self._on_card_context)
         card.open_requested.connect(self._open_book)
         card.open_with_requested.connect(self._open_book_with)
@@ -1282,6 +1283,17 @@ class MainWindow(QMainWindow):
             self.selected_ids.add(book_id)
             self._anchor_id = book_id
         self._update_card_selection()
+
+    def _on_select_circle_clicked(self, book_id: int):
+        """The round checkbox in the cover corner was clicked.
+
+        The first click starts the group selection with that book; every later
+        click adds or removes a single book.
+        """
+        if not self._selection_mode:
+            self._start_selection_mode(book_id)
+            return
+        self._on_card_clicked(book_id, Qt.KeyboardModifier.NoModifier)
 
     def exit_selection_mode(self):
         """Leave the multi-selection and drop the marks."""

@@ -13,6 +13,8 @@ from pathlib import Path
 
 from PyQt6.QtCore import (
     QObject,
+    QPointF,
+    QRectF,
     QRunnable,
     QSize,
     QThreadPool,
@@ -26,9 +28,12 @@ from PyQt6.QtGui import (
     QMouseEvent,
     QPainter,
     QPainterPath,
+    QPen,
     QPixmap,
+    QPolygonF,
 )
 from PyQt6.QtWidgets import (
+    QAbstractButton,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -86,6 +91,70 @@ class CoverLoaderWorker(QRunnable):
             self._emit("")
 
 
+class SelectCircle(QAbstractButton):
+    """Small round checkbox that sits in the corner of a cover.
+
+    Hollow while the book is not picked, filled with the accent colour and a
+    white tick once it is. The card decides when it is visible: on hover, or on
+    every card while a group selection is being built.
+    """
+
+    def __init__(self, parent=None, diameter: int = 22):
+        super().__init__(parent)
+        self.setFixedSize(diameter, diameter)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip("Select this book")
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
+        self._checked = False
+
+    def set_selected(self, selected: bool):
+        selected = bool(selected)
+        if selected == self._checked:
+            return
+        self._checked = selected
+        self.setToolTip("Selected" if selected else "Select this book")
+        self.update()
+
+    def is_selected(self) -> bool:
+        return self._checked
+
+    def paintEvent(self, event):  # noqa: N802 - Qt naming
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        inset = 1.5
+        rect = QRectF(
+            inset, inset, self.width() - 2 * inset, self.height() - 2 * inset
+        )
+
+        if self._checked:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(theme.ACCENT))
+            painter.drawEllipse(rect)
+
+            pen = QPen(QColor("#ffffff"), max(1.8, self.width() * 0.11))
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            painter.setPen(pen)
+            width, height = self.width(), self.height()
+            painter.drawPolyline(
+                QPolygonF(
+                    [
+                        QPointF(width * 0.29, height * 0.53),
+                        QPointF(width * 0.44, height * 0.68),
+                        QPointF(width * 0.72, height * 0.34),
+                    ]
+                )
+            )
+        else:
+            # Hollow ring with a dark halo: readable on light and dark covers.
+            hovered = self.underMouse()
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(QColor(6, 8, 12, 185 if hovered else 165), 4.6))
+            painter.drawEllipse(rect)
+            painter.setPen(QPen(QColor(255, 255, 255, 255 if hovered else 240), 2.0))
+            painter.drawEllipse(rect)
+
+
 class BookCard(QFrame):
     """Widget representing a single book."""
 
@@ -93,6 +162,7 @@ class BookCard(QFrame):
     context_opened = pyqtSignal(int)           # right-click, before the menu shows
     bulk_context_requested = pyqtSignal(int)   # right-click on a multi-selection
     select_mode_requested = pyqtSignal(int)    # "Select" from the context menu
+    select_toggled = pyqtSignal(int)           # the corner circle was clicked
     open_requested = pyqtSignal(int)
     open_with_requested = pyqtSignal(int, str)
     details_requested = pyqtSignal(int)
@@ -224,21 +294,19 @@ class BookCard(QFrame):
             f"color: {theme.GOLD}; font-size: 13px;"
             " background: rgba(10, 12, 16, 190); border-radius: 12px;"
         )
-        self.favorite_badge.move(COVER_WIDTH - 33, 9)
+        # The star moved to the bottom corner: the top-right corner belongs to
+        # the selection circle now.
+        self.favorite_badge.move(COVER_WIDTH - 33, COVER_HEIGHT - 33)
         self.favorite_badge.setVisible(False)
 
-        self.check_badge = QLabel("✓")
-        self.check_badge.setParent(self)
-        self.check_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.check_badge.setFixedSize(26, 26)
-        self.check_badge.setStyleSheet(
-            "color: #ffffff; font-size: 14px; font-weight: bold;"
-            f" background: {theme.ACCENT}; border-radius: 13px;"
+        self.select_circle = SelectCircle(self.cover_frame)
+        self.select_circle.move(COVER_WIDTH - 31, 8)
+        self.select_circle.setVisible(False)
+        self.select_circle.clicked.connect(
+            lambda: self.select_toggled.emit(self.book_id)
         )
-        self.check_badge.move(CARD_WIDTH - 34, 6)
-        self.check_badge.setVisible(False)
 
-        for widget in (self.format_badge, self.favorite_badge, self.check_badge):
+        for widget in (self.format_badge, self.favorite_badge):
             widget.setAttribute(
                 Qt.WidgetAttribute.WA_TransparentForMouseEvents, True
             )
@@ -317,7 +385,7 @@ class BookCard(QFrame):
         rating = int(self.book_data.get("rating") or 0)
 
         self.favorite_badge.setVisible(favorite)
-        self.check_badge.setVisible(self._selected)
+        self._sync_select_circle()
 
         self.status_dot.setStyleSheet(
             f"color: {theme.GREEN if is_read else theme.TEXT_DIM};"
@@ -430,6 +498,7 @@ class BookCard(QFrame):
     # ------------------------------------------------------------------
     def enterEvent(self, event):
         self._hovered = True
+        self._sync_select_circle()
         if self._selection_mode:
             # No per-card buttons while books are being picked.
             return
@@ -462,6 +531,7 @@ class BookCard(QFrame):
 
     def leaveEvent(self, event):
         self._hovered = False
+        self._sync_select_circle()
         if hasattr(self, "_hover_timer"):
             self._hover_timer.stop()
         self.quick_bar.setVisible(False)
@@ -477,12 +547,23 @@ class BookCard(QFrame):
     # ------------------------------------------------------------------
     def set_selected(self, selected: bool):
         if self._selected == selected:
+            self._sync_select_circle()
             return
         self._selected = selected
-        self.check_badge.setVisible(selected)
+        self._sync_select_circle()
         self.setProperty("selected", selected)
         self.style().unpolish(self)
         self.style().polish(self)
+
+    def _sync_select_circle(self):
+        """Show the corner circle when it is useful and fill it when picked."""
+        circle = getattr(self, "select_circle", None)
+        if circle is None:
+            return
+        circle.set_selected(self._selected)
+        circle.setVisible(self._selected or self._selection_mode or self._hovered)
+        if circle.isVisible():
+            circle.raise_()
 
     def set_multi_selected(self, multi: bool):
         self._multi = bool(multi)
@@ -492,6 +573,7 @@ class BookCard(QFrame):
         self._selection_mode = bool(active)
         if self._selection_mode and self.quick_bar is not None:
             self.quick_bar.hide()
+        self._sync_select_circle()
 
     @property
     def is_selected(self) -> bool:
