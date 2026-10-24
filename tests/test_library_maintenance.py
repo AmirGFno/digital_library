@@ -267,3 +267,21 @@ def test_a_copy_of_a_known_comic_is_not_added_twice(loaded):
 
     assert result.added == 0
     assert database.get_total_book_count() == 2
+
+
+# ------------------------------------------------- path spelling on Windows
+def test_library_membership_ignores_separators_and_case():
+    """Windows paths use backslashes; the check must not depend on that."""
+    from database import _is_inside
+
+    assert _is_inside("c:/comics/batman/one.cbz", "c:/comics")
+    assert _is_inside("c:/comics", "c:/comics")
+    assert not _is_inside("c:/comics2/one.cbz", "c:/comics")
+    assert not _is_inside("d:/comics/one.cbz", "c:/comics")
+    assert not _is_inside("c:/comics/one.cbz", "")
+
+
+def test_comparable_path_uses_forward_slashes():
+    from database import _comparable_path
+
+    assert "\\" not in _comparable_path("some\\folder\\comic.cbz")

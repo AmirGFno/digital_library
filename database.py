@@ -16,6 +16,20 @@ from utils.logger import logger
 from utils.helpers import sort_books_naturally
 
 
+def _comparable_path(filepath: str) -> str:
+    """Normalized path with forward slashes, for separator-agnostic matching."""
+    return normalize_path(filepath).replace("\\", "/")
+
+
+def _is_inside(path: str, root: str) -> bool:
+    """True when *path* lives inside *root* (both already normalized)."""
+    if not root:
+        return False
+    if path == root:
+        return True
+    return path.startswith(root.rstrip("/") + "/")
+
+
 def normalize_path(filepath: str) -> str:
     """Return a canonical absolute path used for duplicate detection.
 
@@ -947,7 +961,7 @@ class Database:
         network share) nothing is reported, so a disconnected drive can never
         empty the library.
         """
-        root = normalize_path(library_root) if library_root else ""
+        root = _comparable_path(library_root) if library_root else ""
         missing: List[Dict] = []
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -961,10 +975,11 @@ class Database:
                 if path.exists():
                     continue
 
-                normalized = normalize_path(filepath)
-                inside_library = bool(root) and (
-                    normalized == root or normalized.startswith(root.rstrip("/") + "/")
-                )
+                # Windows paths use backslashes, so both sides are compared
+                # with forward slashes; otherwise a folder inside the library
+                # would look like an unplugged drive and its records would stay.
+                normalized = _comparable_path(filepath)
+                inside_library = _is_inside(normalized, root)
                 if check_parent and not inside_library and not path.parent.exists():
                     # The folder is gone as well: treat it as an offline drive.
                     logger.debug(f"Keeping {filepath}: its folder is not reachable")
