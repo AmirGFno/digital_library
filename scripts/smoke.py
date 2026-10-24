@@ -129,6 +129,51 @@ def main() -> int:
     app.processEvents()
     details.close()
 
+    # --- new-folder question -------------------------------------------
+    from ui.new_folder_dialog import ask_about_new_folders  # noqa: F401
+    from ui.new_folder_dialog import NewFolderDialog
+
+    new_dialog = NewFolderDialog([str(library / "Batman"), str(library / "Saga")], window)
+    app.processEvents()
+    decisions = new_dialog.decisions()
+    assert set(decisions) == {str(library / "Batman"), str(library / "Saga")}
+    assert all(d["action"] == "series" for d in decisions.values())
+    assert decisions[str(library / "Batman")]["name"] == "Batman"
+    new_dialog.close()
+
+    # --- deleted series + restore ---------------------------------------
+    from ui.restore_dialog import RestoreSeriesDialog
+
+    saga = db.get_series_by_name_ci("Saga")
+    books_before = db.get_total_book_count()
+    db.delete_series(saga["id"])
+    assert db.get_deleted_series(), "a deleted series must stay restorable"
+
+    restore = RestoreSeriesDialog(window)
+    app.processEvents()
+    restore.list_widget.setCurrentRow(0)
+    restore._restore()
+    assert restore.restored_id, "restore did not return a series id"
+    assert db.get_total_book_count() == books_before, "books disappeared on delete"
+    restored = db.get_series(restore.restored_id)
+    assert restored and restored["name"] == "Saga", restored
+    restore.close()
+
+    # --- statistics dialog ----------------------------------------------
+    from ui.stats_dialog import StatisticsDialog
+
+    stats_dialog = StatisticsDialog(window)
+    app.processEvents()
+    stats_dialog.close()
+
+    # --- a deleted file leaves the library ------------------------------
+    victim = db.get_all_books()[0]
+    victim_path = Path(victim["filepath"])
+    victim_path.unlink()
+    assert window._prune_missing_files(silent=False) >= 1, "missing file was not pruned"
+    assert db.get_book(victim["id"]) is None, "record of a deleted file survived"
+    assert not victim_path.exists()
+
     window.close()
     print("SMOKE OK")
     return 0

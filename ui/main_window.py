@@ -8,13 +8,14 @@ start and the reader integration.
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
 from PyQt6.QtCore import (
+    QEvent,
     QByteArray,
     QFileSystemWatcher,
-    QSize,
     Qt,
     QThread,
     QTimer,
@@ -25,6 +26,7 @@ from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
     QDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -34,11 +36,9 @@ from PyQt6.QtWidgets import (
     QProgressDialog,
     QPushButton,
     QScrollArea,
-    QSizePolicy,
     QSpinBox,
     QSplitter,
     QStatusBar,
-    QToolBar,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -52,7 +52,7 @@ from config import (
 )
 from cover_extractor import cover_extractor
 from database import db
-from importer import ImportResult, importer
+from importer import ImportResult, build_folder_plan_with_db, importer
 from ui.book_card import BookCard
 from ui.details_dialog import DetailsDialog
 from ui.dialogs import (
@@ -62,17 +62,22 @@ from ui.dialogs import (
     EditVolumeDialog,
     SetCustomCoverDialog,
 )
+from ui import theme
 from ui.folder_import_dialog import FolderImportDialog
 from ui.library_grid import LibraryGrid
+from ui.new_folder_dialog import ask_about_new_folders
 from ui.reader_settings_dialog import ReaderSettingsDialog
+from ui.restore_dialog import RestoreSeriesDialog
 from ui.series_panel import SeriesPanel
 from ui.name_preview_dialog import preview_when_needed
 from ui.welcome_dialog import WelcomeDialog
+from ui.widgets import EmptyState, SelectionBar, StatCard, ToastManager
 from utils.helpers import (
     format_file_size,
     open_containing_folder,
     sort_books_naturally,
 )
+from utils.folder_watch import find_unmanaged_folders
 from utils.logger import logger
 from utils.reader_manager import SYSTEM_READER_ID, reader_manager
 from utils.settings import settings
@@ -95,6 +100,14 @@ FORMAT_OPTIONS = [
 ]
 
 
+@dataclass
+class SyncOutcome:
+    """What a background sync produced: changes plus folders to ask about."""
+
+    result: ImportResult
+    new_folders: List[str]
+
+
 class SyncWorker(QThread):
     """Import new files from the library folder without freezing the UI."""
 
@@ -108,7 +121,20 @@ class SyncWorker(QThread):
     def run(self):
         try:
             result = importer.sync_library_folder(self.folder)
-            self.finished_ok.emit(result)
+            new_folders: List[str] = []
+            if settings.get_ask_new_folders():
+                known = [
+                    series.get("folder")
+                    for series in db.get_all_series()
+                    if series.get("folder")
+                ]
+                new_folders = find_unmanaged_folders(
+                    self.folder,
+                    known_folders=known,
+                    ignored_folders=settings.get_answered_folders(),
+                    known_files=set(db.get_library_index()[0]),
+                )
+            self.finished_ok.emit(SyncOutcome(result=result, new_folders=new_folders))
         except Exception as exc:  # pragma: no cover - defensive
             logger.exception("Library folder sync failed")
             self.failed.emit(str(exc))
@@ -127,6 +153,9 @@ class MainWindow(QMainWindow):
         self.books: List[Dict] = []
         self.selected_ids: set[int] = set()
         self._anchor_id: Optional[int] = None
+        # Selection is only collected on purpose: the user picks "Select several
+        # books…" in the card menu, then clicks the cards one by one.
+        self._selection_mode = False
         self._sync_worker: Optional[SyncWorker] = None
         self._syncing = False
         # Watches the library folder so freshly downloaded comics appear by
@@ -141,6 +170,15 @@ class MainWindow(QMainWindow):
         self._search_timer.setSingleShot(True)
         self._search_timer.setInterval(180)
         self._search_timer.timeout.connect(self.refresh_books)
+        self._pending_folder_check = False
+        self._folder_prompt_open = False
+        self._page_count_text = ""
+
+        # Throttles the "did a file disappear?" check when the window is focused.
+        self._prune_timer = QTimer(self)
+        self._prune_timer.setSingleShot(True)
+        self._prune_timer.setInterval(800)
+        self._prune_timer.timeout.connect(self._prune_missing_files)
 
         self.setAcceptDrops(True)
         self._setup_ui()
@@ -159,36 +197,156 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     def _setup_ui(self):
         self.setWindowTitle(f"{APP_NAME} {APP_VERSION}")
-        self.setMinimumSize(1040, 700)
-        self.resize(1280, 820)
+        self.setMinimumSize(1080, 700)
+        self.resize(1440, 900)
 
-        icon_path = ASSETS_DIR / "icon.png"
-        if icon_path.exists():
-            self.setWindowIcon(QIcon(str(icon_path)))
+        # The window icon is what Windows shows on the taskbar button. The
+        # application icon is already the best variant (multi-size ICO on
+        # Windows), so prefer it and only fall back to the PNG asset.
+        app = QApplication.instance()
+        icon = app.windowIcon() if app is not None else QIcon()
+        if icon.isNull():
+            icon = QIcon(str(ASSETS_DIR / "icon.png"))
+        if not icon.isNull():
+            self.setWindowIcon(icon)
 
         central = QWidget()
         self.setCentralWidget(central)
-        main_layout = QHBoxLayout(central)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        self._root_layout = QVBoxLayout(central)
+        self._root_layout.setContentsMargins(0, 0, 0, 0)
+        self._root_layout.setSpacing(0)
 
+        # ---- hero header ------------------------------------------------
+        self.hero = QFrame()
+        self.hero.setObjectName("HeroBar")
+        hero_layout = QHBoxLayout(self.hero)
+        hero_layout.setContentsMargins(20, 14, 20, 14)
+        hero_layout.setSpacing(14)
+
+        self.logo = QLabel()
+        self.logo.setFixedSize(46, 46)
+        self.logo.setPixmap(theme.logo_pixmap(46))
+        self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hero_layout.addWidget(self.logo)
+
+        title_box = QVBoxLayout()
+        title_box.setSpacing(1)
+        app_title = QLabel(APP_NAME)
+        app_title.setObjectName("HeroTitle")
+        self.hero_subtitle = QLabel("Your comic shelf")
+        self.hero_subtitle.setObjectName("MutedLabel")
+        title_box.addWidget(app_title)
+        title_box.addWidget(self.hero_subtitle)
+        hero_layout.addLayout(title_box)
+        hero_layout.addStretch(1)
+
+        self.stat_books = StatCard("▦", "BOOKS", theme.BLUE)
+        self.stat_unread = StatCard("●", "UNREAD", theme.ACCENT)
+        self.stat_favorites = StatCard("★", "FAVORITES", theme.GOLD)
+        self.stat_series = StatCard("≡", "SERIES", theme.VIOLET)
+        for card in (self.stat_books, self.stat_unread,
+                     self.stat_favorites, self.stat_series):
+            hero_layout.addWidget(card)
+        self.stat_unread.clicked.connect(lambda: self.read_filter_combo.setCurrentIndex(1))
+        self.stat_favorites.clicked.connect(lambda: self.favorites_button.setChecked(True))
+
+        hero_layout.addSpacing(6)
+
+        self.add_button = QPushButton("＋  Add comics")
+        self.add_button.setObjectName("PrimaryButton")
+        self.add_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.add_button.clicked.connect(self._add_book)
+        hero_layout.addWidget(self.add_button)
+
+        self.import_button = QPushButton("Import folder")
+        self.import_button.setObjectName("GhostButton")
+        self.import_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.import_button.clicked.connect(self._bulk_import)
+        hero_layout.addWidget(self.import_button)
+
+        self.sync_button = QPushButton("Sync")
+        self.sync_button.setObjectName("GhostButton")
+        self.sync_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.sync_button.setToolTip("Check the library folder for new comics (Ctrl+R)")
+        self.sync_button.clicked.connect(self._sync_library_folder)
+        hero_layout.addWidget(self.sync_button)
+
+        self.settings_button = QPushButton("⚙")
+        self.settings_button.setObjectName("GhostButton")
+        self.settings_button.setFixedWidth(42)
+        self.settings_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.settings_button.setToolTip("Reader settings (Ctrl+,)")
+        self.settings_button.clicked.connect(self._show_reader_settings)
+        hero_layout.addWidget(self.settings_button)
+
+        self._root_layout.addWidget(self.hero)
+
+        accent_line = QFrame()
+        accent_line.setObjectName("AccentLine")
+        accent_line.setFixedHeight(2)
+        self._root_layout.addWidget(accent_line)
+
+        # ---- command bar (search + filters) -----------------------------
+        self.command_container = QWidget()
+        self.command_layout = QVBoxLayout(self.command_container)
+        self.command_layout.setContentsMargins(0, 0, 0, 0)
+        self.command_layout.setSpacing(0)
+        self._root_layout.addWidget(self.command_container)
+
+        # ---- sidebar + grid --------------------------------------------
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
-        main_layout.addWidget(self.splitter)
+        self.splitter.setHandleWidth(1)
+        self._root_layout.addWidget(self.splitter, 1)
 
         self.series_panel = SeriesPanel()
-        self.series_panel.setObjectName("Sidebar")
-        self.series_panel.setMinimumWidth(210)
-        self.series_panel.setMaximumWidth(340)
+        self.series_panel.setObjectName("SidebarPanel")
+        self.series_panel.setMinimumWidth(232)
+        self.series_panel.setMaximumWidth(330)
         self.series_panel.series_selected.connect(self._on_series_selected)
         self.series_panel.series_changed.connect(self._on_series_changed)
+        self.series_panel.import_folder_requested.connect(self._open_folder_import)
+        self.series_panel.library_folder_requested.connect(self._on_library_folder_button)
+        self.series_panel.restore_requested.connect(self._restore_deleted_series)
         self.splitter.addWidget(self.series_panel)
 
-        books_container = QWidget()
-        books_layout = QVBoxLayout(books_container)
-        books_layout.setContentsMargins(14, 12, 14, 8)
-        books_layout.setSpacing(8)
+        content = QWidget()
+        content.setObjectName("ContentArea")
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(20, 16, 20, 10)
+        content_layout.setSpacing(10)
+
+        page_header = QHBoxLayout()
+        page_header.setSpacing(10)
+        self.page_title = QLabel("All books")
+        self.page_title.setStyleSheet(
+            f"color: {theme.TEXT}; font-size: 21px; font-weight: 700;"
+        )
+        page_header.addWidget(self.page_title)
+
+        self.page_count = QLabel("")
+        self.page_count.setStyleSheet(
+            f"color: {theme.TEXT_DIM}; font-size: 12px; padding-top: 6px;"
+        )
+        page_header.addWidget(self.page_count)
+        page_header.addStretch(1)
+
+        columns_label = QLabel("Columns")
+        columns_label.setStyleSheet(
+            f"color: {theme.TEXT_DIM}; font-size: 11px;"
+        )
+        page_header.addWidget(columns_label)
+        self.columns_spin = QSpinBox()
+        self.columns_spin.setRange(2, 10)
+        self.columns_spin.setValue(self.columns)
+        self.columns_spin.setToolTip("Cards per row")
+        self.columns_spin.valueChanged.connect(self._on_columns_changed)
+        self.columns_spin.setFixedWidth(66)
+        page_header.addWidget(self.columns_spin)
+        content_layout.addLayout(page_header)
 
         self.scroll_area = QScrollArea()
+        self.scroll_area.setObjectName("GridViewport")
+        self.scroll_area.viewport().setObjectName("GridViewport")
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
@@ -199,11 +357,39 @@ class MainWindow(QMainWindow):
         self.library_grid.rubber_band_finished.connect(self._on_rubber_band)
         self.grid_layout = self.library_grid.grid_layout
         self.scroll_area.setWidget(self.library_grid)
-        books_layout.addWidget(self.scroll_area)
+        content_layout.addWidget(self.scroll_area, 1)
 
-        self.splitter.addWidget(books_container)
-        self.splitter.setSizes([230, 1050])
+        # The selection bar lives in its own strip under the grid: it never
+        # covers a card, so Ctrl/Shift clicks keep hitting the books.
+        self.selection_bar = SelectionBar()
+        self.selection_bar.setVisible(False)
+        self.selection_bar.setMaximumWidth(760)
+        selection_strip = QHBoxLayout()
+        selection_strip.setContentsMargins(0, 4, 0, 0)
+        selection_strip.addStretch(1)
+        selection_strip.addWidget(self.selection_bar)
+        selection_strip.addStretch(1)
+        content_layout.addLayout(selection_strip)
+
+        self.splitter.addWidget(content)
+        self.splitter.setSizes([248, 1190])
         self.splitter.setStretchFactor(1, 1)
+
+        # ---- selection bar signals --------------------------------------
+        self.selection_bar.open_requested.connect(self._open_selection)
+        self.selection_bar.read_requested.connect(
+            lambda value: self._set_read_many(sorted(self.selected_ids), value)
+        )
+        self.selection_bar.favorite_requested.connect(
+            lambda value: self._set_favorite_many(sorted(self.selected_ids), value)
+        )
+        self.selection_bar.series_requested.connect(
+            lambda: self._change_series_many(sorted(self.selected_ids))
+        )
+        self.selection_bar.delete_requested.connect(self._delete_selection)
+        self.selection_bar.clear_requested.connect(self.clear_selection)
+
+        self._toasts = ToastManager(central)
 
     def _setup_actions(self):
         self.add_action = QAction("Add books...", self)
@@ -271,6 +457,18 @@ class MainWindow(QMainWindow):
         self.about_action = QAction("About", self)
         self.about_action.triggered.connect(self._show_about)
 
+        self.restore_series_action = QAction("Restore deleted series...", self)
+        self.restore_series_action.setShortcut(QKeySequence("Ctrl+Shift+Z"))
+        self.restore_series_action.triggered.connect(self._restore_deleted_series)
+
+        self.remove_missing_action = QAction("Remove books with missing files...", self)
+        self.remove_missing_action.triggered.connect(self._remove_missing_files)
+
+        self.ask_folders_action = QAction("Ask before adding new folders", self)
+        self.ask_folders_action.setCheckable(True)
+        self.ask_folders_action.setChecked(settings.get_ask_new_folders())
+        self.ask_folders_action.toggled.connect(self._toggle_ask_new_folders)
+
         self.shortcuts_action = QAction("Keyboard shortcuts", self)
         self.shortcuts_action.triggered.connect(self._show_shortcuts)
 
@@ -294,8 +492,11 @@ class MainWindow(QMainWindow):
         library_menu.addAction(self.auto_sync_action)
         library_menu.addSeparator()
         library_menu.addAction(self.clean_names_action)
+        library_menu.addAction(self.ask_folders_action)
         library_menu.addAction(self.favorites_action)
         library_menu.addAction(self.stats_action)
+        library_menu.addSeparator()
+        library_menu.addAction(self.remove_missing_action)
         library_menu.addSeparator()
         clear_cache = library_menu.addAction("Clear cover cache")
         clear_cache.triggered.connect(self._clear_cache)
@@ -309,6 +510,7 @@ class MainWindow(QMainWindow):
         series_menu = menubar.addMenu("&Series")
         add_series = series_menu.addAction("Add series...")
         add_series.triggered.connect(self._add_series)
+        series_menu.addAction(self.restore_series_action)
 
         view_menu = menubar.addMenu("&View")
         zoom_in = view_menu.addAction("More columns")
@@ -326,70 +528,76 @@ class MainWindow(QMainWindow):
         help_menu.addAction(self.about_action)
 
     def _setup_toolbar(self):
-        toolbar = QToolBar("Main toolbar", self)
-        toolbar.setMovable(False)
-        toolbar.setIconSize(QSize(20, 20))
-        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        self.addToolBar(toolbar)
+        """Search and filter bar under the hero header."""
+        bar = QFrame()
+        bar.setObjectName("CommandBar")
+        layout = QHBoxLayout(bar)
+        layout.setContentsMargins(20, 10, 20, 10)
+        layout.setSpacing(10)
 
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Search title, series, writer, publisher...")
+        self.search_input.setObjectName("SearchInput")
+        self.search_input.setPlaceholderText("Search title, series, writer, publisher…")
         self.search_input.setClearButtonEnabled(True)
-        self.search_input.setMinimumWidth(270)
+        self.search_input.setMinimumWidth(280)
         self.search_input.textChanged.connect(self._on_search_changed)
-        toolbar.addWidget(self.search_input)
+        layout.addWidget(self.search_input, 1)
 
-        toolbar.addSeparator()
-
+        layout.addWidget(self._field_label("Show"))
         self.read_filter_combo = QComboBox()
         self.read_filter_combo.addItem("All books", "all")
         self.read_filter_combo.addItem("Unread", "unread")
         self.read_filter_combo.addItem("Read", "read")
         self.read_filter_combo.addItem("Started", "started")
         self.read_filter_combo.currentIndexChanged.connect(self.refresh_books)
-        toolbar.addWidget(self.read_filter_combo)
+        layout.addWidget(self.read_filter_combo)
 
         self.format_combo = QComboBox()
         for label, value in FORMAT_OPTIONS:
             self.format_combo.addItem(label, value)
         self.format_combo.currentIndexChanged.connect(self.refresh_books)
-        toolbar.addWidget(self.format_combo)
+        layout.addWidget(self.format_combo)
 
+        layout.addWidget(self._field_label("Sort"))
         self.sort_combo = QComboBox()
         for label, value in SORT_OPTIONS:
             self.sort_combo.addItem(label, value)
         self.sort_combo.currentIndexChanged.connect(self._on_sort_changed)
-        toolbar.addWidget(self.sort_combo)
+        layout.addWidget(self.sort_combo)
 
         self.favorites_button = QToolButton()
-        self.favorites_button.setText("★ Favorites")
+        self.favorites_button.setObjectName("FilterChip")
+        self.favorites_button.setText("★  Favorites")
         self.favorites_button.setCheckable(True)
         self.favorites_button.setToolTip("Show only favorites (Ctrl+D)")
+        self.favorites_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.favorites_button.toggled.connect(self._on_favorites_toggled)
-        toolbar.addWidget(self.favorites_button)
+        layout.addWidget(self.favorites_button)
 
-        spacer = QWidget()
-        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        toolbar.addWidget(spacer)
-
-        toolbar.addWidget(QLabel("Columns:"))
-        self.columns_spin = QSpinBox()
-        self.columns_spin.setRange(2, 10)
-        self.columns_spin.setValue(self.columns)
-        self.columns_spin.valueChanged.connect(self._on_columns_changed)
-        toolbar.addWidget(self.columns_spin)
-
+        self.command_layout.addWidget(bar)
         self._restore_view_controls()
+
+    @staticmethod
+    def _field_label(text: str) -> QLabel:
+        label = QLabel(text)
+        label.setStyleSheet(
+            f"color: {theme.TEXT_DIM}; font-size: 11px; padding-left: 4px;"
+        )
+        return label
 
     def _setup_statusbar(self):
         statusbar = QStatusBar()
+        statusbar.setSizeGripEnabled(False)
         self.statusbar = statusbar
         self.setStatusBar(statusbar)
+
         self.shown_label = QLabel()
+        self.shown_label.setStyleSheet(f"color: {theme.TEXT_MUTED}; font-size: 11px;")
         self.selection_label = QLabel()
-        self.selection_label.setObjectName("SubtitleLabel")
+        self.selection_label.setStyleSheet(f"color: {theme.ACCENT_GLOW}; font-size: 11px;")
         self.stats_label = QLabel()
-        self.stats_label.setObjectName("SubtitleLabel")
+        self.stats_label.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+
         statusbar.addWidget(self.shown_label, 1)
         statusbar.addPermanentWidget(self.selection_label)
         statusbar.addPermanentWidget(self.stats_label)
@@ -485,6 +693,9 @@ class MainWindow(QMainWindow):
         if fresh:
             self._watcher.addPaths(fresh)
 
+        if hasattr(self, "series_panel"):
+            self.series_panel.refresh_series()
+
     def _on_watch_changed(self, _path: str):
         if self._syncing:
             return
@@ -496,8 +707,63 @@ class MainWindow(QMainWindow):
         if self._syncing:
             self._watch_timer.start()
             return
-        if settings.get_auto_sync() and settings.has_library_root():
+        if not settings.has_library_root():
+            return
+        if settings.get_auto_sync():
             self._start_sync(quiet=True)
+        else:
+            # Automatic sync is off, but a file that disappeared from the disk
+            # must still leave the library, and a folder that just appeared has
+            # to be offered as a series.
+            self._prune_missing_files()
+            self._check_new_folders()
+
+    def _prune_missing_files(self, silent: bool = True) -> int:
+        """Keep the library in step with the disk after files move or vanish.
+
+        Moved files keep their record (and their reading state) and files that
+        are really gone leave the library. Nothing on disk is ever touched.
+        """
+        root = settings.get_library_root()
+        relinked = db.relink_moved_books(root) if root else 0
+        if root:
+            db.relink_series_folders(root)
+        missing = db.get_missing_books(library_root=root)
+        removed = db.remove_missing_books(missing, library_root=root) if missing else 0
+        pruned_series = 0
+        if root:
+            # Series that lost every book and whose folder is gone should not
+            # linger in the sidebar; they stay restorable from the trash.
+            pruned_series = db.prune_empty_series(library_root=root)
+
+        if relinked or removed or pruned_series:
+            self.refresh_books()
+            self.series_panel.refresh_series()
+            if not silent:
+                parts = []
+                if relinked:
+                    parts.append(f"{relinked} moved file(s) followed")
+                if removed:
+                    parts.append(f"{removed} missing book(s) removed")
+                if pruned_series:
+                    parts.append(f"{pruned_series} empty series removed")
+                self._toast("  ·  ".join(parts), "warning" if removed else "info")
+        return removed
+
+    def showEvent(self, event):
+        """Re-assert the window icon right before the window is mapped.
+
+        Windows reads the taskbar icon when the window becomes visible; setting
+        it here as well keeps the taskbar button from falling back to a generic
+        icon after a theme or platform change.
+        """
+        super().showEvent(event)
+        icon = self.windowIcon()
+        app = QApplication.instance()
+        if icon.isNull() and app is not None:
+            icon = app.windowIcon()
+        if not icon.isNull():
+            self.setWindowIcon(icon)
 
     def closeEvent(self, event):
         self._save_state()
@@ -520,6 +786,13 @@ class MainWindow(QMainWindow):
             return
         if settings.get_auto_sync() and settings.has_library_root():
             self._start_sync(quiet=True)
+        else:
+            # Even without automatic import the library must match the disk:
+            # files that were deleted or moved while the app was closed are
+            # reconciled right away.
+            if settings.has_library_root():
+                QTimer.singleShot(300, self._prune_missing_files)
+            QTimer.singleShot(400, self._check_new_folders)
 
     def _show_welcome(self):
         dialog = WelcomeDialog(self)
@@ -541,6 +814,17 @@ class MainWindow(QMainWindow):
         else:
             self.statusbar.showMessage(f"Library folder set to {dialog.folder}")
 
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() != QEvent.Type.WindowActivate:
+            return
+        if not settings.has_library_root() or self._syncing:
+            return
+        # Cheap check; a full sync is not needed to notice a file deleted in
+        # Explorer while the app was in the background.
+        if not self._prune_timer.isActive():
+            self._prune_timer.start()
+
     def _choose_library_folder(self):
         from PyQt6.QtWidgets import QFileDialog
 
@@ -554,6 +838,12 @@ class MainWindow(QMainWindow):
         self.statusbar.showMessage(f"Library folder: {folder}")
         self._refresh_watcher()
         self._start_sync(quiet=False)
+
+    def _on_library_folder_button(self):
+        if settings.has_library_root():
+            self._start_sync(quiet=False)
+        else:
+            self._choose_library_folder()
 
     def _sync_library_folder(self):
         if not settings.has_library_root():
@@ -574,41 +864,184 @@ class MainWindow(QMainWindow):
 
         self._syncing = True
         self.sync_action.setEnabled(False)
+        if hasattr(self, "sync_button"):
+            self.sync_button.setEnabled(False)
         self.statusbar.showMessage(f"Checking {folder} for new comics...")
 
         self._sync_worker = SyncWorker(folder, self)
         self._sync_worker.finished_ok.connect(
-            lambda result: self._on_sync_finished(result, quiet)
+            lambda outcome: self._on_sync_finished(outcome, quiet)
         )
         self._sync_worker.failed.connect(self._on_sync_failed)
         self._sync_worker.start()
 
-    def _on_sync_finished(self, result: ImportResult, quiet: bool):
+    def _on_sync_finished(self, outcome: SyncOutcome, quiet: bool):
         self._syncing = False
         self.sync_action.setEnabled(True)
+        self.sync_button.setEnabled(True)
         self._sync_worker = None
         self._refresh_watcher()
 
-        if result.added:
+        result = outcome.result
+        if result.changed:
             self.refresh_books()
             self.series_panel.refresh_series()
             self.statusbar.showMessage(f"Library updated — {result.summary()}", 8000)
-            if not quiet:
-                QMessageBox.information(self, "Library sync", result.summary())
-        else:
-            self.statusbar.showMessage(
-                f"Library is up to date ({result.skipped} already known)", 5000
-            )
-            if not quiet:
-                QMessageBox.information(
-                    self,
-                    "Library sync",
-                    "No new comics were found in the library folder.",
+            if result.removed:
+                self._toast(
+                    f"{result.removed} book(s) were removed because their files are gone",
+                    "warning",
                 )
+            if result.relinked:
+                self._toast(
+                    f"{result.relinked} moved file(s) kept their place in the library",
+                    "info",
+                )
+            if not quiet:
+                self._toast(result.summary(), "success")
+        elif not quiet:
+            self._toast("Everything is already up to date", "info")
+
+        if outcome.new_folders:
+            self._ask_about_folders(outcome.new_folders)
+
+    def _toast(self, message: str, kind: str = "info"):
+        manager = getattr(self, "_toasts", None)
+        if manager is None:
+            self.statusbar.showMessage(message, 6000)
+            return
+        manager.show(message, kind=kind)
+
+    # ------------------------------------------------------------------
+    # Folders that appeared inside the library root
+    # ------------------------------------------------------------------
+    def _ask_about_folders(self, folders: List[str]):
+        """Ask once per folder whether it should become a series."""
+        if not folders or self._folder_prompt_open:
+            return
+        self._folder_prompt_open = True
+        try:
+            decisions, remember = ask_about_new_folders(folders, self)
+        finally:
+            self._folder_prompt_open = False
+
+        if decisions is None:
+            # "Ask me later": keep the question for the next sync.
+            return
+
+        series_names = []
+        file_only = []
+        ignored = []
+        for folder, decision in decisions.items():
+            action = decision.get("action")
+            name = decision.get("name") or Path(folder).name
+            if remember or action in ("ignore", "files"):
+                # Ignored folders and folders imported without a series never
+                # become "known" through the database, so remember the answer.
+                settings.add_answered_folder(folder)
+            if action == "ignore":
+                ignored.append(folder)
+                continue
+            if action == "series":
+                self._import_single_folder(folder, series_name=name)
+                series_names.append(name)
+            else:
+                self._import_single_folder(folder, series_name=None)
+                file_only.append(Path(folder).name)
+
+        if series_names or file_only:
+            self.refresh_books()
+            self.series_panel.refresh_series()
+            parts = []
+            if series_names:
+                parts.append(
+                    "New series: " + ", ".join(series_names[:3])
+                    + ("…" if len(series_names) > 3 else "")
+                )
+            if file_only:
+                parts.append(
+                    "Books without a series: " + ", ".join(file_only[:3])
+                    + ("…" if len(file_only) > 3 else "")
+                )
+            self._toast("  ·  ".join(parts), "success")
+        elif ignored:
+            self._toast("Folders ignored. You can import them later.", "info")
+
+        self._refresh_watcher()
+
+    def _import_single_folder(self, folder: str, series_name: Optional[str]):
+        """Import one folder, optionally creating a series named *series_name*."""
+        plan = build_folder_plan_with_db(
+            folder,
+            database=db,
+            mode="single",
+            clean_names=self.clean_names_action.isChecked(),
+        )
+        if not plan.groups:
+            return
+        names = {group.key: series_name for group in plan.groups}
+        result = importer.import_plan(
+            plan, names, clean_names=self.clean_names_action.isChecked()
+        )
+        logger.info(f"Folder '{folder}' imported: {result.summary()}")
+
+    def _check_new_folders(self):
+        """Look for new folders without running a full sync (auto-sync off)."""
+        folder = settings.get_library_root()
+        if not folder or not settings.get_ask_new_folders():
+            return
+        known = [
+            series.get("folder")
+            for series in db.get_all_series()
+            if series.get("folder")
+        ]
+        candidates = find_unmanaged_folders(
+            folder,
+            known_folders=known,
+            ignored_folders=settings.get_answered_folders(),
+            known_files=set(db.get_library_index()[0]),
+        )
+        if candidates:
+            self._ask_about_folders(candidates)
+
+    def _restore_deleted_series(self):
+        dialog = RestoreSeriesDialog(self)
+        if not dialog.exec() or not dialog.restored_id:
+            return
+        self.series_panel.refresh_series()
+        self.refresh_books()
+        series = db.get_series(dialog.restored_id)
+        name = series["name"] if series else "series"
+        self._toast(f"Restored “{name}”", "success")
+
+    def _remove_missing_files(self):
+        missing = db.get_missing_books()
+        if not missing:
+            self._toast("Every book in the library still has its file", "info")
+            return
+        dialog = ConfirmDialog(
+            "Remove missing files",
+            f"{len(missing)} book(s) point to files that no longer exist.\n\n"
+            "Remove them from the library? Nothing on disk is deleted.",
+            parent=self,
+        )
+        dialog.confirm_button.setText("Remove")
+        if not dialog.exec():
+            return
+        removed = db.remove_missing_books(missing, library_root=settings.get_library_root())
+        self.refresh_books()
+        self.series_panel.refresh_series()
+        self._toast(f"{removed} missing book(s) removed from the library", "success")
+
+    def _toggle_ask_new_folders(self, checked: bool):
+        settings.set_ask_new_folders(checked)
 
     def _on_sync_failed(self, message: str):
         self._syncing = False
         self.sync_action.setEnabled(True)
+        if hasattr(self, "sync_button"):
+            self.sync_button.setEnabled(True)
+        self._toast("The library folder could not be checked", "error")
         self._sync_worker = None
         self.statusbar.showMessage("Library sync failed", 5000)
         if message:
@@ -637,6 +1070,7 @@ class MainWindow(QMainWindow):
         valid_ids = {book["id"] for book in books}
         self.selected_ids &= valid_ids
 
+        self.library_grid.set_centered(not books)
         if not books:
             self._show_empty_state()
         else:
@@ -646,8 +1080,33 @@ class MainWindow(QMainWindow):
                 self.library_grid.add_card(card, row, column)
                 self.book_cards.append(card)
 
+        self._update_page_header(len(books))
         self._update_card_selection()
         self._update_statusbar()
+        self.scroll_area.verticalScrollBar().setValue(0)
+
+    def _update_page_header(self, shown: int):
+        """Keep the title of the grid in sync with the selected shelf."""
+        if self.current_search:
+            title = f"Search: {self.current_search}"
+        elif self.current_series_filter == "unsorted":
+            title = "Unsorted"
+        elif self.current_series_filter is not None:
+            series = db.get_series(self.current_series_filter)
+            title = series["name"] if series else "Series"
+        elif self.favorites_button.isChecked():
+            title = "Favorites"
+        else:
+            title = "All books"
+
+        self.page_title.setText(title)
+        total = db.get_total_book_count()
+        if shown == total:
+            self._page_count_text = f"{shown} books"
+        else:
+            self._page_count_text = f"{shown} of {total} books"
+        self.page_count.setText(self._page_count_text)
+
 
     def _load_books(self) -> List[Dict]:
         if self.current_search:
@@ -724,6 +1183,8 @@ class MainWindow(QMainWindow):
         card = BookCard(book)
         card.clicked.connect(self._on_card_clicked)
         card.bulk_context_requested.connect(self._show_bulk_menu)
+        card.select_mode_requested.connect(self._start_selection_mode)
+        card.select_toggled.connect(self._on_select_circle_clicked)
         card.context_opened.connect(self._on_card_context)
         card.open_requested.connect(self._open_book)
         card.open_with_requested.connect(self._open_book_with)
@@ -739,38 +1200,67 @@ class MainWindow(QMainWindow):
         return card
 
     def _show_empty_state(self):
-        empty = QWidget()
-        empty.setMinimumHeight(320)
-        layout = QVBoxLayout(empty)
-        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        if self.current_search or self.current_series_filter is not None \
+                or self.favorites_button.isChecked():
+            title = "Nothing matches this view"
+            subtitle = "Try another search, or pick a different shelf on the left."
+            empty = EmptyState(title, subtitle)
+            empty.add_requested.connect(self._clear_filters)
+            empty.folder_requested.connect(self._clear_filters)
+        else:
+            title = "Your shelf is empty"
+            subtitle = (
+                "Drop CBZ, CBR, CB7 or PDF files here — or point the library at "
+                "the folder where your comics already live."
+            )
+            empty = EmptyState(title, subtitle)
+            empty.add_requested.connect(self._add_book)
+            empty.folder_requested.connect(self._bulk_import)
 
-        title = QLabel("No books here")
-        title.setObjectName("TitleLabel")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        subtitle = QLabel(
-            "Drop CBZ / CBR / CB7 / PDF files or a whole folder on this window,\n"
-            "or use File → Add books... / Import folder..."
+        empty.setMinimumHeight(420)
+        self.library_grid.grid_layout.addWidget(
+            empty, 0, 0, 1, max(1, self.columns)
         )
-        subtitle.setObjectName("SubtitleLabel")
-        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        layout.addWidget(title)
-        layout.addSpacing(6)
-        layout.addWidget(subtitle)
-
-        self.library_grid.add_card(empty, 0, 0)
+    def _clear_filters(self):
+        self.search_input.clear()
+        self.current_search = ""
+        self.current_series_filter = None
+        self.favorites_button.setChecked(False)
+        self.read_filter_combo.setCurrentIndex(0)
+        self.format_combo.setCurrentIndex(0)
+        self.refresh_books()
 
     def _update_statusbar(self):
         stats = db.get_statistics()
-        self.shown_label.setText(f"Showing {len(self.book_cards)} of {stats['total']} books")
-        self.stats_label.setText(
-            f"Read {stats.get('read_count', 0)}  •  "
-            f"Unread {stats.get('unread_count', 0)}  •  "
-            f"★ {stats.get('favorites', 0)}  •  "
-            f"{stats.get('series_count', 0)} series  •  "
-            f"{format_file_size(stats.get('total_size') or 0)}"
+        self.shown_label.setText(
+            f"{len(self.book_cards)} shown  ·  {stats['total']} in the library"
         )
+        self.stats_label.setText(
+            f"{format_file_size(stats.get('total_size') or 0)}  ·  "
+            f"{stats.get('total_pages', 0) or 0} pages"
+        )
+
+        for card, value in (
+            (getattr(self, "stat_books", None), stats["total"]),
+            (getattr(self, "stat_unread", None), stats.get("unread_count", 0)),
+            (getattr(self, "stat_favorites", None), stats.get("favorites", 0)),
+            (getattr(self, "stat_series", None), stats.get("series_count", 0)),
+        ):
+            if card is not None:
+                card.set_value(value)
+
+        folder = settings.get_library_root()
+        if hasattr(self, "hero_subtitle"):
+            self.hero_subtitle.setText(
+                self._shorten_path(folder) if folder else "No library folder yet"
+            )
+
+    @staticmethod
+    def _shorten_path(path: str, limit: int = 58) -> str:
+        if len(path) <= limit:
+            return path
+        return "…" + path[-(limit - 1):]
 
     def _refresh_card(self, book_id: int):
         book = db.get_book(book_id)
@@ -786,7 +1276,45 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Selection
     # ------------------------------------------------------------------
+    def _start_selection_mode(self, book_id: Optional[int] = None):
+        """Enter "pick several" mode, starting with *book_id* when given."""
+        self._selection_mode = True
+        if book_id is not None:
+            self.selected_ids.add(book_id)
+            self._anchor_id = book_id
+        self._update_card_selection()
+
+    def _on_select_circle_clicked(self, book_id: int):
+        """The round checkbox in the cover corner was clicked.
+
+        The first click starts the group selection with that book; every later
+        click adds or removes a single book.
+        """
+        if not self._selection_mode:
+            self._start_selection_mode(book_id)
+            return
+        self._on_card_clicked(book_id, Qt.KeyboardModifier.NoModifier)
+
+    def exit_selection_mode(self):
+        """Leave the multi-selection and drop the marks."""
+        if not self._selection_mode and not self.selected_ids:
+            return
+        self._selection_mode = False
+        self.selected_ids.clear()
+        self._anchor_id = None
+        self._update_card_selection()
+
     def _on_card_clicked(self, book_id: int, modifiers):
+        if self._selection_mode:
+            # Clicking cards one by one adds or removes them, no key needed.
+            if book_id in self.selected_ids:
+                self.selected_ids.discard(book_id)
+            else:
+                self.selected_ids.add(book_id)
+            self._anchor_id = book_id
+            self._update_card_selection()
+            return
+
         ctrl = bool(modifiers & Qt.KeyboardModifier.ControlModifier)
         shift = bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
 
@@ -811,40 +1339,81 @@ class MainWindow(QMainWindow):
         self._update_card_selection()
 
     def _on_card_context(self, book_id: int):
+        if self._selection_mode:
+            # Never shrink the group when a card is right-clicked.
+            return
         if book_id not in self.selected_ids:
             self.selected_ids = {book_id}
             self._anchor_id = book_id
             self._update_card_selection()
 
     def _on_rubber_band(self, book_ids: List[int], additive: bool):
-        if additive:
+        if additive or self._selection_mode:
             self.selected_ids |= set(book_ids)
         else:
             self.selected_ids = set(book_ids)
+        if len(self.selected_ids) > 1:
+            # Dragging a box over several cards is a selection gesture too.
+            self._selection_mode = True
         self._update_card_selection()
 
+    def _typing_text(self):
+        """Return the focused text field, if the user is typing in one.
+
+        Ctrl+A and Delete belong to the field while it has the focus; applying
+        them to the grid would swallow the caret and could delete books.
+        """
+        widget = QApplication.focusWidget()
+        return widget if isinstance(widget, QLineEdit) else None
+
     def select_all(self):
+        field = self._typing_text()
+        if field is not None:
+            field.selectAll()
+            return
         self.selected_ids = {book["id"] for book in self.books}
+        self._selection_mode = bool(self.selected_ids)
         self._update_card_selection()
 
     def clear_selection(self):
-        if not self.selected_ids:
+        if not self.selected_ids and not self._selection_mode:
             return
         self.selected_ids.clear()
+        self._selection_mode = False
+        self._anchor_id = None
         self._update_card_selection()
 
     def _update_card_selection(self):
-        multi = len(self.selected_ids) > 1
+        multi = self._selection_mode or len(self.selected_ids) > 1
         for card in self.book_cards:
             selected = card.book_id in self.selected_ids
+            card.set_selection_mode(self._selection_mode)
             card.set_selected(selected)
             card.set_multi_selected(selected and multi)
         self.update_selection_bars()
 
     def update_selection_bars(self):
         count = len(self.selected_ids)
-        self.selection_label.setText(f"{count} selected" if count else "")
+        # A single click only highlights a card; the group bar belongs to the
+        # "pick several books" mode (or to a real multi-selection).
+        grouping = self._selection_mode or count > 1
+        self.selection_label.setText(f"{count} selected" if grouping else "")
         self.delete_selection_action.setEnabled(count > 0)
+
+        bar = getattr(self, "selection_bar", None)
+        if bar is None:
+            return
+        bar.set_count(count)
+        bar.setVisible(count > 0 and grouping)
+        if hasattr(self, "page_count"):
+            self.page_count.setText(
+                f"{count} selected" if count and grouping else self._page_count_text
+            )
+
+    def _open_selection(self):
+        ids = sorted(self.selected_ids)
+        if ids:
+            self._open_many(ids, SYSTEM_READER_ID)
 
     # ------------------------------------------------------------------
     # Filters and toolbar handlers
@@ -925,7 +1494,7 @@ class MainWindow(QMainWindow):
                 self._refresh_watcher()
             message = dialog.summary_text()
             if message:
-                QMessageBox.information(self, "Import finished", message)
+                self._toast(message, "success")
         else:
             self.statusbar.showMessage("Folder import cancelled — nothing was added.")
 
@@ -952,6 +1521,9 @@ class MainWindow(QMainWindow):
     # Book operations
     # ------------------------------------------------------------------
     def _open_book(self, book_id: int):
+        if self._selection_mode:
+            # While picking books a double-click must not open anything.
+            return
         self._launch(book_id, reader_id=None)
 
     def _open_book_with(self, book_id: int, reader_id: str):
@@ -963,12 +1535,7 @@ class MainWindow(QMainWindow):
             return False
         filepath = book["filepath"]
         if not Path(filepath).exists():
-            QMessageBox.warning(
-                self,
-                "File not found",
-                f"The file no longer exists:\n{filepath}\n\n"
-                "It was moved or deleted outside the library.",
-            )
+            self._handle_missing_book(book, reader_id)
             return False
 
         if reader_id is None:
@@ -983,6 +1550,48 @@ class MainWindow(QMainWindow):
         db.mark_book_opened(book_id, mark_read=settings.get_view("mark_read_on_open", True))
         self._refresh_card(book_id)
         return True
+
+    def _handle_missing_book(self, book: Dict, reader_id: Optional[str] = None):
+        """The file is gone: look for it, or drop the dead record.
+
+        A book is often only moved inside the library. Before asking anything
+        the record is matched back to the file by its fingerprint, so the book
+        opens normally and keeps its reading state.
+        """
+        root = settings.get_library_root()
+        if root and Path(root).is_dir():
+            try:
+                found = db.relink_moved_books(root)
+            except Exception:  # never block opening a book on a scan
+                logger.exception("Could not look for the moved file")
+                found = 0
+            if found:
+                refreshed = db.get_book(book["id"])
+                if refreshed and Path(refreshed["filepath"]).exists():
+                    self.refresh_books()
+                    self._toast(
+                        f"Found the moved file in {Path(refreshed['filepath']).parent.name}",
+                        "success",
+                    )
+                    self._launch(refreshed["id"], reader_id)
+                    return
+
+        filepath = book.get("filepath", "")
+        dialog = ConfirmDialog(
+            "File not found",
+            f"This book cannot be opened because its file is no longer at:\n\n"
+            f"{filepath}\n\nIt was moved or deleted outside the library.\n\n"
+            "Remove it from the library? Nothing on disk is deleted.",
+            parent=self,
+        )
+        dialog.confirm_button.setText("Remove from library")
+        if not dialog.exec():
+            return
+        db.delete_book(book["id"])
+        self.selected_ids.discard(book["id"])
+        self.refresh_books()
+        self.series_panel.refresh_series()
+        self._toast("The missing book was removed from the library", "info")
 
     def _toggle_read(self, book_id: int):
         if db.toggle_book_read(book_id) is not None:
@@ -1066,11 +1675,13 @@ class MainWindow(QMainWindow):
             open_containing_folder(book["filepath"])
 
     def _delete_book(self, book_id: int):
+        if self._typing_text() is not None:
+            return
         ids = self.selected_ids if book_id in self.selected_ids else {book_id}
         self._delete_books(sorted(ids))
 
     def _delete_selection(self):
-        if not self.selected_ids:
+        if self._typing_text() is not None or not self.selected_ids:
             return
         self._delete_books(sorted(self.selected_ids))
 
@@ -1110,6 +1721,7 @@ class MainWindow(QMainWindow):
             db.delete_book(book["id"])
 
         self.selected_ids.clear()
+        self._selection_mode = False
         self.refresh_books()
         self.series_panel.refresh_series()
 
@@ -1172,7 +1784,7 @@ class MainWindow(QMainWindow):
         select_all = menu.addAction("Select all")
         select_all.triggered.connect(self.select_all)
         clear = menu.addAction("Clear selection")
-        clear.triggered.connect(self.clear_selection)
+        clear.triggered.connect(self.exit_selection_mode)
 
         menu.addSeparator()
 
@@ -1303,47 +1915,17 @@ class MainWindow(QMainWindow):
 
         self.refresh_books()
         self.series_panel.refresh_series()
-        QMessageBox.information(self, "Import finished", result.summary())
+        self._refresh_watcher()
+        self._toast(result.summary(), "success" if result.added else "info")
 
     # ------------------------------------------------------------------
     # Dialogs
     # ------------------------------------------------------------------
     def _show_statistics(self):
-        stats = db.get_statistics()
-        formats = stats.get("formats", {})
-        format_lines = "".join(
-            f"<tr><td>{label}</td><td align='right'>{formats.get(key, 0)}</td></tr>"
-            for key, label in (
-                ("comic", "Comics (CBZ/CBR/CB7/CBT)"),
-                ("pdf", "PDF"),
-                ("image", "Images"),
-                ("archive", "Archives"),
-                ("other", "Other"),
-            )
-        )
-        resume = 0
-        if stats["total"]:
-            resume = round(100 * stats["read_count"] / stats["total"])
+        from ui.stats_dialog import StatisticsDialog
 
-        root = settings.get_library_root() or "not set"
-
-        QMessageBox.information(
-            self,
-            "Library statistics",
-            f"<h3>Library statistics</h3>"
-            f"<table cellpadding='3'>"
-            f"<tr><td>Books</td><td align='right'><b>{stats['total']}</b></td></tr>"
-            f"<tr><td>Series</td><td align='right'>{stats['series_count']}</td></tr>"
-            f"<tr><td>Read</td><td align='right'>{stats['read_count']} ({resume}%)</td></tr>"
-            f"<tr><td>Unread</td><td align='right'>{stats['unread_count']}</td></tr>"
-            f"<tr><td>Favorites</td><td align='right'>{stats['favorites']}</td></tr>"
-            f"<tr><td>Started</td><td align='right'>{stats['started_count']}</td></tr>"
-            f"<tr><td>Total size</td><td align='right'>{format_file_size(stats['total_size'])}</td></tr>"
-            f"</table>"
-            f"<h4>Formats</h4>"
-            f"<table cellpadding='3'>{format_lines}</table>"
-            f"<h4>Library folder</h4><p>{root}</p>",
-        )
+        dialog = StatisticsDialog(self)
+        dialog.exec()
 
     def _show_shortcuts(self):
         QMessageBox.information(

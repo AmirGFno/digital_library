@@ -5,6 +5,9 @@ datas = [
     ("assets/icon.png", "assets"),
     ("assets/icon.ico", "assets"),
     ("assets/default_cover.png", "assets"),
+    ("assets/chevron.png", "assets"),
+    ("assets/check.png", "assets"),
+    ("assets/radio_dot.png", "assets"),
 ]
 
 hiddenimports = [
