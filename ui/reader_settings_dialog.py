@@ -17,6 +17,7 @@ from typing import Dict, Optional
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QCheckBox,
+    QFrame,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -34,6 +35,8 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
+from ui import theme
+from utils import rar_tools
 from utils.logger import logger
 from utils.reader_manager import (
     FORMAT_GROUPS,
@@ -178,11 +181,47 @@ class ReaderSettingsDialog(QDialog):
         subtitle.setObjectName("SubtitleLabel")
         layout.addWidget(subtitle)
 
+        # CBR/RAR status: it is the single most common reason for empty covers,
+        # so it is shown here instead of hiding in a log file.
+        self.rar_banner = QFrame()
+        self.rar_banner.setObjectName("Chip")
+        banner_layout = QHBoxLayout(self.rar_banner)
+        banner_layout.setContentsMargins(12, 9, 12, 9)
+        banner_layout.setSpacing(10)
+        self.rar_dot = QLabel("●")
+        self.rar_dot.setStyleSheet(f"color: {theme.GREEN}; font-size: 11px;")
+        self.rar_label = QLabel(rar_tools.describe_support())
+        self.rar_label.setWordWrap(True)
+        self.rar_label.setStyleSheet(
+            f"color: {theme.TEXT_MUTED}; font-size: 11px;"
+        )
+        banner_layout.addWidget(self.rar_dot)
+        banner_layout.addWidget(self.rar_label, 1)
+        if rar_tools.rar_support_available():
+            self.rar_banner.setStyleSheet(
+                f"QFrame#Chip {{ background-color: {theme.SURFACE};"
+                f" border: 1px solid {theme.BORDER}; border-radius: 12px; }}"
+            )
+        else:
+            self.rar_dot.setStyleSheet(f"color: {theme.GOLD}; font-size: 11px;")
+            self.rar_banner.setStyleSheet(
+                "QFrame#Chip { background-color: rgba(245, 181, 68, 22);"
+                " border: 1px solid rgba(245, 181, 68, 90); border-radius: 12px; }"
+            )
+            self.rar_label.setStyleSheet(
+                "color: #ffd79a; font-size: 11px;"
+            )
+        self.rar_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        layout.addWidget(self.rar_banner)
+
         # Reader list ----------------------------------------------------
         list_group = QGroupBox("Available readers")
         list_layout = QVBoxLayout(list_group)
         self.readers_list = QListWidget()
-        self.readers_list.setMinimumHeight(210)
+        self.readers_list.setMinimumHeight(220)
+        self.readers_list.setSpacing(2)
         self.readers_list.currentItemChanged.connect(self._on_selection_changed)
         self.readers_list.itemDoubleClicked.connect(lambda _item: self._save())
         list_layout.addWidget(self.readers_list)
@@ -195,7 +234,6 @@ class ReaderSettingsDialog(QDialog):
         )
         list_layout.addWidget(self.detail_label)
 
-        button_row = QHBoxLayout()
         self.add_button = QPushButton("Add custom reader...")
         self.add_button.clicked.connect(self._add_custom_reader)
         self.browse_button = QPushButton("Browse executable...")
@@ -211,13 +249,19 @@ class ReaderSettingsDialog(QDialog):
         self.test_button.setToolTip("Start the selected reader to verify it works")
         self.test_button.clicked.connect(self._test_reader)
 
-        button_row.addWidget(self.add_button)
-        button_row.addWidget(self.browse_button)
-        button_row.addWidget(self.remove_button)
-        button_row.addStretch()
-        button_row.addWidget(self.refresh_button)
-        button_row.addWidget(self.test_button)
-        list_layout.addLayout(button_row)
+        primary_row = QHBoxLayout()
+        primary_row.addWidget(self.add_button)
+        primary_row.addWidget(self.browse_button)
+        primary_row.addWidget(self.remove_button)
+        primary_row.addStretch()
+
+        secondary_row = QHBoxLayout()
+        secondary_row.addStretch()
+        secondary_row.addWidget(self.refresh_button)
+        secondary_row.addWidget(self.test_button)
+
+        list_layout.addLayout(primary_row)
+        list_layout.addLayout(secondary_row)
         layout.addWidget(list_group, 1)
 
         # Per-format overrides -------------------------------------------
@@ -398,6 +442,8 @@ class ReaderSettingsDialog(QDialog):
         self.reload()
 
     def _refresh_detection(self):
+        rar_tools.configure_rarfile(force=True)
+        self.rar_label.setText(rar_tools.describe_support())
         self.reload()
         QMessageBox.information(
             self,

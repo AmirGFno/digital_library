@@ -2,6 +2,7 @@
 Database module for the Digital Library application.
 Uses SQLite with proper connection handling and PRAGMA settings.
 """
+import json
 import os
 import re
 import sqlite3
@@ -182,6 +183,36 @@ class Database:
             cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_books_file_hash ON books(file_hash)"
             )
+
+            # --- Schema v5: series <-> folder link + deleted series history ---
+            cursor.execute("PRAGMA table_info(series)")
+            series_columns = [col[1] for col in cursor.fetchall()]
+            if 'folder' not in series_columns:
+                try:
+                    cursor.execute("ALTER TABLE series ADD COLUMN folder TEXT")
+                    logger.info("Added folder column to series")
+                except Exception as e:
+                    logger.warning(f"Could not add series.folder: {e}")
+            if 'deleted_at' not in series_columns:
+                try:
+                    cursor.execute("ALTER TABLE series ADD COLUMN deleted_at TIMESTAMP")
+                    logger.info("Added deleted_at column to series")
+                except Exception as e:
+                    logger.warning(f"Could not add series.deleted_at: {e}")
+
+            # Deleting a series moves it here so it can be restored later.
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS deleted_series (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    folder TEXT,
+                    book_ids TEXT NOT NULL,
+                    deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_series_folder ON series(folder)"
+            )
             
             # Create basic indexes
             cursor.execute("""
@@ -213,21 +244,26 @@ class Database:
             # Set schema version
             cursor.execute("""
                 INSERT OR REPLACE INTO metadata (key, value, updated_at)
-                VALUES ('schema_version', '4.0', CURRENT_TIMESTAMP)
+                VALUES ('schema_version', '5.0', CURRENT_TIMESTAMP)
             """)
             
             logger.info("Database initialized successfully")
     
     # ==================== SERIES OPERATIONS ====================
     
-    def create_series(self, name: str) -> Optional[int]:
-        """Create a new series and return its ID."""
+    def create_series(self, name: str, folder: Optional[str] = None) -> Optional[int]:
+        """Create a new series and return its ID.
+
+        ``folder`` links the series to the folder it was imported from, which is
+        what lets the library ask about a folder only once and restore a deleted
+        series to its original place.
+        """
         try:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(
-                    "INSERT INTO series (name) VALUES (?)",
-                    (name,)
+                    "INSERT INTO series (name, folder) VALUES (?, ?)",
+                    (name, str(folder) if folder else None)
                 )
                 series_id = cursor.lastrowid
                 logger.info(f"Created series: {name} (ID: {series_id})")
@@ -246,6 +282,29 @@ class Database:
             )
             row = cursor.fetchone()
             return dict(row) if row else None
+
+    def get_series_by_folder(self, folder: str) -> Optional[Dict]:
+        """Find the series imported from a folder (path compared case-insensitively)."""
+        if not folder:
+            return None
+        target = normalize_path(folder)
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM series WHERE folder IS NOT NULL")
+            for row in cursor.fetchall():
+                if normalize_path(row["folder"]) == target:
+                    return dict(row)
+        return None
+
+    def set_series_folder(self, series_id: int, folder: Optional[str]) -> bool:
+        """Attach (or detach) the folder a series belongs to."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE series SET folder = ? WHERE id = ?",
+                (str(folder) if folder else None, series_id),
+            )
+            return cursor.rowcount > 0
     
     def get_all_series(self) -> List[Dict]:
         """Get all series."""
@@ -253,6 +312,115 @@ class Database:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM series ORDER BY name")
             return [dict(row) for row in cursor.fetchall()]
+
+    # ------------------------------------------------------------------
+    # Deleted series: trash, restore, purge
+    # ------------------------------------------------------------------
+    def delete_series(self, series_id: int, remember: bool = True) -> bool:
+        """Delete a series.
+
+        By default the series is remembered in ``deleted_series`` together with
+        the books that belonged to it, so "Restore deleted series" can bring it
+        back exactly as it was. Books themselves are never removed here.
+        """
+        series = self.get_series(series_id)
+        if not series:
+            return False
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            if remember:
+                cursor.execute(
+                    "SELECT id FROM books WHERE series_id = ?", (series_id,)
+                )
+                book_ids = [row[0] for row in cursor.fetchall()]
+                cursor.execute(
+                    "INSERT INTO deleted_series (name, folder, book_ids) VALUES (?, ?, ?)",
+                    (
+                        series.get("name"),
+                        series.get("folder"),
+                        json.dumps(book_ids),
+                    ),
+                )
+            cursor.execute("UPDATE books SET series_id = NULL WHERE series_id = ?",
+                           (series_id,))
+            cursor.execute("DELETE FROM series WHERE id = ?", (series_id,))
+            deleted = cursor.rowcount > 0
+            if deleted:
+                logger.info(f"Deleted series ID: {series_id} (restorable={remember})")
+            return deleted
+
+    def get_deleted_series(self) -> List[Dict]:
+        """Series that were deleted and can still be restored (newest first)."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM deleted_series ORDER BY deleted_at DESC, id DESC")
+            rows = []
+            for row in cursor.fetchall():
+                item = dict(row)
+                try:
+                    item["book_ids"] = json.loads(item.get("book_ids") or "[]")
+                except (TypeError, ValueError):
+                    item["book_ids"] = []
+                item["book_count"] = len(item["book_ids"])
+                rows.append(item)
+            return rows
+
+    def restore_deleted_series(self, trash_id: int) -> Optional[int]:
+        """Recreate a deleted series and re-attach the books that still exist."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM deleted_series WHERE id = ?", (trash_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            record = dict(row)
+            try:
+                book_ids = json.loads(record.get("book_ids") or "[]")
+            except (TypeError, ValueError):
+                book_ids = []
+
+            name = record["name"]
+            cursor.execute("SELECT id FROM series WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))",
+                           (name,))
+            existing = cursor.fetchone()
+            if existing:
+                series_id = existing[0]
+                if not record.get("folder"):
+                    cursor.execute(
+                        "UPDATE series SET folder = COALESCE(folder, ?) WHERE id = ?",
+                        (record.get("folder"), series_id),
+                    )
+            else:
+                cursor.execute(
+                    "INSERT INTO series (name, folder) VALUES (?, ?)",
+                    (name, record.get("folder")),
+                )
+                series_id = cursor.lastrowid
+
+            restored = 0
+            for book_id in book_ids:
+                cursor.execute("SELECT id FROM books WHERE id = ?", (book_id,))
+                if cursor.fetchone() is None:
+                    continue
+                cursor.execute(
+                    "UPDATE books SET series_id = ? WHERE id = ? AND series_id IS NULL",
+                    (series_id, book_id),
+                )
+                restored += cursor.rowcount
+
+            cursor.execute("DELETE FROM deleted_series WHERE id = ?", (trash_id,))
+            logger.info(f"Restored series '{name}' (ID: {series_id}) with {restored} book(s)")
+            return series_id
+
+    def forget_deleted_series(self, trash_id: Optional[int] = None):
+        """Drop one (or every) restorable series record."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            if trash_id is None:
+                cursor.execute("DELETE FROM deleted_series")
+            else:
+                cursor.execute("DELETE FROM deleted_series WHERE id = ?", (trash_id,))
     
     def update_series(self, series_id: int, name: str) -> bool:
         """Update a series name."""
@@ -267,19 +435,6 @@ class Database:
         except sqlite3.IntegrityError:
             logger.warning(f"Cannot update series: name '{name}' already exists")
             return False
-    
-    def delete_series(self, series_id: int) -> bool:
-        """Delete a series (books will have series_id set to NULL)."""
-        with self.get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                "DELETE FROM series WHERE id = ?",
-                (series_id,)
-            )
-            deleted = cursor.rowcount > 0
-            if deleted:
-                logger.info(f"Deleted series ID: {series_id}")
-            return deleted
     
     def get_series_by_name(self, name: str) -> Optional[Dict]:
         """Get a series by name."""
@@ -774,6 +929,59 @@ class Database:
                 if row:
                     return dict(row)
         return None
+
+    # ------------------------------------------------------------------
+    # Library maintenance: files that disappeared from disk
+    # ------------------------------------------------------------------
+    def get_missing_books(self, check_parent: bool = True) -> List[Dict]:
+        """Books whose file is gone from disk.
+
+        ``check_parent`` protects removable drives: when the whole folder is
+        missing (an unplugged USB disk, a network share that is offline) nothing
+        is reported, so a disconnected drive can never empty the library.
+        """
+        missing: List[Dict] = []
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM books")
+            for row in cursor.fetchall():
+                book = dict(row)
+                filepath = book.get("filepath") or ""
+                if not filepath:
+                    continue
+                path = Path(filepath)
+                if path.exists():
+                    continue
+                if check_parent and not path.parent.exists():
+                    # The folder is gone as well: treat it as an offline drive.
+                    logger.debug(f"Keeping {filepath}: its folder is not reachable")
+                    continue
+                missing.append(book)
+        return missing
+
+    def remove_missing_books(self, books: Optional[List[Dict]] = None) -> int:
+        """Remove library records for files that no longer exist.
+
+        Only the database rows are removed; nothing on disk is touched.
+        """
+        if books is None:
+            books = self.get_missing_books()
+        removed = 0
+        for book in books:
+            if self.delete_book(book["id"]):
+                removed += 1
+                logger.info(f"Removed missing file from library: {book.get('filepath')}")
+        return removed
+
+    def attach_book_to_series(
+        self, book_id: int, series_id: Optional[int], volume: Optional[str] = None
+    ) -> bool:
+        """Move an existing book into a series (used when a folder returns)."""
+        updates = {"series_id": series_id}
+        if volume is not None:
+            updates["volume"] = str(volume)
+            updates["volume_num"] = self._extract_volume_number(str(volume))
+        return self.update_book(book_id, **updates)
 
     def get_library_index(self) -> Tuple[Dict[str, int], Dict[str, int]]:
         """Return (normalised path -> id, file hash -> id) for the whole library.

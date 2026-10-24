@@ -43,8 +43,8 @@ class NamePreviewDialog(QDialog):
     # ------------------------------------------------------------------
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(10)
+        layout.setContentsMargins(22, 20, 22, 18)
+        layout.setSpacing(12)
 
         title = QLabel("These titles will be saved in the library")
         title.setObjectName("TitleLabel")
@@ -67,6 +67,7 @@ class NamePreviewDialog(QDialog):
         self.table.setHorizontalHeaderLabels(["File", "Title after import", "Changed"])
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.verticalHeader().setDefaultSectionSize(32)
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -75,6 +76,7 @@ class NamePreviewDialog(QDialog):
 
         self.summary_label = QLabel("")
         self.summary_label.setObjectName("SubtitleLabel")
+        self.summary_label.setStyleSheet("color: #ffd79a; font-size: 12px;")
         self.summary_label.setWordWrap(True)
         layout.addWidget(self.summary_label)
 
@@ -82,8 +84,10 @@ class NamePreviewDialog(QDialog):
         self.import_button = QPushButton("Import")
         self.import_button.setObjectName("PrimaryButton")
         self.import_button.setDefault(True)
+        self.import_button.setMinimumWidth(140)
         self.import_button.clicked.connect(self.accept)
         cancel = QPushButton("Cancel")
+        cancel.setObjectName("GhostButton")
         buttons.addButton(self.import_button, QDialogButtonBox.ButtonRole.AcceptRole)
         buttons.addButton(cancel, QDialogButtonBox.ButtonRole.RejectRole)
         buttons.rejected.connect(self.reject)

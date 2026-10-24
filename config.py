@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 APP_NAME = "Digital Library"
-APP_VERSION = "2.2.2"
+APP_VERSION = "2.3.0"
 
 
 def _app_dir() -> Path:
@@ -78,9 +78,9 @@ THUMBNAIL_QUALITY = 85
 
 # UI settings
 DEFAULT_COLUMNS = 4
-CARD_WIDTH = 180
-CARD_HEIGHT = 290
-COVER_HEIGHT = 220
+CARD_WIDTH = 208
+CARD_HEIGHT = 322
+COVER_HEIGHT = 250
 
 # Supported file extensions
 SUPPORTED_EXTENSIONS = {

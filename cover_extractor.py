@@ -6,9 +6,8 @@ import hashlib
 import zipfile
 import tarfile
 import io
-import os
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 from PIL import Image, ImageDraw, ImageFont
 
 from config import (
@@ -19,6 +18,7 @@ from utils.logger import logger
 from utils.helpers import get_file_extension, get_filename_without_extension
 
 import pdf_engine
+from utils import rar_tools
 
 # Optional imports
 
@@ -45,6 +45,9 @@ class CoverExtractor:
     def __init__(self, cache_dir: Path = THUMBNAILS_DIR):
         self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        # Placeholders live apart from the real cache so they are regenerated as
+        # soon as a missing RAR tool becomes available.
+        self._fallback_dir = Path(cache_dir).parent / "fallback_covers"
         self.default_cover = self._load_default_cover()
     
     def _load_default_cover(self) -> Optional[Image.Image]:
@@ -57,10 +60,24 @@ class CoverExtractor:
                 logger.error(f"Failed to load default cover: {e}")
         return None
     
-    def _get_cache_path(self, filepath: str) -> Path:
-        """Generate a unique cache path for a file."""
-        file_hash = hashlib.md5(filepath.encode()).hexdigest()
+    def _get_cache_path(self, filepath: str, fingerprint: str = "") -> Path:
+        """Generate a unique cache path for a file.
+
+        The size and modification time are part of the key so that a file that
+        was replaced (a better scan of the same comic) gets a fresh cover instead
+        of showing the old one forever.
+        """
+        key = f"{filepath}|{fingerprint}" if fingerprint else filepath
+        file_hash = hashlib.md5(key.encode()).hexdigest()
         return self.cache_dir / f"{file_hash}.jpg"
+
+    @staticmethod
+    def _fingerprint(filepath: str) -> str:
+        try:
+            stat = Path(filepath).stat()
+            return f"{stat.st_size}:{int(stat.st_mtime)}"
+        except OSError:
+            return ""
     
     def get_cover(self, filepath: str, book_id: Optional[int] = None, 
                   force_refresh: bool = False) -> Optional[str]:
@@ -78,7 +95,8 @@ class CoverExtractor:
                 logger.debug(f"Using custom cover for book {book_id}: {custom_cover}")
                 return custom_cover
         
-        cache_path = self._get_cache_path(filepath)
+        fingerprint = self._fingerprint(filepath)
+        cache_path = self._get_cache_path(filepath, fingerprint)
         
         # Return cached version if exists and not forcing refresh
         if cache_path.exists() and not force_refresh:
@@ -104,14 +122,18 @@ class CoverExtractor:
             except Exception as e:
                 logger.error(f"Failed to save cover for {filepath}: {e}")
         
-        # Generate fallback cover
+        # Generate fallback cover. It is *deliberately not cached*: once the user
+        # installs WinRAR/7-Zip the real cover must appear on the next start,
+        # which never happened while placeholders were written to the cache.
         logger.debug("Generating fallback cover")
         fallback = self._generate_fallback_cover(filepath)
         if fallback:
             try:
-                fallback.save(cache_path, THUMBNAIL_FORMAT, quality=THUMBNAIL_QUALITY)
+                self._fallback_dir.mkdir(parents=True, exist_ok=True)
+                fallback_path = self._fallback_dir / cache_path.name
+                fallback.save(fallback_path, THUMBNAIL_FORMAT, quality=THUMBNAIL_QUALITY)
                 logger.debug("Fallback cover saved")
-                return str(cache_path)
+                return str(fallback_path)
             except Exception as e:
                 logger.error(f"Failed to save fallback cover: {e}")
         
@@ -186,62 +208,88 @@ class CoverExtractor:
         return None
     
     def _extract_rar_cover(self, filepath: str) -> Optional[Image.Image]:
-        """Extract the first image from a RAR/CBR archive."""
+        """Extract the first image from a RAR/CBR archive.
+
+        Many files called ``.cbr`` are really ZIP archives, so a ZIP attempt is
+        made first. For genuine RAR archives an external tool (UnRAR, 7-Zip or
+        bsdtar) is required; it is looked up through :mod:`utils.rar_tools`
+        instead of assuming WinRAR lives in ``Program Files``.
+        """
+        if zipfile.is_zipfile(filepath):
+            logger.info(f"{Path(filepath).name} is a ZIP archive with a .cbr name")
+            cover = self._extract_zip_cover(filepath)
+            if cover is not None:
+                return cover
+
         if not HAS_RARFILE:
-            logger.warning("rarfile not available for RAR extraction")
             return None
-        
-        try:
-            # Configure UnRAR.exe path for Windows
-            if os.name == 'nt':
-                unrar_paths = [
-                    r"C:\Program Files\WinRAR\UnRAR.exe",
-                    r"C:\Program Files (x86)\WinRAR\UnRAR.exe",
-                    r"C:\Windows\UnRAR.exe",
-                ]
-                
-                for path in unrar_paths:
-                    if os.path.exists(path):
-                        rarfile.UNRAR_TOOL = path
-                        logger.debug(f"Using UnRAR tool: {path}")
-                        break
-                else:
-                    logger.warning("UnRAR.exe not found. RAR extraction may fail.")
-            
-            with rarfile.RarFile(filepath, 'r') as rf:
-                # Get all image files
-                image_files = []
-                for f in rf.infolist():
-                    if not f.isdir():
-                        ext = Path(f.filename).suffix.lower()
-                        if ext in self.IMAGE_EXTENSIONS:
-                            image_files.append(f.filename)
-                
-                # Sort to find cover
-                image_files.sort()
-                
-                if image_files:
-                    # Try to find cover by name
-                    cover_keywords = ['cover', '01', '001', 'first', '0001', 'page001']
-                    for keyword in cover_keywords:
-                        for img_file in image_files:
-                            if keyword.lower() in img_file.lower():
-                                with rf.open(img_file) as img_file_obj:
-                                    return Image.open(io.BytesIO(img_file_obj.read())).convert('RGB')
-                    
-                    # Otherwise use first image
-                    with rf.open(image_files[0]) as img_file_obj:
-                        return Image.open(io.BytesIO(img_file_obj.read())).convert('RGB')
-        
-        except rarfile.NeedFirstVolume:
-            logger.error(f"Multi-volume RAR not supported: {filepath}")
-        except rarfile.PasswordRequired:
-            logger.error(f"Password protected RAR: {filepath}")
-        except Exception as e:
-            logger.error(f"RAR extraction error for {filepath}: {e}")
-        
+
+        for attempt in range(2):
+            try:
+                tool = rar_tools.configure_rarfile(force=attempt > 0)
+                if tool is None:
+                    logger.warning(
+                        f"Cannot read {Path(filepath).name}: no RAR tool installed "
+                        "(WinRAR / 7-Zip / bsdtar)"
+                    )
+                    return None
+
+                with rarfile.RarFile(filepath, "r") as archive:
+                    names = [
+                        info.filename
+                        for info in archive.infolist()
+                        if not info.isdir()
+                        and Path(info.filename).suffix.lower() in self.IMAGE_EXTENSIONS
+                        and not info.filename.startswith("__MACOSX")
+                    ]
+                    if not names:
+                        return None
+                    for name in self._cover_candidates(names):
+                        try:
+                            with archive.open(name) as handle:
+                                return Image.open(io.BytesIO(handle.read())).convert("RGB")
+                        except Exception as exc:
+                            logger.debug(f"Skipping unreadable page {name}: {exc}")
+                            continue
+                return None
+
+            except rarfile.NeedFirstVolume:
+                logger.error(f"Multi-volume RAR not supported: {filepath}")
+                return None
+            except rarfile.PasswordRequired:
+                logger.error(f"Password protected RAR: {filepath}")
+                return None
+            except rarfile.RarCannotExec:
+                # The cached tool did not work; rediscover once, then give up.
+                logger.warning(
+                    f"RAR tool failed for {Path(filepath).name}; trying another one"
+                )
+                rar_tools.configure_rarfile(force=True)
+                continue
+            except Exception as exc:
+                if attempt == 0:
+                    logger.warning(f"RAR extraction failed ({exc}); retrying with rediscovery")
+                    rar_tools.configure_rarfile(force=True)
+                    continue
+                logger.error(f"RAR extraction error for {filepath}: {exc}")
+                return None
+
         return None
-    
+
+    @staticmethod
+    def _cover_candidates(names: List[str]) -> List[str]:
+        """Order archive entries so the most likely cover is read first."""
+        ordered = sorted(names, key=lambda value: value.lower())
+        priority: List[str] = []
+        for name in ordered:
+            lowered = Path(name).name.lower()
+            if "cover" in lowered:
+                priority.append(name)
+        if priority:
+            rest = [name for name in ordered if name not in priority]
+            return priority + rest
+        return ordered
+
     def _extract_7z_cover(self, filepath: str) -> Optional[Image.Image]:
         """Extract the first image from a 7z archive."""
         if not HAS_PY7ZR:
@@ -372,13 +420,28 @@ class CoverExtractor:
     def clear_cache(self, filepath: Optional[str] = None):
         """Clear cached covers. If filepath provided, clear only that file's cache."""
         if filepath:
-            cache_path = self._get_cache_path(filepath)
-            if cache_path.exists():
-                cache_path.unlink()
+            removed = 0
+            for directory in (self.cache_dir, self._fallback_dir):
+                if not directory.exists():
+                    continue
+                for cache_file in directory.glob("*"):
+                    if not cache_file.is_file():
+                        continue
+                    # Match both the plain and the fingerprinted cache key.
+                    if cache_file.stem in (
+                        self._get_cache_path(filepath).stem,
+                        self._get_cache_path(filepath, self._fingerprint(filepath)).stem,
+                    ):
+                        cache_file.unlink()
+                        removed += 1
+            if removed:
                 logger.info(f"Cleared cache for: {filepath}")
         else:
-            for cache_file in self.cache_dir.glob("*.jpg"):
-                cache_file.unlink()
+            for directory in (self.cache_dir, self._fallback_dir):
+                if not directory.exists():
+                    continue
+                for cache_file in directory.glob("*.jpg"):
+                    cache_file.unlink()
             logger.info("Cleared all cover cache")
 
 

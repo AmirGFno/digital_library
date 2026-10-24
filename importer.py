@@ -39,14 +39,24 @@ class ImportResult:
     failed: int = 0
     series_created: int = 0
     renamed: int = 0
+    relinked: int = 0
+    removed: int = 0
     errors: List[str] = field(default_factory=list)
 
     @property
     def total(self) -> int:
         return self.added + self.skipped + self.failed
 
+    @property
+    def changed(self) -> bool:
+        return bool(self.added or self.relinked or self.removed or self.series_created)
+
     def summary(self) -> str:
         parts = [f"افزوده شد: {self.added}"]
+        if self.relinked:
+            parts.append(f"برگردانده شد: {self.relinked}")
+        if self.removed:
+            parts.append(f"پاک‌شده (فایل نیست): {self.removed}")
         if self.skipped:
             parts.append(f"تکراری: {self.skipped}")
         if self.failed:
@@ -89,6 +99,8 @@ class FolderGroup:
     files: List[str] = field(default_factory=list)
     new_files: List[str] = field(default_factory=list)
     duplicates: List[str] = field(default_factory=list)
+    # filepath -> existing book id, for files already in the library
+    duplicate_books: Dict[str, int] = field(default_factory=dict)
     assignments: List[VolumeAssignment] = field(default_factory=list)
 
     @property
@@ -216,19 +228,23 @@ def _analyse_group(group: FolderGroup, database, path_index=None, hash_index=Non
 
     new_files: List[str] = []
     duplicates: List[str] = []
+    duplicate_books: Dict[str, int] = {}
     for filepath in group.files:
-        duplicate = False
+        book_id = None
         if path_index is not None:
-            duplicate = normalize_path(filepath) in path_index
+            book_id = path_index.get(normalize_path(filepath))
         elif database is not None:
-            duplicate = database.find_duplicate(filepath) is not None
-        if duplicate:
+            existing = database.find_duplicate(filepath)
+            book_id = existing["id"] if existing else None
+        if book_id:
             duplicates.append(filepath)
+            duplicate_books[filepath] = book_id
         else:
             new_files.append(filepath)
 
     group.new_files = new_files
     group.duplicates = duplicates
+    group.duplicate_books = duplicate_books
     group.assignments = plan_volumes(new_files, existing_numbers)
 
 
@@ -370,7 +386,9 @@ class LibraryImporter:
         done = 0
         for group in plan.groups:
             requested_name = series_names.get(group.key, group.default_name)
-            series_id = self._prepare_series(requested_name, result)
+            series_id = self._prepare_series(
+                requested_name, result, folder=group.folder
+            )
 
             existing_numbers = self.db.get_series_volume_numbers(series_id)
             assignments = plan_volumes(group.new_files, existing_numbers)
@@ -404,6 +422,10 @@ class LibraryImporter:
                     result.skipped += 1
                 else:
                     result.added += 1
+
+            relinked = self._relink_duplicates(group, series_id)
+            result.relinked += relinked
+            result.skipped += max(0, len(group.duplicates) - relinked)
 
         result.skipped += plan.duplicate_count
         logger.info(
@@ -500,22 +522,94 @@ class LibraryImporter:
         result.skipped += plan.duplicate_count
         return result
 
-    def sync_library_folder(self, folder: str, progress: Optional[ProgressCallback] = None):
-        """Silent synchronisation used on startup and by "Sync now"."""
+    def sync_library_folder(
+        self,
+        folder: str,
+        progress: Optional[ProgressCallback] = None,
+        remove_missing: bool = True,
+    ) -> ImportResult:
+        """Silent synchronisation used on startup and by "Sync now".
+
+        Besides importing new files it removes library entries whose file was
+        deleted from disk, so the library always mirrors the folder.
+        """
+        result = ImportResult()
+        if remove_missing:
+            result.removed = self.db.remove_missing_books()
+
         plan = build_folder_plan_with_db(folder, database=self.db, mode="auto")
         if not plan.groups:
-            return ImportResult()
+            return result
         names = {group.key: group.default_name for group in plan.groups}
-        return self.import_plan(plan, names, progress=progress)
+        imported = self.import_plan(plan, names, progress=progress)
+        imported.removed += result.removed
+        return imported
 
-    def _prepare_series(self, name: Optional[str], result: ImportResult) -> Optional[int]:
+    def remove_missing_files(self) -> int:
+        """Drop library entries for files that no longer exist on disk."""
+        return self.db.remove_missing_books()
+
+    def _relink_duplicates(
+        self, group: FolderGroup, series_id: Optional[int]
+    ) -> int:
+        """Put files that are already in the library back into their series.
+
+        This is what makes a deleted series recoverable: the folder is imported
+        again, the files are recognised as known, and instead of being ignored
+        they are moved back into the (re)created series with fresh volume
+        numbers.
+        """
+        if series_id is None or not group.duplicate_books:
+            return 0
+
+        pending: List[str] = []
+        for filepath, book_id in group.duplicate_books.items():
+            book = self.db.get_book(book_id)
+            if not book:
+                continue
+            if book.get("series_id") == series_id:
+                continue
+            if not Path(filepath).exists():
+                continue
+            pending.append(filepath)
+
+        if not pending:
+            return 0
+
+        existing_numbers = self.db.get_series_volume_numbers(series_id)
+        assignments = plan_volumes(pending, existing_numbers)
+        skipped_numbers = set(existing_numbers)
+        relinked = 0
+        for assignment in assignments:
+            if assignment.number in skipped_numbers:
+                continue
+            skipped_numbers.add(assignment.number)
+            book_id = group.duplicate_books[assignment.filepath]
+            if self.db.attach_book_to_series(
+                book_id, series_id, assignment.volume
+            ):
+                relinked += 1
+        if relinked:
+            logger.info(
+                "Restored %s file(s) into series %s", relinked, series_id
+            )
+        return relinked
+
+    def _prepare_series(
+        self,
+        name: Optional[str],
+        result: ImportResult,
+        folder: Optional[Path] = None,
+    ) -> Optional[int]:
         if not name or not str(name).strip():
             return None
         name = str(name).strip()
         existing = self.db.get_series_by_name_ci(name)
         if existing:
+            if folder is not None and not existing.get("folder"):
+                self.db.set_series_folder(existing["id"], str(folder))
             return existing["id"]
-        series_id = self.db.create_series(name)
+        series_id = self.db.create_series(name, folder=str(folder) if folder else None)
         if series_id:
             result.series_created += 1
         return series_id

@@ -1,21 +1,45 @@
 """
 Book card widget for the library grid.
 
-A card shows the cover (loaded in a worker thread), title, volume, series,
-favorite/rating state and exposes a rich context menu, including "Open with"
-for every detected comic reader.
+A card shows the cover (loaded in a worker thread), the title, series/volume and
+reading state, and exposes a rich context menu including "Open with" for every
+detected comic reader.
+
+The card is deliberately self-contained: the main window only connects signals.
 """
+from __future__ import annotations
+
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QRunnable, QThreadPool, Qt, pyqtSignal
-from PyQt6.QtGui import QAction, QMouseEvent, QPixmap
-from PyQt6.QtWidgets import QFrame, QLabel, QMenu, QVBoxLayout
+from PyQt6.QtCore import QObject, QRunnable, QSize, QThreadPool, Qt, pyqtSignal
+from PyQt6.QtGui import (
+    QAction,
+    QColor,
+    QMouseEvent,
+    QPainter,
+    QPainterPath,
+    QPixmap,
+)
+from PyQt6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMenu,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from config import CARD_HEIGHT, CARD_WIDTH, COVER_HEIGHT
 from cover_extractor import cover_extractor
 from database import db
+from ui import theme
+from ui.widgets import elide
 from utils.logger import logger
 from utils.reader_manager import SYSTEM_READER_ID, reader_manager
+
+COVER_WIDTH = CARD_WIDTH - 16
+COVER_RADIUS = 12
 
 
 class CoverLoaderSignals(QObject):
@@ -78,6 +102,13 @@ class BookCard(QFrame):
         super().__init__(parent)
         self.book_data = book_data
         self.book_id = book_data["id"]
+        self._selected = False
+        self._multi = False
+        self._cover_pixmap: QPixmap | None = None
+        self._cover_zoomed: QPixmap | None = None
+        self._hovered = False
+        self._shadow = None
+
         self._setup_ui()
         self._load_cover()
 
@@ -89,77 +120,184 @@ class BookCard(QFrame):
         self.setFixedSize(CARD_WIDTH, CARD_HEIGHT)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setToolTip(self.book_data.get("filepath", ""))
+        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(4)
-        self._selected = False
-        self._multi = False
+        layout.setContentsMargins(8, 8, 8, 10)
+        layout.setSpacing(7)
 
-        self.cover_label = QLabel("Loading...")
-        self.cover_label.setFixedHeight(COVER_HEIGHT)
-        self.cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.cover_label.setStyleSheet(
-            "background-color: #101216; border-radius: 6px; color: #5c646e;"
+        self.cover_frame = QFrame()
+        self.cover_frame.setObjectName("CoverFrame")
+        self.cover_frame.setFixedSize(COVER_WIDTH, COVER_HEIGHT)
+        self.cover_frame.setStyleSheet(
+            f"QFrame#CoverFrame {{ background-color: {theme.BG_ELEVATED};"
+            f" border-radius: {COVER_RADIUS}px; border: none; }}"
         )
-        layout.addWidget(self.cover_label)
+        cover_layout = QVBoxLayout(self.cover_frame)
+        cover_layout.setContentsMargins(0, 0, 0, 0)
 
-        self.title_label = QLabel(self._display_title())
-        self.title_label.setWordWrap(True)
-        self.title_label.setMaximumHeight(38)
-        self.title_label.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.title_label.setStyleSheet("font-weight: 600; font-size: 12px; color: #ffffff;")
+        self.cover_label = QLabel("")
+        self.cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.cover_label.setFixedSize(COVER_WIDTH, COVER_HEIGHT)
+        self.cover_label.setStyleSheet(
+            f"color: {theme.TEXT_DIM}; font-size: 11px; background: transparent;"
+        )
+        cover_layout.addWidget(self.cover_label)
+        layout.addWidget(self.cover_frame)
+
+        self._build_badges()
+        self._build_quick_actions()
+
+        self.title_label = QLabel(self._elided_title())
+        self.title_label.setFixedHeight(19)
+        self.title_label.setAlignment(
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
+        )
+        self.title_label.setStyleSheet(
+            f"color: {theme.TEXT}; font-size: 13px; font-weight: 600;"
+            " background: transparent;"
+        )
         layout.addWidget(self.title_label)
 
+        status_row = QHBoxLayout()
+        status_row.setContentsMargins(0, 0, 0, 0)
+        status_row.setSpacing(4)
+
         self.info_label = QLabel(self._info_text())
-        self.info_label.setStyleSheet("font-size: 10px; color: #8b949e;")
-        layout.addWidget(self.info_label)
-
-        self.status_label = QLabel()
-        self.status_label.setStyleSheet("font-size: 10px;")
-        layout.addWidget(self.status_label)
-
-        # Favorite badge overlays the cover.
-        self.favorite_badge = QLabel("★", self)
-        self.favorite_badge.setStyleSheet(
-            "color: #ffb400; font-size: 20px; background: rgba(20, 22, 26, 190);"
-            "border-radius: 10px; padding: 0 3px;"
+        self.info_label.setStyleSheet(
+            f"color: {theme.TEXT_MUTED}; font-size: 11px; background: transparent;"
         )
-        self.favorite_badge.setFixedSize(28, 28)
-        self.favorite_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.favorite_badge.move(CARD_WIDTH - 36, 12)
-        self.favorite_badge.setVisible(False)
+        status_row.addWidget(self.info_label, 1)
 
-        self.check_badge = QLabel("✓", self)
-        self.check_badge.setStyleSheet(
-            "color: #ffffff; font-size: 13px; font-weight: bold;"
-            "background: #e8552d; border-radius: 11px;"
+        self.rating_label = QLabel("")
+        self.rating_label.setStyleSheet(
+            f"color: {theme.GOLD}; font-size: 10px; background: transparent;"
         )
-        self.check_badge.setFixedSize(22, 22)
-        self.check_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.check_badge.move(10, 12)
-        self.check_badge.setVisible(False)
+        status_row.addWidget(self.rating_label)
 
-        # Let clicks reach the card itself instead of the child labels.
-        for widget in (self.cover_label, self.title_label, self.info_label,
-                       self.status_label, self.favorite_badge, self.check_badge):
-            widget.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.status_dot = QLabel("●")
+        self.status_dot.setStyleSheet(
+            f"color: {theme.TEXT_DIM}; font-size: 8px; background: transparent;"
+        )
+        self.status_label = QLabel("")
+        self.status_label.setStyleSheet(
+            f"color: {theme.TEXT_DIM}; font-size: 10px; background: transparent;"
+        )
+        status_row.addWidget(self.status_dot)
+        status_row.addWidget(self.status_label)
+        layout.addLayout(status_row)
+
+        for widget in self.findChildren(QLabel):
+            if widget not in (self.cover_label,):
+                widget.setAttribute(
+                    Qt.WidgetAttribute.WA_TransparentForMouseEvents, True
+                )
 
         self._refresh_state()
+
+    def _build_badges(self):
+        self.format_badge = QLabel("")
+        self.format_badge.setParent(self.cover_frame)
+        self.format_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.format_badge.setStyleSheet(
+            "color: #ffffff; font-size: 9px; font-weight: 700;"
+            " background: rgba(10, 12, 16, 185); border-radius: 6px; padding: 2px 6px;"
+        )
+        self.format_badge.move(9, 9)
+        self.format_badge.adjustSize()
+
+        self.favorite_badge = QLabel("★")
+        self.favorite_badge.setParent(self.cover_frame)
+        self.favorite_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.favorite_badge.setFixedSize(24, 24)
+        self.favorite_badge.setStyleSheet(
+            f"color: {theme.GOLD}; font-size: 13px;"
+            " background: rgba(10, 12, 16, 190); border-radius: 12px;"
+        )
+        self.favorite_badge.move(COVER_WIDTH - 33, 9)
+        self.favorite_badge.setVisible(False)
+
+        self.check_badge = QLabel("✓")
+        self.check_badge.setParent(self)
+        self.check_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.check_badge.setFixedSize(26, 26)
+        self.check_badge.setStyleSheet(
+            "color: #ffffff; font-size: 14px; font-weight: bold;"
+            f" background: {theme.ACCENT}; border-radius: 13px;"
+        )
+        self.check_badge.move(CARD_WIDTH - 34, 6)
+        self.check_badge.setVisible(False)
+
+        for widget in (self.format_badge, self.favorite_badge, self.check_badge):
+            widget.setAttribute(
+                Qt.WidgetAttribute.WA_TransparentForMouseEvents, True
+            )
+
+    def _build_quick_actions(self):
+        self.quick_bar = QWidget(self.cover_frame)
+        self.quick_bar.setAttribute(
+            Qt.WidgetAttribute.WA_StyledBackground, True
+        )
+        self.quick_bar.setStyleSheet(
+            "background: rgba(8, 10, 14, 205); border-radius: 10px;"
+        )
+        self.quick_bar.setFixedSize(COVER_WIDTH - 24, 34)
+        self.quick_bar.move(12, COVER_HEIGHT - 46)
+        self.quick_bar.setVisible(False)
+
+        row = QHBoxLayout(self.quick_bar)
+        row.setContentsMargins(6, 3, 6, 3)
+        row.setSpacing(4)
+
+        def button(text: str, tooltip: str, slot) -> QToolButton:
+            widget = QToolButton()
+            widget.setText(text)
+            widget.setToolTip(tooltip)
+            widget.setCursor(Qt.CursorShape.PointingHandCursor)
+            widget.setFixedSize(28, 26)
+            widget.setStyleSheet(
+                "QToolButton { border: none; background: transparent;"
+                f" color: {theme.TEXT}; font-size: 13px; border-radius: 7px; }}"
+                f"QToolButton:hover {{ background: {theme.ACCENT}; color: #ffffff; }}"
+            )
+            widget.clicked.connect(slot)
+            return widget
+
+        row.addWidget(button("▶", "Open", lambda: self.open_requested.emit(self.book_id)))
+        row.addWidget(
+            button("★", "Toggle favorite", lambda: self.favorite_requested.emit(self.book_id))
+        )
+        row.addWidget(
+            button("✓", "Toggle read", lambda: self.toggle_read_requested.emit(self.book_id))
+        )
+        row.addStretch(1)
+        row.addWidget(
+            button("⋯", "Details", lambda: self.details_requested.emit(self.book_id))
+        )
 
     def _display_title(self) -> str:
         title = self.book_data.get("title") or Path(self.book_data["filepath"]).stem
         return str(title)
 
+    def _elided_title(self) -> str:
+        """Short, single-line title that fits the card width."""
+        return elide(self._display_title(), 24)
+
     def _info_text(self) -> str:
+        """One short line under the title: volume plus who made it."""
         parts = []
         if self.book_data.get("volume"):
             parts.append(f"Vol. {self.book_data['volume']}")
-        if self.book_data.get("series_name"):
-            parts.append(str(self.book_data["series_name"])[:22])
+        writer = self.book_data.get("writer")
+        if writer:
+            parts.append(elide(str(writer), 16))
+        elif self.book_data.get("series_name"):
+            parts.append(elide(str(self.book_data["series_name"]), 16))
+        if self.book_data.get("year"):
+            parts.append(str(self.book_data["year"]))
         if not parts:
             parts.append(Path(self.book_data["filepath"]).suffix.upper().lstrip("."))
-        return "  •  ".join(parts)
+        return "  ·  ".join(parts)
 
     def _refresh_state(self):
         favorite = bool(self.book_data.get("favorite"))
@@ -167,24 +305,43 @@ class BookCard(QFrame):
         rating = int(self.book_data.get("rating") or 0)
 
         self.favorite_badge.setVisible(favorite)
+        self.check_badge.setVisible(self._selected)
 
-        status_parts = []
-        status_parts.append("✓ Read" if is_read else "● Unread")
-        if rating:
-            status_parts.append("★" * rating + "☆" * (5 - rating))
-        self.status_label.setText("   ".join(status_parts))
+        self.status_dot.setStyleSheet(
+            f"color: {theme.GREEN if is_read else theme.TEXT_DIM};"
+            " font-size: 9px; background: transparent;"
+        )
+        self.status_label.setText("Read" if is_read else "Unread")
         self.status_label.setStyleSheet(
-            f"font-size: 10px; color: {'#4ade80' if is_read else '#8b949e'};"
+            f"color: {theme.GREEN if is_read else theme.TEXT_DIM};"
+            " font-size: 10px; background: transparent;"
         )
+        self.rating_label.setText(("★" * rating) if rating else "")
+
         self.title_label.setStyleSheet(
-            "font-weight: 600; font-size: 12px; color: "
-            f"{'#9aa3ad' if is_read else '#ffffff'};"
+            "color: %s; font-size: 13px; font-weight: 600; background: transparent;"
+            % (theme.TEXT_MUTED if is_read else theme.TEXT)
         )
 
-        for name in ("isRead", "favorite"):
-            self.setProperty(name, False)
+        suffix = Path(self.book_data["filepath"]).suffix.upper().lstrip(".") or "FILE"
+        color = {
+            "CBZ": theme.BLUE,
+            "CBR": theme.ACCENT,
+            "CB7": theme.VIOLET,
+            "CBT": theme.GOLD,
+            "PDF": "#f87171",
+        }.get(suffix, theme.TEXT_MUTED)
+        self.format_badge.setText(suffix)
+        self.format_badge.setStyleSheet(
+            "color: %s; font-size: 9px; font-weight: 700;"
+            " background: rgba(10, 12, 16, 200); border-radius: 6px;"
+            " padding: 2px 6px;" % color
+        )
+        self.format_badge.adjustSize()
+
         self.setProperty("isRead", is_read)
         self.setProperty("favorite", favorite)
+        self.setProperty("selected", self._selected)
         self.style().unpolish(self)
         self.style().polish(self)
 
@@ -199,19 +356,93 @@ class BookCard(QFrame):
     def _on_cover_loaded(self, book_id: str, cover_path: str):
         if str(self.book_id) != book_id:
             return
-        if cover_path and Path(cover_path).exists():
-            pixmap = QPixmap(cover_path)
-            if not pixmap.isNull():
-                self.cover_label.setPixmap(
-                    pixmap.scaled(
-                        CARD_WIDTH - 12,
-                        COVER_HEIGHT,
-                        Qt.AspectRatioMode.KeepAspectRatio,
-                        Qt.TransformationMode.SmoothTransformation,
-                    )
-                )
-                return
-        self.cover_label.setText("No cover")
+        if not cover_path or not Path(cover_path).exists():
+            self.cover_label.setText("No cover")
+            return
+
+        pixmap = QPixmap(cover_path)
+        if pixmap.isNull():
+            self.cover_label.setText("No cover")
+            return
+
+        scaled = pixmap.scaled(
+            COVER_WIDTH,
+            COVER_HEIGHT,
+            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        # Crop to the exact cover box so every card lines up perfectly.
+        x = max(0, (scaled.width() - COVER_WIDTH) // 2)
+        y = max(0, (scaled.height() - COVER_HEIGHT) // 2)
+        cropped = scaled.copy(x, y, COVER_WIDTH, COVER_HEIGHT)
+
+        self._cover_pixmap = self._rounded(cropped, COVER_RADIUS)
+        self._cover_zoomed = self._rounded(self._zoomed(cropped, 1.07), COVER_RADIUS)
+        self._apply_cover(self._cover_zoomed if self._hovered else self._cover_pixmap)
+
+    @staticmethod
+    def _rounded(pixmap: QPixmap, radius: int) -> QPixmap:
+        rounded = QPixmap(pixmap.size())
+        rounded.fill(QColor(0, 0, 0, 0))
+        painter = QPainter(rounded)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        path = QPainterPath()
+        path.addRoundedRect(0, 0, pixmap.width(), pixmap.height(), radius, radius)
+        painter.setClipPath(path)
+        painter.drawPixmap(0, 0, pixmap)
+        painter.end()
+        return rounded
+
+    @staticmethod
+    def _zoomed(pixmap: QPixmap, factor: float) -> QPixmap:
+        width = int(pixmap.width() * factor)
+        height = int(pixmap.height() * factor)
+        scaled = pixmap.scaled(
+            width,
+            height,
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        x = (width - pixmap.width()) // 2
+        y = (height - pixmap.height()) // 2
+        return scaled.copy(x, y, pixmap.width(), pixmap.height())
+
+    def _apply_cover(self, pixmap: QPixmap | None):
+        if pixmap is None:
+            return
+        self.cover_label.setPixmap(pixmap)
+
+    # ------------------------------------------------------------------
+    # Hover
+    # ------------------------------------------------------------------
+    def enterEvent(self, event):
+        self._hovered = True
+        self.quick_bar.setVisible(True)
+        if self._cover_zoomed is not None:
+            self._apply_cover(self._cover_zoomed)
+        if self._shadow is None:
+            from PyQt6.QtWidgets import QGraphicsDropShadowEffect
+
+            effect = QGraphicsDropShadowEffect(self)
+            effect.setBlurRadius(30)
+            effect.setOffset(0, 10)
+            color = QColor("#000000")
+            color.setAlpha(150)
+            effect.setColor(color)
+            self._shadow = effect
+            self.setGraphicsEffect(effect)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self._hovered = False
+        self.quick_bar.setVisible(False)
+        if self._cover_pixmap is not None:
+            self._apply_cover(self._cover_pixmap)
+        if self._shadow is not None:
+            self.setGraphicsEffect(None)
+            self._shadow = None
+        super().leaveEvent(event)
 
     # ------------------------------------------------------------------
     # Selection
@@ -351,8 +582,6 @@ class BookCard(QFrame):
         menu.exec(event.globalPos())
 
     def _emit_settings_request(self):
-        # The main window listens through a dedicated signal-less path; opening
-        # settings from a card simply reuses the parent's action when available.
         window = self.window()
         if hasattr(window, "_show_reader_settings"):
             window._show_reader_settings()
@@ -369,9 +598,14 @@ class BookCard(QFrame):
     # ------------------------------------------------------------------
     def update_data(self, book_data: dict):
         self.book_data = book_data
-        self.title_label.setText(self._display_title())
+        self.title_label.setText(self._elided_title())
         self.info_label.setText(self._info_text())
+        self.setToolTip(book_data.get("filepath", ""))
         self._refresh_state()
 
         if "custom_cover" in book_data:
             self._load_cover()
+
+    # ------------------------------------------------------------------
+    def sizeHint(self) -> QSize:
+        return QSize(CARD_WIDTH, CARD_HEIGHT)

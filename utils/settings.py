@@ -50,9 +50,11 @@ class Settings:
                 "auto_sync": True,
                 "clean_names": True,
                 "last_import_folder": "",
+                "ask_new_folders": True,
+                "answered_folders": [],
             },
             "app": {
-                "version": "2.2.2",
+                "version": "2.3.0",
             },
         }
         self.settings = self._load_settings()
@@ -266,6 +268,37 @@ class Settings:
     def set_library_root(self, folder: str):
         library = self.settings.setdefault("library", {})
         library["root_folder"] = folder or ""
+        self.save()
+
+    # ------------------------------------------------------------------
+    # New folders inside the library root
+    # ------------------------------------------------------------------
+    def get_ask_new_folders(self) -> bool:
+        """Should the app ask before turning a new folder into a series?"""
+        library = self.settings.get("library", {})
+        return bool(library.get("ask_new_folders", True))
+
+    def set_ask_new_folders(self, enabled: bool):
+        self.settings.setdefault("library", {})["ask_new_folders"] = bool(enabled)
+        self.save()
+
+    def get_answered_folders(self) -> List[str]:
+        library = self.settings.get("library", {})
+        value = library.get("answered_folders") or []
+        return [str(item) for item in value if item]
+
+    def add_answered_folder(self, folder: str):
+        """Remember that the user said yes/no about this folder."""
+        from utils.folder_watch import remember_answer
+
+        library = self.settings.setdefault("library", {})
+        library["answered_folders"] = remember_answer(
+            folder, library.get("answered_folders") or []
+        )
+        self.save()
+
+    def reset_answered_folders(self):
+        self.settings.setdefault("library", {})["answered_folders"] = []
         self.save()
 
     def has_library_root(self) -> bool:

@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
     QLineEdit, QPushButton, QComboBox, QFileDialog,
     QMessageBox, QListWidget, QListWidgetItem, QCheckBox,
     QProgressDialog,
+    QFrame,
     QApplication
 )
 from PyQt6.QtCore import Qt
@@ -20,6 +21,79 @@ from config import ALL_EXTENSIONS
 from database import db
 from importer import scan_folder
 from utils.settings import settings
+
+
+# ----------------------------------------------------------------------
+# Shared building blocks for the small form dialogs
+# ----------------------------------------------------------------------
+def _dialog_shell(dialog: QDialog, title: str, subtitle: str = "",
+                  glyph: str = "", accent: str = ""):
+    """Themed header (badge + title + subtitle) used by every form dialog."""
+    from ui import theme
+
+    outer = QVBoxLayout(dialog)
+    outer.setContentsMargins(22, 20, 22, 18)
+    outer.setSpacing(14)
+
+    header = QHBoxLayout()
+    header.setSpacing(12)
+    if glyph:
+        badge = QLabel(glyph)
+        badge.setFixedSize(38, 38)
+        badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        badge.setStyleSheet(
+            f"color: {accent or theme.ACCENT_GLOW};"
+            f" background-color: {theme.SURFACE_ACTIVE};"
+            " border-radius: 12px; font-size: 17px; font-weight: 700;"
+        )
+        header.addWidget(badge, 0, Qt.AlignmentFlag.AlignTop)
+
+    text_box = QVBoxLayout()
+    text_box.setSpacing(3)
+    title_label = QLabel(title)
+    title_label.setObjectName("TitleLabel")
+    text_box.addWidget(title_label)
+    if subtitle:
+        sub_label = QLabel(subtitle)
+        sub_label.setObjectName("SubtitleLabel")
+        sub_label.setWordWrap(True)
+        text_box.addWidget(sub_label)
+    header.addLayout(text_box, 1)
+    outer.addLayout(header)
+    return outer
+
+
+def _field_caption(text: str) -> QLabel:
+    """Small dimmed caption above an input."""
+    from ui import theme
+
+    label = QLabel(text)
+    label.setStyleSheet(
+        f"color: {theme.TEXT_DIM}; font-size: 10px; font-weight: 700;"
+    )
+    return label
+
+
+def _dialog_actions(dialog: QDialog, primary_text: str, primary_slot,
+                    cancel_text: str = "Cancel") -> QHBoxLayout:
+    """Right-aligned ghost cancel + accent primary button."""
+    row = QHBoxLayout()
+    row.setSpacing(8)
+    row.addStretch()
+    cancel = QPushButton(cancel_text)
+    cancel.setObjectName("GhostButton")
+    cancel.setCursor(Qt.CursorShape.PointingHandCursor)
+    cancel.clicked.connect(dialog.reject)
+    primary = QPushButton(primary_text)
+    primary.setObjectName("PrimaryButton")
+    primary.setCursor(Qt.CursorShape.PointingHandCursor)
+    primary.setDefault(True)
+    primary.setMinimumWidth(120)
+    primary.clicked.connect(primary_slot)
+    dialog.primary_button = primary
+    row.addWidget(cancel)
+    row.addWidget(primary)
+    return row
 
 
 class AddBookDialog(QDialog):
@@ -33,50 +107,49 @@ class AddBookDialog(QDialog):
         self._setup_ui()
     
     def _setup_ui(self):
-        layout = QVBoxLayout(self)
-        
-        # File selection
-        file_layout = QHBoxLayout()
+        layout = _dialog_shell(
+            self,
+            "Add comics",
+            "Pick one or more CBZ, CBR, CB7 or PDF files. Metadata is read from "
+            "ComicInfo.xml when it is available.",
+            glyph="＋",
+        )
+
+        file_card = QFrame()
+        file_card.setObjectName("Chip")
+        file_layout = QHBoxLayout(file_card)
+        file_layout.setContentsMargins(12, 10, 10, 10)
+        file_layout.setSpacing(8)
         self.file_label = QLabel("No file selected")
         self.file_label.setWordWrap(True)
+        self.file_label.setStyleSheet("color: #aab3c5; font-size: 12px;")
         file_btn = QPushButton("Browse...")
+        file_btn.setObjectName("GhostButton")
         file_btn.clicked.connect(self._browse_files)
         file_layout.addWidget(self.file_label, 1)
         file_layout.addWidget(file_btn)
-        layout.addLayout(file_layout)
-        
-        # Title
-        layout.addWidget(QLabel("Title (optional):"))
+        layout.addWidget(file_card)
+
+        layout.addWidget(_field_caption("TITLE (OPTIONAL)"))
         self.title_input = QLineEdit()
-        self.title_input.setPlaceholderText("Leave empty to use filename")
+        self.title_input.setPlaceholderText("Leave empty to use the file name")
         layout.addWidget(self.title_input)
-        
-        # Series
-        layout.addWidget(QLabel("Series:"))
+
+        layout.addWidget(_field_caption("SERIES"))
         self.series_combo = QComboBox()
         self.series_combo.addItem("None", None)
         for series in db.get_all_series():
             self.series_combo.addItem(series['name'], series['id'])
         layout.addWidget(self.series_combo)
-        
-        # Volume
-        layout.addWidget(QLabel("Volume:"))
+
+        layout.addWidget(_field_caption("VOLUME"))
         self.volume_input = QLineEdit()
-        self.volume_input.setPlaceholderText("e.g., 1, 2, Special")
+        self.volume_input.setPlaceholderText("e.g. 1, 2, Special")
         layout.addWidget(self.volume_input)
-        
-        # Buttons
-        btn_layout = QHBoxLayout()
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        add_btn = QPushButton("Add")
-        add_btn.clicked.connect(self._add_book)
-        add_btn.setDefault(True)
-        btn_layout.addStretch()
-        btn_layout.addWidget(cancel_btn)
-        btn_layout.addWidget(add_btn)
-        layout.addLayout(btn_layout)
-    
+
+        layout.addStretch()
+        layout.addLayout(_dialog_actions(self, "Add to library", self._add_book))
+
     def _browse_files(self):
         extensions = " ".join(f"*{ext}" for ext in ALL_EXTENSIONS)
         files, _ = QFileDialog.getOpenFileNames(
@@ -159,26 +232,21 @@ class EditVolumeDialog(QDialog):
         self._setup_ui(current_volume)
     
     def _setup_ui(self, current_volume: Optional[str]):
-        layout = QVBoxLayout(self)
-        
-        layout.addWidget(QLabel("Volume:"))
+        layout = _dialog_shell(
+            self,
+            "Change the volume",
+            "Volumes decide the order inside a series.",
+            glyph="#",
+        )
+        layout.addWidget(_field_caption("VOLUME"))
         self.volume_input = QLineEdit()
         self.volume_input.setText(current_volume or "")
-        self.volume_input.setPlaceholderText("e.g., 1, 2, Special")
+        self.volume_input.setPlaceholderText("e.g. 1, 2, Special")
         self.volume_input.selectAll()
         layout.addWidget(self.volume_input)
-        
-        btn_layout = QHBoxLayout()
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        save_btn = QPushButton("Save")
-        save_btn.clicked.connect(self.accept)
-        save_btn.setDefault(True)
-        btn_layout.addStretch()
-        btn_layout.addWidget(cancel_btn)
-        btn_layout.addWidget(save_btn)
-        layout.addLayout(btn_layout)
-    
+        layout.addStretch()
+        layout.addLayout(_dialog_actions(self, "Save", self.accept, "Cancel"))
+
     def get_volume(self) -> Optional[str]:
         return self.volume_input.text().strip() or None
 
@@ -193,24 +261,20 @@ class AddSeriesDialog(QDialog):
         self._setup_ui()
     
     def _setup_ui(self):
-        layout = QVBoxLayout(self)
-        
-        layout.addWidget(QLabel("Series Name:"))
+        layout = _dialog_shell(
+            self,
+            "New series",
+            "A series groups the volumes of one title and gives the grid its "
+            "shelves on the left.",
+            glyph="≡",
+        )
+        layout.addWidget(_field_caption("SERIES NAME"))
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("Enter series name")
         layout.addWidget(self.name_input)
-        
-        btn_layout = QHBoxLayout()
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        add_btn = QPushButton("Add")
-        add_btn.clicked.connect(self._add_series)
-        add_btn.setDefault(True)
-        btn_layout.addStretch()
-        btn_layout.addWidget(cancel_btn)
-        btn_layout.addWidget(add_btn)
-        layout.addLayout(btn_layout)
-    
+        layout.addStretch()
+        layout.addLayout(_dialog_actions(self, "Create series", self._add_series))
+
     def _add_series(self):
         name = self.name_input.text().strip()
         if not name:
@@ -234,25 +298,20 @@ class EditSeriesDialog(QDialog):
         self._setup_ui(current_name)
     
     def _setup_ui(self, current_name: str):
-        layout = QVBoxLayout(self)
-        
-        layout.addWidget(QLabel("Series Name:"))
+        layout = _dialog_shell(
+            self,
+            "Rename series",
+            "The new name is used everywhere in the library.",
+            glyph="✎",
+        )
+        layout.addWidget(_field_caption("SERIES NAME"))
         self.name_input = QLineEdit()
         self.name_input.setText(current_name)
         self.name_input.selectAll()
         layout.addWidget(self.name_input)
-        
-        btn_layout = QHBoxLayout()
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        save_btn = QPushButton("Save")
-        save_btn.clicked.connect(self._save_series)
-        save_btn.setDefault(True)
-        btn_layout.addStretch()
-        btn_layout.addWidget(cancel_btn)
-        btn_layout.addWidget(save_btn)
-        layout.addLayout(btn_layout)
-    
+        layout.addStretch()
+        layout.addLayout(_dialog_actions(self, "Save", self._save_series))
+
     def _save_series(self):
         name = self.name_input.text().strip()
         if not name:
@@ -267,35 +326,65 @@ class EditSeriesDialog(QDialog):
 
 class ConfirmDialog(QDialog):
     """Confirmation dialog with optional checkbox."""
-    
-    def __init__(self, title: str, message: str, 
-                 checkbox_text: Optional[str] = None, parent=None):
+
+    def __init__(self, title: str, message: str,
+                 checkbox_text: Optional[str] = None, parent=None,
+                 danger: bool = False):
         super().__init__(parent)
         self.setWindowTitle(title)
-        self.setMinimumWidth(350)
+        self.setMinimumWidth(440)
+        self.setMaximumHeight(320)
+        self.danger = danger
         self._setup_ui(message, checkbox_text)
-    
+
     def _setup_ui(self, message: str, checkbox_text: Optional[str]):
+        from ui import theme
+
         layout = QVBoxLayout(self)
-        
+        layout.setContentsMargins(22, 20, 22, 18)
+        layout.setSpacing(12)
+
+        header = QHBoxLayout()
+        header.setSpacing(12)
+        icon = QLabel("⚠" if self.danger else "?")
+        icon.setFixedSize(38, 38)
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        accent = theme.ACCENT if self.danger else theme.BLUE
+        icon.setStyleSheet(
+            f"color: {accent}; background: {theme.SURFACE_ACTIVE};"
+            " border-radius: 12px; font-size: 17px; font-weight: 700;"
+        )
+        header.addWidget(icon)
+
         msg_label = QLabel(message)
         msg_label.setWordWrap(True)
-        layout.addWidget(msg_label)
-        
+        msg_label.setStyleSheet(f"color: {theme.TEXT}; font-size: 13px;")
+        header.addWidget(msg_label, 1)
+        layout.addLayout(header)
+
         self.checkbox = None
         if checkbox_text:
             self.checkbox = QCheckBox(checkbox_text)
             layout.addWidget(self.checkbox)
-        
+
+        layout.addStretch(1)
+
         btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(8)
         cancel_btn = QPushButton("Cancel")
+        cancel_btn.setObjectName("GhostButton")
+        cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         cancel_btn.clicked.connect(self.reject)
-        confirm_btn = QPushButton("Confirm")
-        confirm_btn.clicked.connect(self.accept)
-        confirm_btn.setDefault(True)
+
+        self.confirm_button = QPushButton("Confirm")
+        self.confirm_button.setObjectName("DangerButton" if self.danger else "PrimaryButton")
+        self.confirm_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.confirm_button.clicked.connect(self.accept)
+        self.confirm_button.setDefault(True)
+
         btn_layout.addStretch()
         btn_layout.addWidget(cancel_btn)
-        btn_layout.addWidget(confirm_btn)
+        btn_layout.addWidget(self.confirm_button)
         layout.addLayout(btn_layout)
     
     def is_checkbox_checked(self) -> bool:
@@ -314,19 +403,28 @@ class BulkImportDialog(QDialog):
         self._setup_ui()
     
     def _setup_ui(self):
-        layout = QVBoxLayout(self)
-        
-        # Folder selection
-        folder_layout = QHBoxLayout()
+        layout = _dialog_shell(
+            self,
+            "Bulk import",
+            "Add every comic in a folder to the library in one go.",
+            glyph="⇩",
+        )
+
+        folder_card = QFrame()
+        folder_card.setObjectName("Chip")
+        folder_layout = QHBoxLayout(folder_card)
+        folder_layout.setContentsMargins(12, 10, 10, 10)
         self.folder_label = QLabel("No folder selected")
-        folder_btn = QPushButton("Browse Folder...")
+        self.folder_label.setStyleSheet("color: #aab3c5; font-size: 12px;")
+        folder_btn = QPushButton("Browse folder...")
+        folder_btn.setObjectName("GhostButton")
         folder_btn.clicked.connect(self._browse_folder)
         folder_layout.addWidget(self.folder_label, 1)
         folder_layout.addWidget(folder_btn)
-        layout.addLayout(folder_layout)
-        
-        # Options
+        layout.addWidget(folder_card)
+
         options_row = QHBoxLayout()
+        options_row.setSpacing(14)
         self.recursive_check = QCheckBox("Include subfolders")
         self.recursive_check.setChecked(True)
         self.recursive_check.stateChanged.connect(self._scan_folder)
@@ -341,33 +439,23 @@ class BulkImportDialog(QDialog):
         options_row.addStretch()
         layout.addLayout(options_row)
 
-        # Files list
-        layout.addWidget(QLabel("Files found:"))
+        layout.addWidget(_field_caption("FILES FOUND"))
         self.files_list = QListWidget()
-        layout.addWidget(self.files_list)
-        
-        # Series selection
-        series_layout = QHBoxLayout()
-        series_layout.addWidget(QLabel("Assign to series:"))
+        self.files_list.setMinimumHeight(180)
+        layout.addWidget(self.files_list, 1)
+
+        series_row = QHBoxLayout()
+        series_row.setSpacing(10)
+        series_row.addWidget(_field_caption("ASSIGN TO SERIES"))
         self.series_combo = QComboBox()
         self.series_combo.addItem("None", None)
         for series in db.get_all_series():
             self.series_combo.addItem(series['name'], series['id'])
-        series_layout.addWidget(self.series_combo, 1)
-        layout.addLayout(series_layout)
-        
-        # Buttons
-        btn_layout = QHBoxLayout()
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        import_btn = QPushButton("Import")
-        import_btn.clicked.connect(self._import_books)
-        import_btn.setDefault(True)
-        btn_layout.addStretch()
-        btn_layout.addWidget(cancel_btn)
-        btn_layout.addWidget(import_btn)
-        layout.addLayout(btn_layout)
-    
+        series_row.addWidget(self.series_combo, 1)
+        layout.addLayout(series_row)
+
+        layout.addLayout(_dialog_actions(self, "Import", self._import_books))
+
     def _browse_folder(self):
         start = settings.get_last_import_folder()
         folder = QFileDialog.getExistingDirectory(self, "Select Folder", start)
@@ -439,67 +527,51 @@ class SetCustomCoverDialog(QDialog):
         self._setup_ui()
     
     def _setup_ui(self):
-        layout = QVBoxLayout(self)
-        
-        # Title
-        title_label = QLabel("Select Custom Cover Image")
-        title_label.setStyleSheet("font-weight: bold; font-size: 14px;")
-        layout.addWidget(title_label)
-        
-        layout.addSpacing(10)
-        
-        # Image preview
+        from ui import theme
+
+        layout = _dialog_shell(
+            self,
+            "Custom cover",
+            "Choose any image to use as the cover of this book.",
+            glyph="🖼",
+            accent=theme.GOLD,
+        )
+
         self.preview_label = QLabel()
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview_label.setMinimumHeight(200)
-        self.preview_label.setStyleSheet("""
-            QLabel {
-                background-color: #2a2a2a;
-                border: 2px dashed #555;
-                border-radius: 5px;
-            }
-        """)
+        self.preview_label.setMinimumHeight(240)
+        self.preview_label.setStyleSheet(
+            f"QLabel {{ background-color: {theme.BG_ELEVATED};"
+            f" border: 1px dashed {theme.BORDER_STRONG};"
+            f" border-radius: 14px; color: {theme.TEXT_DIM}; font-size: 12px; }}"
+        )
         self.preview_label.setText("No image selected")
-        layout.addWidget(self.preview_label)
-        
-        # Image info
+        layout.addWidget(self.preview_label, 1)
+
         self.info_label = QLabel("")
         self.info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.info_label.setStyleSheet("font-size: 10px; color: #888;")
+        self.info_label.setStyleSheet(
+            f"font-size: 11px; color: {theme.TEXT_DIM};"
+        )
         layout.addWidget(self.info_label)
-        
-        # Buttons
+
         btn_layout = QHBoxLayout()
-        
-        browse_btn = QPushButton("Browse Image...")
+        btn_layout.setSpacing(8)
+        browse_btn = QPushButton("Browse image...")
         browse_btn.clicked.connect(self._browse_image)
-        btn_layout.addWidget(browse_btn)
-        
-        clear_btn = QPushButton("Clear Preview")
+        clear_btn = QPushButton("Clear preview")
+        clear_btn.setObjectName("GhostButton")
         clear_btn.clicked.connect(self._clear_preview)
+        btn_layout.addWidget(browse_btn)
         btn_layout.addWidget(clear_btn)
-        
+        btn_layout.addStretch()
         layout.addLayout(btn_layout)
-        
-        layout.addSpacing(20)
-        
-        # Action buttons
-        action_layout = QHBoxLayout()
-        
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        action_layout.addWidget(cancel_btn)
-        
-        action_layout.addStretch()
-        
-        self.set_btn = QPushButton("Set as Cover")
-        self.set_btn.clicked.connect(self._set_cover)
-        self.set_btn.setDefault(True)
-        self.set_btn.setEnabled(False)
-        action_layout.addWidget(self.set_btn)
-        
-        layout.addLayout(action_layout)
-    
+
+        actions = _dialog_actions(self, "Set as cover", self._set_cover)
+        self.primary_button.setEnabled(False)
+        self.set_btn = self.primary_button
+        layout.addLayout(actions)
+
     def _browse_image(self):
         """Browse for image file."""
         # Image filters
