@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml/badge.svg"></a>
   <a href="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml"><img alt="Windows build" src="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-2.3.0-e8552d">
+  <img alt="Version" src="https://img.shields.io/badge/version-2.3.1-e8552d">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
@@ -63,10 +63,23 @@
 - **کاور CBR**: کاور فایل‌های RAR/CBR با WinRAR، 7-Zip، `unar` یا `bsdtar`
   خوانده می‌شود و وضعیت این ابزار در تنظیمات خواننده نمایش داده می‌شود
 - **دیزاین تازه**: نوار بالای صفحه با آمار زنده، کارت‌های کتاب با کاور گرد و
-  منوی شناور، نوار انتخاب شناور، پیام‌های Toast و کتابخانه‌ی ویجت اختصاصی
+  منوی شناور، نوار انتخاب زیر شبکه، پیام‌های Toast و کتابخانه‌ی ویجت اختصاصی
 - رابط تیره‌ی مدرن، ذخیره‌ی چیدمان پنجره و پشتیبانی از DPI بالا
 - نسخه‌ی **EXE تک‌فایل** بدون نیاز به نصب پایتون و با حجم بسیار کمتر (موتور PDF
   سبک جایگزین شد)
+
+### چه چیزی در نسخه‌ی ۲.۳.۱ درست شد
+
+- **انتخاب چندگانه**: نوار انتخاب دیگر روی کارت‌ها نمی‌افتد و دکمه‌های میان‌بر کارت
+  با تأخیر کوتاه ظاهر می‌شوند، پس کلیک ساده، `Ctrl` و `Shift` همیشه کار می‌کنند
+- **فایل جابه‌جاشده**: رکورد کتاب با اثر انگشت محتوا به مسیر تازه وصل می‌شود و
+  وضعیت خوانده‌شدن، امتیاز و کاور حفظ می‌شوند؛ فایل حذف‌شده هم از کتابخانه برداشته
+  می‌شود (هیچ فایلی روی دیسک پاک نمی‌شود)
+- **سری خالی**: سری‌ای که پوشه و همه‌ی کتاب‌هایش رفته باشد از فهرست کنار می‌رود و
+  در «Deleted series» برای بازگردانی می‌ماند
+- **آیکون برنامه**: آیکون در پنجره، نوار وظیفه و فایل EXE نمایش داده می‌شود
+- **پرسش پوشه‌ها**: پوشه‌ای که یک‌بار پاسخ گرفته دیگر دوباره پرسیده نمی‌شود
+- `Ctrl+A` و `Delete` هنگام تایپ در کادر جستجو دیگر روی شبکه اثر نمی‌گذارند
 
 ### خواننده‌های پشتیبانی‌شده
 
@@ -100,7 +113,7 @@ python main.py
 ### دریافت نسخه‌ی EXE
 
 از بخش [Releases](https://github.com/AmirGFno/digital_library/releases) فایل
-`DigitalLibrary-2.3.0-windows-x64.zip` را دانلود کنید، از حالت فشرده خارج کنید
+`DigitalLibrary-2.3.1-windows-x64.zip` را دانلود کنید، از حالت فشرده خارج کنید
 و `DigitalLibrary.exe` را اجرا کنید. پایتون لازم نیست.
 
 > ویندوز ممکن است بار اول هشدار SmartScreen نشان دهد، چون فایل امضای دیجیتال

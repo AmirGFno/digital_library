@@ -41,6 +41,7 @@ class ImportResult:
     renamed: int = 0
     relinked: int = 0
     removed: int = 0
+    series_removed: int = 0
     errors: List[str] = field(default_factory=list)
 
     @property
@@ -49,20 +50,28 @@ class ImportResult:
 
     @property
     def changed(self) -> bool:
-        return bool(self.added or self.relinked or self.removed or self.series_created)
+        return bool(
+            self.added
+            or self.relinked
+            or self.removed
+            or self.series_removed
+            or self.series_created
+        )
 
     def summary(self) -> str:
-        parts = [f"افزوده شد: {self.added}"]
+        parts = [f"{self.added} added"]
         if self.relinked:
-            parts.append(f"برگردانده شد: {self.relinked}")
+            parts.append(f"{self.relinked} moved file(s) followed")
         if self.removed:
-            parts.append(f"پاک‌شده (فایل نیست): {self.removed}")
+            parts.append(f"{self.removed} removed (file missing)")
         if self.skipped:
-            parts.append(f"تکراری: {self.skipped}")
+            parts.append(f"{self.skipped} already in library")
         if self.failed:
-            parts.append(f"ناموفق: {self.failed}")
+            parts.append(f"{self.failed} failed")
         if self.series_created:
-            parts.append(f"سری جدید: {self.series_created}")
+            parts.append(f"{self.series_created} new series")
+        if self.series_removed:
+            parts.append(f"{self.series_removed} empty series removed")
         return "  |  ".join(parts)
 
 
@@ -295,11 +304,11 @@ class LibraryImporter:
             path = Path(filepath)
             if not path.is_file():
                 result.failed += 1
-                result.errors.append(f"فایل پیدا نشد: {filepath}")
+                result.errors.append(f"File not found: {filepath}")
                 continue
             if not is_supported_file(filepath):
                 result.failed += 1
-                result.errors.append(f"قالب پشتیبانی نمی‌شود: {path.name}")
+                result.errors.append(f"Unsupported format: {path.name}")
                 continue
 
             fingerprint = compute_file_hash(filepath)
@@ -386,6 +395,10 @@ class LibraryImporter:
         done = 0
         for group in plan.groups:
             requested_name = series_names.get(group.key, group.default_name)
+            if not group.new_files and not self._adoptable_duplicates(group):
+                # Nothing to import and nothing to put back: do not leave an
+                # empty series behind.
+                continue
             series_id = self._prepare_series(
                 requested_name, result, folder=group.folder
             )
@@ -411,12 +424,29 @@ class LibraryImporter:
                         else Path(assignment.filepath).stem
                     )
 
+                # The same comic may already be in the library under a
+                # different path (a move, a rename, a copy). The fingerprint
+                # catches those, so the library never shows it twice.
+                file_hash = compute_file_hash(assignment.filepath)
+                existing = self.db.find_duplicate(
+                    assignment.filepath, file_hash=file_hash
+                )
+                if existing:
+                    result.skipped += 1
+                    logger.info(
+                        "Skipped duplicate content: %s (already as %s)",
+                        assignment.filepath,
+                        existing.get("filepath"),
+                    )
+                    continue
+
                 book_id = self.db.add_book(
                     assignment.filepath,
                     title=title,
                     series_id=series_id,
                     volume=assignment.volume,
                     metadata=metadata,
+                    file_hash=file_hash,
                 )
                 if book_id is None:
                     result.skipped += 1
@@ -427,7 +457,6 @@ class LibraryImporter:
             result.relinked += relinked
             result.skipped += max(0, len(group.duplicates) - relinked)
 
-        result.skipped += plan.duplicate_count
         logger.info(
             "Folder import: %s added, %s duplicates skipped, %s failed",
             result.added,
@@ -508,12 +537,17 @@ class LibraryImporter:
                     if clean_names
                     else Path(assignment.filepath).stem
                 )
+            file_hash = compute_file_hash(assignment.filepath)
+            if self.db.find_duplicate(assignment.filepath, file_hash=file_hash):
+                result.skipped += 1
+                continue
             book_id = self.db.add_book(
                 assignment.filepath,
                 title=title,
                 series_id=series_id,
                 volume=assignment.volume,
                 metadata=metadata,
+                file_hash=file_hash,
             )
             if book_id is None:
                 result.skipped += 1
@@ -534,8 +568,18 @@ class LibraryImporter:
         deleted from disk, so the library always mirrors the folder.
         """
         result = ImportResult()
+
+        # 1. Files that were moved inside the library keep their record (and so
+        #    keep their reading state, rating and cover) instead of coming back
+        #    as a second copy.
+        result.relinked = self.db.relink_moved_books(folder)
+        self.db.relink_series_folders(folder)
+
+        # 2. Files that really are gone leave the library. Records inside the
+        #    library folder are checked even when their folder disappeared too.
         if remove_missing:
-            result.removed = self.db.remove_missing_books()
+            result.removed = self.db.remove_missing_books(library_root=folder)
+            result.series_removed = self.db.prune_empty_series(library_root=folder)
 
         plan = build_folder_plan_with_db(folder, database=self.db, mode="auto")
         if not plan.groups:
@@ -543,11 +587,25 @@ class LibraryImporter:
         names = {group.key: group.default_name for group in plan.groups}
         imported = self.import_plan(plan, names, progress=progress)
         imported.removed += result.removed
+        imported.relinked += result.relinked
+        imported.series_removed += result.series_removed
         return imported
 
-    def remove_missing_files(self) -> int:
+    def remove_missing_files(self, library_root: Optional[str] = None) -> int:
         """Drop library entries for files that no longer exist on disk."""
-        return self.db.remove_missing_books()
+        return self.db.remove_missing_books(library_root=library_root)
+
+    def _adoptable_duplicates(self, group: FolderGroup) -> int:
+        """Duplicates that are free to join this folder's series."""
+        count = 0
+        for filepath, book_id in group.duplicate_books.items():
+            book = self.db.get_book(book_id)
+            if not book or not Path(filepath).exists():
+                continue
+            if book.get("series_id") and self.db.get_series(book["series_id"]):
+                continue
+            count += 1
+        return count
 
     def _relink_duplicates(
         self, group: FolderGroup, series_id: Optional[int]
@@ -568,6 +626,10 @@ class LibraryImporter:
             if not book:
                 continue
             if book.get("series_id") == series_id:
+                continue
+            # A book that still belongs to another series keeps it: only
+            # series-less books (a deleted series, a plain import) are adopted.
+            if book.get("series_id") and self.db.get_series(book["series_id"]):
                 continue
             if not Path(filepath).exists():
                 continue

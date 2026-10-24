@@ -25,15 +25,26 @@ def _normalized(value: str) -> str:
 
 def _contains_books(folder: Path) -> bool:
     """True when the folder (or one of its subfolders) holds a supported file."""
+    return _has_unknown_books(folder, None)
+
+
+def _has_unknown_books(folder: Path, known_files: Optional[set]) -> bool:
+    """True when the folder holds at least one comic that is not in the library."""
     from importer import is_supported_file
 
     try:
         for path in folder.rglob("*"):
             try:
-                if path.is_file() and is_supported_file(str(path)):
-                    return True
+                if not path.is_file() or not is_supported_file(str(path)):
+                    continue
             except OSError:
                 continue
+            if known_files is None:
+                return True
+            from database import normalize_path
+
+            if normalize_path(str(path)) not in known_files:
+                return True
     except OSError:
         return False
     return False
@@ -44,12 +55,15 @@ def find_unmanaged_folders(
     known_folders: Sequence[Optional[str]] = (),
     ignored_folders: Sequence[str] = (),
     limit: int = 25,
+    known_files: Optional[set] = None,
 ) -> List[str]:
     """Return immediate subfolders of *root* that should be offered as a series.
 
     * folders already linked to a series (``known_folders``) are skipped
     * folders the user already answered about (``ignored_folders``) are skipped
     * folders without any comic/book file are skipped
+    * folders whose comics are all in the library already are skipped, so an
+      answer is never asked twice for the same folder
     * hidden folders (starting with a dot) are skipped
     """
     root_path = Path(root).expanduser()
@@ -77,7 +91,7 @@ def find_unmanaged_folders(
         normalized = _normalized(str(child))
         if normalized in known or normalized in ignored:
             continue
-        if not _contains_books(child):
+        if not _has_unknown_books(child, known_files):
             continue
         candidates.append(str(child))
     return candidates

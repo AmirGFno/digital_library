@@ -4,7 +4,6 @@ import os
 import zipfile
 from pathlib import Path
 
-import pytest
 from PIL import Image
 
 
@@ -95,7 +94,6 @@ def test_cover_named_entry_wins(tmp_path):
     from cover_extractor import CoverExtractor
 
     archive = _zip_with_cover(tmp_path / "Comic 002.cbz")
-    extractor = CoverExtractor(cache_dir=tmp_path / "cache")
 
     with zipfile.ZipFile(archive) as handle:
         names = [name for name in handle.namelist() if name.endswith(".png")]

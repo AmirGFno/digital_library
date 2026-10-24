@@ -11,7 +11,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt6.QtCore import QObject, QRunnable, QSize, QThreadPool, Qt, pyqtSignal
+from PyQt6.QtCore import (
+    QObject,
+    QRunnable,
+    QSize,
+    QThreadPool,
+    QTimer,
+    Qt,
+    pyqtSignal,
+)
 from PyQt6.QtGui import (
     QAction,
     QColor,
@@ -239,15 +247,17 @@ class BookCard(QFrame):
             Qt.WidgetAttribute.WA_StyledBackground, True
         )
         self.quick_bar.setStyleSheet(
-            "background: rgba(8, 10, 14, 205); border-radius: 10px;"
+            "background: rgba(8, 10, 14, 225); border-radius: 10px;"
         )
-        self.quick_bar.setFixedSize(COVER_WIDTH - 24, 34)
-        self.quick_bar.move(12, COVER_HEIGHT - 46)
+        # Compact bar anchored to the bottom-left corner: most of the cover
+        # stays clickable, so selecting books with Ctrl never hits a button.
+        self.quick_bar.setFixedSize(140, 34)
+        self.quick_bar.move(10, COVER_HEIGHT - 44)
         self.quick_bar.setVisible(False)
 
         row = QHBoxLayout(self.quick_bar)
-        row.setContentsMargins(6, 3, 6, 3)
-        row.setSpacing(4)
+        row.setContentsMargins(5, 3, 5, 3)
+        row.setSpacing(2)
 
         def button(text: str, tooltip: str, slot) -> QToolButton:
             widget = QToolButton()
@@ -270,10 +280,10 @@ class BookCard(QFrame):
         row.addWidget(
             button("✓", "Toggle read", lambda: self.toggle_read_requested.emit(self.book_id))
         )
-        row.addStretch(1)
         row.addWidget(
             button("⋯", "Details", lambda: self.details_requested.emit(self.book_id))
         )
+        row.addStretch(1)
 
     def _display_title(self) -> str:
         title = self.book_data.get("title") or Path(self.book_data["filepath"]).stem
@@ -418,7 +428,14 @@ class BookCard(QFrame):
     # ------------------------------------------------------------------
     def enterEvent(self, event):
         self._hovered = True
-        self.quick_bar.setVisible(True)
+        # Show the buttons only after the pointer rests on the card, so a quick
+        # click (or a Ctrl+click on the way to another book) is never swallowed.
+        if not hasattr(self, "_hover_timer"):
+            self._hover_timer = QTimer(self)
+            self._hover_timer.setSingleShot(True)
+            self._hover_timer.setInterval(220)
+            self._hover_timer.timeout.connect(self._show_quick_actions)
+        self._hover_timer.start()
         if self._cover_zoomed is not None:
             self._apply_cover(self._cover_zoomed)
         if self._shadow is None:
@@ -434,8 +451,14 @@ class BookCard(QFrame):
             self.setGraphicsEffect(effect)
         super().enterEvent(event)
 
+    def _show_quick_actions(self):
+        if self._hovered and self.isVisible():
+            self.quick_bar.setVisible(True)
+
     def leaveEvent(self, event):
         self._hovered = False
+        if hasattr(self, "_hover_timer"):
+            self._hover_timer.stop()
         self.quick_bar.setVisible(False)
         if self._cover_pixmap is not None:
             self._apply_cover(self._cover_pixmap)

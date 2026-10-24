@@ -128,9 +128,43 @@ def _run_self_test() -> bool:
     return ok
 
 
+def _apply_windows_app_id():
+    """Give the process its own taskbar identity.
+
+    Without this Windows groups the window under the interpreter (or shows a
+    generic document icon) instead of the icon embedded in the executable.
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+            "AmirGFno.DigitalLibrary"
+        )
+    except Exception:
+        logger.debug("Could not set the Windows application id", exc_info=True)
+
+
+def _application_icon() -> QIcon:
+    """Best icon for this platform (ICO on Windows keeps every size crisp)."""
+    candidates = []
+    if sys.platform == "win32":
+        candidates += [ASSETS_DIR / "icon.ico", ASSETS_DIR / "icon.png"]
+    else:
+        candidates += [ASSETS_DIR / "icon.png", ASSETS_DIR / "icon.ico"]
+    for path in candidates:
+        if path.exists():
+            icon = QIcon(str(path))
+            if not icon.isNull():
+                return icon
+    return QIcon()
+
+
 def main() -> int:
     """Start the application and return the exit code."""
     logger.info("Starting %s %s", APP_NAME, APP_VERSION)
+    _apply_windows_app_id()
 
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
@@ -142,11 +176,11 @@ def main() -> int:
     app.setApplicationVersion(APP_VERSION)
     app.setOrganizationName("DigitalLibrary")
 
-    icon_file = ASSETS_DIR / ("icon.ico" if sys.platform == "win32" else "icon.png")
-    if not icon_file.exists():
-        icon_file = ASSETS_DIR / "icon.png"
-    if icon_file.exists():
-        app.setWindowIcon(QIcon(str(icon_file)))
+    icon = _application_icon()
+    if not icon.isNull():
+        app.setWindowIcon(icon)
+    else:
+        logger.warning("Application icon not found in %s", ASSETS_DIR)
 
     apply_theme(app)
     _install_exception_hook()

@@ -212,3 +212,58 @@ def test_folder_with_a_series_is_not_offered_again(temp_db, library_root):
         str(library_root), known_folders=known, ignored_folders=[]
     )
     assert candidates == []
+
+
+# ------------------------------------------------- moved / deleted files
+def test_moved_file_keeps_its_record(loaded):
+    importer, database, root = loaded
+    source = root / "Batman" / "Batman 001.cbz"
+    book = next(b for b in database.get_all_books() if b["filepath"] == str(source))
+    database.toggle_book_read(book["id"])
+    moved = root / "Elsewhere" / "Batman 001.cbz"
+    moved.parent.mkdir(parents=True)
+    shutil.move(str(source), str(moved))
+
+    result = importer.sync_library_folder(str(root))
+
+    assert result.relinked == 1
+    assert result.added == 0
+    assert database.get_total_book_count() == 2
+    after = database.get_book(book["id"])
+    assert after["filepath"] == str(moved)
+    assert after["is_read"] == 1
+
+
+def test_deleted_folder_leaves_the_library(loaded):
+    _, database, root = loaded
+    shutil.rmtree(root / "Batman")
+
+    importer = LibraryImporter(database=database)
+    result = importer.sync_library_folder(str(root))
+
+    assert result.removed == 2
+    assert database.get_total_book_count() == 0
+    assert database.get_series_by_name_ci("Batman") is None
+    assert [item["name"] for item in database.get_deleted_series()] == ["Batman"]
+
+
+def test_deleted_file_keeps_its_series(loaded):
+    importer, database, root = loaded
+    (root / "Batman" / "Batman 002.cbz").unlink()
+
+    result = importer.sync_library_folder(str(root))
+
+    assert result.removed == 1
+    assert result.series_removed == 0
+    assert database.get_total_book_count() == 1
+    assert database.get_series_by_name_ci("Batman") is not None
+
+
+def test_a_copy_of_a_known_comic_is_not_added_twice(loaded):
+    importer, database, root = loaded
+    shutil.copy2(root / "Batman" / "Batman 001.cbz", root / "Batman" / "Batman 001 copy.cbz")
+
+    result = importer.sync_library_folder(str(root))
+
+    assert result.added == 0
+    assert database.get_total_book_count() == 2

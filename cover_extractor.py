@@ -112,6 +112,9 @@ class CoverExtractor:
             # Resize and save to cache
             try:
                 cover_image = self._resize_cover(cover_image)
+                # The cache can be cleared (or removed by cleanup tools) while
+                # the app is running; never lose a cover over a missing folder.
+                cache_path.parent.mkdir(parents=True, exist_ok=True)
                 cover_image.save(
                     cache_path, 
                     THUMBNAIL_FORMAT, 

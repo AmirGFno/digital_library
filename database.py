@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional, List, Dict, Tuple
 from contextlib import contextmanager
 
-from config import DATABASE_PATH
+from config import ALL_EXTENSIONS, DATABASE_PATH
 from utils.logger import logger
 from utils.helpers import sort_books_naturally
 
@@ -933,13 +933,21 @@ class Database:
     # ------------------------------------------------------------------
     # Library maintenance: files that disappeared from disk
     # ------------------------------------------------------------------
-    def get_missing_books(self, check_parent: bool = True) -> List[Dict]:
+    def get_missing_books(
+        self,
+        check_parent: bool = True,
+        library_root: Optional[str] = None,
+    ) -> List[Dict]:
         """Books whose file is gone from disk.
 
-        ``check_parent`` protects removable drives: when the whole folder is
-        missing (an unplugged USB disk, a network share that is offline) nothing
-        is reported, so a disconnected drive can never empty the library.
+        A record *inside* the library folder is reported as soon as its file is
+        missing, even when the folder that held it was deleted too. For books
+        outside the library ``check_parent`` keeps protecting removable drives:
+        when the whole folder is missing (an unplugged USB disk, an offline
+        network share) nothing is reported, so a disconnected drive can never
+        empty the library.
         """
+        root = normalize_path(library_root) if library_root else ""
         missing: List[Dict] = []
         with self.get_connection() as conn:
             cursor = conn.cursor()
@@ -952,26 +960,212 @@ class Database:
                 path = Path(filepath)
                 if path.exists():
                     continue
-                if check_parent and not path.parent.exists():
+
+                normalized = normalize_path(filepath)
+                inside_library = bool(root) and (
+                    normalized == root or normalized.startswith(root.rstrip("/") + "/")
+                )
+                if check_parent and not inside_library and not path.parent.exists():
                     # The folder is gone as well: treat it as an offline drive.
                     logger.debug(f"Keeping {filepath}: its folder is not reachable")
                     continue
                 missing.append(book)
         return missing
 
-    def remove_missing_books(self, books: Optional[List[Dict]] = None) -> int:
+    def remove_missing_books(
+        self,
+        books: Optional[List[Dict]] = None,
+        library_root: Optional[str] = None,
+    ) -> int:
         """Remove library records for files that no longer exist.
 
         Only the database rows are removed; nothing on disk is touched.
         """
         if books is None:
-            books = self.get_missing_books()
+            books = self.get_missing_books(library_root=library_root)
         removed = 0
         for book in books:
             if self.delete_book(book["id"]):
                 removed += 1
                 logger.info(f"Removed missing file from library: {book.get('filepath')}")
         return removed
+
+    def prune_empty_series(self, library_root: Optional[str] = None) -> int:
+        """Forget series that lost every book because their folder is gone.
+
+        A series whose folder still holds comics is kept: the next sync puts
+        those files back. A series with no books and no folder behind it only
+        clutters the sidebar, so it is moved to the restore history where the
+        user can still bring it back.
+        """
+        from importer import is_supported_file
+
+        root = None
+        if library_root:
+            try:
+                root = Path(library_root).expanduser().resolve()
+            except OSError:
+                root = None
+
+        removed = 0
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT s.id, s.folder FROM series s
+                LEFT JOIN books b ON s.id = b.series_id
+                WHERE b.id IS NULL
+                """
+            )
+            candidates = [dict(row) for row in cursor.fetchall()]
+
+        for series in candidates:
+            folder = series.get("folder")
+            if not folder:
+                # Series the user created by hand keep their place.
+                continue
+            if root is not None:
+                candidate = Path(folder)
+                try:
+                    candidate.resolve().relative_to(root)
+                except (OSError, ValueError):
+                    continue  # outside the library: never touched automatically
+            if Path(folder).is_dir():
+                try:
+                    has_books = any(
+                        path.is_file() and is_supported_file(str(path))
+                        for path in Path(folder).rglob("*")
+                    )
+                except OSError:
+                    has_books = True
+                if has_books:
+                    continue
+            if self.delete_series(series["id"], remember=True):
+                removed += 1
+                logger.info("Removed empty series %s", series["id"])
+        return removed
+
+    def relink_series_folders(self, library_root: str) -> int:
+        """Reconnect series to their folder after the folder was renamed/moved.
+
+        A series remembers the folder it was imported from, otherwise the same
+        folder would be offered as "new" again after a rename.
+        """
+        if not library_root:
+            return 0
+        root = Path(library_root)
+        if not root.is_dir():
+            return 0
+
+        updated = 0
+        for series in self.get_all_series():
+            folder = series.get("folder")
+            if folder and Path(folder).is_dir():
+                continue
+            books = [book for book in self.get_all_books() if book.get("series_id") == series["id"]]
+            parents = {
+                Path(book.get("filepath", "")).parent
+                for book in books
+                if book.get("filepath") and Path(book["filepath"]).is_file()
+            }
+            if len(parents) != 1:
+                continue
+            candidate = parents.pop()
+            try:
+                candidate.relative_to(root)
+            except ValueError:
+                continue
+            if str(candidate) != folder and self.set_series_folder(series["id"], str(candidate)):
+                updated += 1
+                logger.info("Series %s now points at %s", series["name"], candidate)
+        return updated
+
+    def set_book_path(
+        self,
+        book_id: int,
+        filepath: str,
+        file_size: Optional[int] = None,
+    ) -> bool:
+        """Point an existing record at a new location (used when a file moves)."""
+        try:
+            values = [str(filepath)]
+            updates = "filepath = ?"
+            if file_size is not None:
+                updates += ", file_size = ?"
+                values.append(int(file_size))
+            values.append(datetime.now().isoformat())
+            values.append(book_id)
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    f"UPDATE books SET {updates}, updated_at = ? WHERE id = ?",
+                    values,
+                )
+                return cursor.rowcount > 0
+        except sqlite3.IntegrityError:
+            # Another record already points at that path.
+            return False
+
+    def relink_moved_books(self, library_root: str, limit: int = 5000) -> int:
+        """Follow files that were moved or renamed inside the library.
+
+        When a comic is dragged to another folder the old record would either
+        disappear (and come back as a duplicate) or stay behind pointing at a
+        dead path. Instead, the fingerprint of the missing book is matched
+        against the files that are not in the library yet and the record simply
+        moves with the file, so the book keeps its reading state and cover.
+
+        Only files with a matching size are hashed, which keeps this cheap even
+        for big libraries.
+        """
+        if not library_root:
+            return 0
+        root = Path(library_root)
+        if not root.is_dir():
+            return 0
+
+        missing = [
+            book
+            for book in self.get_missing_books(check_parent=False, library_root=library_root)
+            if book.get("file_hash")
+        ]
+        if not missing:
+            return 0
+
+        supported = {ext.lower() for ext in ALL_EXTENSIONS}
+        known_paths = self.get_library_index()[0]
+        by_hash = {}
+        for book in missing:
+            by_hash.setdefault(book["file_hash"], book)
+        sizes = {int(book.get("file_size") or 0) for book in missing}
+
+        relinked = 0
+        checked = 0
+        for path in root.rglob("*"):
+            if not by_hash or checked >= limit:
+                break
+            try:
+                if not path.is_file() or path.suffix.lower() not in supported:
+                    continue
+                if normalize_path(str(path)) in known_paths:
+                    continue
+                size = path.stat().st_size
+                if sizes and size not in sizes:
+                    continue
+            except OSError:
+                continue
+
+            checked += 1
+            digest = compute_file_hash(str(path))
+            book = by_hash.pop(digest, None) if digest else None
+            if book is None:
+                continue
+            if self.set_book_path(book["id"], str(path), size):
+                relinked += 1
+                logger.info(
+                    "Relinked book %s: %s -> %s", book["id"], book.get("filepath"), path
+                )
+        return relinked
 
     def attach_book_to_series(
         self, book_id: int, series_id: Optional[int], volume: Optional[str] = None

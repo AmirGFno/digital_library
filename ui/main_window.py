@@ -132,6 +132,7 @@ class SyncWorker(QThread):
                     self.folder,
                     known_folders=known,
                     ignored_folders=settings.get_answered_folders(),
+                    known_files=set(db.get_library_index()[0]),
                 )
             self.finished_ok.emit(SyncOutcome(result=result, new_folders=new_folders))
         except Exception as exc:  # pragma: no cover - defensive
@@ -168,6 +169,7 @@ class MainWindow(QMainWindow):
         self._search_timer.timeout.connect(self.refresh_books)
         self._pending_folder_check = False
         self._folder_prompt_open = False
+        self._page_count_text = ""
 
         # Throttles the "did a file disappear?" check when the window is focused.
         self._prune_timer = QTimer(self)
@@ -195,9 +197,15 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1080, 700)
         self.resize(1440, 900)
 
-        icon_path = ASSETS_DIR / "icon.png"
-        if icon_path.exists():
-            self.setWindowIcon(QIcon(str(icon_path)))
+        # The window icon is what Windows shows on the taskbar button. The
+        # application icon is already the best variant (multi-size ICO on
+        # Windows), so prefer it and only fall back to the PNG asset.
+        app = QApplication.instance()
+        icon = app.windowIcon() if app is not None else QIcon()
+        if icon.isNull():
+            icon = QIcon(str(ASSETS_DIR / "icon.png"))
+        if not icon.isNull():
+            self.setWindowIcon(icon)
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -348,13 +356,23 @@ class MainWindow(QMainWindow):
         self.scroll_area.setWidget(self.library_grid)
         content_layout.addWidget(self.scroll_area, 1)
 
+        # The selection bar lives in its own strip under the grid: it never
+        # covers a card, so Ctrl/Shift clicks keep hitting the books.
+        self.selection_bar = SelectionBar()
+        self.selection_bar.setVisible(False)
+        self.selection_bar.setMaximumWidth(760)
+        selection_strip = QHBoxLayout()
+        selection_strip.setContentsMargins(0, 4, 0, 0)
+        selection_strip.addStretch(1)
+        selection_strip.addWidget(self.selection_bar)
+        selection_strip.addStretch(1)
+        content_layout.addLayout(selection_strip)
+
         self.splitter.addWidget(content)
         self.splitter.setSizes([248, 1190])
         self.splitter.setStretchFactor(1, 1)
 
-        # ---- floating selection bar ------------------------------------
-        self.selection_bar = SelectionBar(central)
-        self.selection_bar.setVisible(False)
+        # ---- selection bar signals --------------------------------------
         self.selection_bar.open_requested.connect(self._open_selection)
         self.selection_bar.read_requested.connect(
             lambda value: self._set_read_many(sorted(self.selected_ids), value)
@@ -698,18 +716,35 @@ class MainWindow(QMainWindow):
             self._check_new_folders()
 
     def _prune_missing_files(self, silent: bool = True) -> int:
-        """Remove records whose file is gone (the file itself is never touched)."""
-        missing = db.get_missing_books()
-        if not missing:
-            return 0
-        removed = db.remove_missing_books(missing)
-        if removed:
+        """Keep the library in step with the disk after files move or vanish.
+
+        Moved files keep their record (and their reading state) and files that
+        are really gone leave the library. Nothing on disk is ever touched.
+        """
+        root = settings.get_library_root()
+        relinked = db.relink_moved_books(root) if root else 0
+        if root:
+            db.relink_series_folders(root)
+        missing = db.get_missing_books(library_root=root)
+        removed = db.remove_missing_books(missing, library_root=root) if missing else 0
+        pruned_series = 0
+        if root:
+            # Series that lost every book and whose folder is gone should not
+            # linger in the sidebar; they stay restorable from the trash.
+            pruned_series = db.prune_empty_series(library_root=root)
+
+        if relinked or removed or pruned_series:
             self.refresh_books()
             self.series_panel.refresh_series()
             if not silent:
-                self._toast(
-                    f"{removed} book(s) removed — their files are gone", "warning"
-                )
+                parts = []
+                if relinked:
+                    parts.append(f"{relinked} moved file(s) followed")
+                if removed:
+                    parts.append(f"{removed} missing book(s) removed")
+                if pruned_series:
+                    parts.append(f"{pruned_series} empty series removed")
+                self._toast("  ·  ".join(parts), "warning" if removed else "info")
         return removed
 
     def closeEvent(self, event):
@@ -734,6 +769,11 @@ class MainWindow(QMainWindow):
         if settings.get_auto_sync() and settings.has_library_root():
             self._start_sync(quiet=True)
         else:
+            # Even without automatic import the library must match the disk:
+            # files that were deleted or moved while the app was closed are
+            # reconciled right away.
+            if settings.has_library_root():
+                QTimer.singleShot(300, self._prune_missing_files)
             QTimer.singleShot(400, self._check_new_folders)
 
     def _show_welcome(self):
@@ -834,6 +874,11 @@ class MainWindow(QMainWindow):
                     f"{result.removed} book(s) were removed because their files are gone",
                     "warning",
                 )
+            if result.relinked:
+                self._toast(
+                    f"{result.relinked} moved file(s) kept their place in the library",
+                    "info",
+                )
             if not quiet:
                 self._toast(result.summary(), "success")
         elif not quiet:
@@ -866,31 +911,41 @@ class MainWindow(QMainWindow):
             # "Ask me later": keep the question for the next sync.
             return
 
-        import_names = []
+        series_names = []
+        file_only = []
         ignored = []
         for folder, decision in decisions.items():
             action = decision.get("action")
             name = decision.get("name") or Path(folder).name
-            if remember:
+            if remember or action in ("ignore", "files"):
+                # Ignored folders and folders imported without a series never
+                # become "known" through the database, so remember the answer.
                 settings.add_answered_folder(folder)
             if action == "ignore":
                 ignored.append(folder)
                 continue
             if action == "series":
                 self._import_single_folder(folder, series_name=name)
-                import_names.append(name)
+                series_names.append(name)
             else:
                 self._import_single_folder(folder, series_name=None)
-                import_names.append(Path(folder).name)
+                file_only.append(Path(folder).name)
 
-        if import_names:
+        if series_names or file_only:
             self.refresh_books()
             self.series_panel.refresh_series()
-            self._toast(
-                "Added as series: " + ", ".join(import_names[:3])
-                + ("…" if len(import_names) > 3 else ""),
-                "success",
-            )
+            parts = []
+            if series_names:
+                parts.append(
+                    "New series: " + ", ".join(series_names[:3])
+                    + ("…" if len(series_names) > 3 else "")
+                )
+            if file_only:
+                parts.append(
+                    "Books without a series: " + ", ".join(file_only[:3])
+                    + ("…" if len(file_only) > 3 else "")
+                )
+            self._toast("  ·  ".join(parts), "success")
         elif ignored:
             self._toast("Folders ignored. You can import them later.", "info")
 
@@ -917,11 +972,16 @@ class MainWindow(QMainWindow):
         folder = settings.get_library_root()
         if not folder or not settings.get_ask_new_folders():
             return
-        known = [series.get("folder") for series in db.get_all_series() if series.get("folder")]
+        known = [
+            series.get("folder")
+            for series in db.get_all_series()
+            if series.get("folder")
+        ]
         candidates = find_unmanaged_folders(
             folder,
             known_folders=known,
             ignored_folders=settings.get_answered_folders(),
+            known_files=set(db.get_library_index()[0]),
         )
         if candidates:
             self._ask_about_folders(candidates)
@@ -950,7 +1010,7 @@ class MainWindow(QMainWindow):
         dialog.confirm_button.setText("Remove")
         if not dialog.exec():
             return
-        removed = db.remove_missing_books(missing)
+        removed = db.remove_missing_books(missing, library_root=settings.get_library_root())
         self.refresh_books()
         self.series_panel.refresh_series()
         self._toast(f"{removed} missing book(s) removed from the library", "success")
@@ -1024,9 +1084,10 @@ class MainWindow(QMainWindow):
         self.page_title.setText(title)
         total = db.get_total_book_count()
         if shown == total:
-            self.page_count.setText(f"{shown} books")
+            self._page_count_text = f"{shown} books"
         else:
-            self.page_count.setText(f"{shown} of {total} books")
+            self._page_count_text = f"{shown} of {total} books"
+        self.page_count.setText(self._page_count_text)
 
 
     def _load_books(self) -> List[Dict]:
@@ -1232,7 +1293,20 @@ class MainWindow(QMainWindow):
             self.selected_ids = set(book_ids)
         self._update_card_selection()
 
+    def _typing_text(self):
+        """Return the focused text field, if the user is typing in one.
+
+        Ctrl+A and Delete belong to the field while it has the focus; applying
+        them to the grid would swallow the caret and could delete books.
+        """
+        widget = QApplication.focusWidget()
+        return widget if isinstance(widget, QLineEdit) else None
+
     def select_all(self):
+        field = self._typing_text()
+        if field is not None:
+            field.selectAll()
+            return
         self.selected_ids = {book["id"] for book in self.books}
         self._update_card_selection()
 
@@ -1260,24 +1334,10 @@ class MainWindow(QMainWindow):
             return
         bar.set_count(count)
         bar.setVisible(count > 0)
-        if count:
-            self._place_selection_bar()
-
-    def _place_selection_bar(self):
-        bar = getattr(self, "selection_bar", None)
-        central = self.centralWidget()
-        if bar is None or central is None or not bar.isVisible():
-            return
-        width = min(640, max(520, central.width() - 120))
-        bar.setFixedWidth(width)
-        x = (central.width() - width) // 2
-        y = central.height() - bar.height() - 26
-        bar.move(max(20, x), max(20, y))
-        bar.raise_()
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self._place_selection_bar()
+        if hasattr(self, "page_count"):
+            self.page_count.setText(
+                f"{count} selected" if count else self._page_count_text
+            )
 
     def _open_selection(self):
         ids = sorted(self.selected_ids)
@@ -1401,12 +1461,7 @@ class MainWindow(QMainWindow):
             return False
         filepath = book["filepath"]
         if not Path(filepath).exists():
-            QMessageBox.warning(
-                self,
-                "File not found",
-                f"The file no longer exists:\n{filepath}\n\n"
-                "It was moved or deleted outside the library.",
-            )
+            self._handle_missing_book(book, reader_id)
             return False
 
         if reader_id is None:
@@ -1421,6 +1476,48 @@ class MainWindow(QMainWindow):
         db.mark_book_opened(book_id, mark_read=settings.get_view("mark_read_on_open", True))
         self._refresh_card(book_id)
         return True
+
+    def _handle_missing_book(self, book: Dict, reader_id: Optional[str] = None):
+        """The file is gone: look for it, or drop the dead record.
+
+        A book is often only moved inside the library. Before asking anything
+        the record is matched back to the file by its fingerprint, so the book
+        opens normally and keeps its reading state.
+        """
+        root = settings.get_library_root()
+        if root and Path(root).is_dir():
+            try:
+                found = db.relink_moved_books(root)
+            except Exception:  # never block opening a book on a scan
+                logger.exception("Could not look for the moved file")
+                found = 0
+            if found:
+                refreshed = db.get_book(book["id"])
+                if refreshed and Path(refreshed["filepath"]).exists():
+                    self.refresh_books()
+                    self._toast(
+                        f"Found the moved file in {Path(refreshed['filepath']).parent.name}",
+                        "success",
+                    )
+                    self._launch(refreshed["id"], reader_id)
+                    return
+
+        filepath = book.get("filepath", "")
+        dialog = ConfirmDialog(
+            "File not found",
+            f"This book cannot be opened because its file is no longer at:\n\n"
+            f"{filepath}\n\nIt was moved or deleted outside the library.\n\n"
+            "Remove it from the library? Nothing on disk is deleted.",
+            parent=self,
+        )
+        dialog.confirm_button.setText("Remove from library")
+        if not dialog.exec():
+            return
+        db.delete_book(book["id"])
+        self.selected_ids.discard(book["id"])
+        self.refresh_books()
+        self.series_panel.refresh_series()
+        self._toast("The missing book was removed from the library", "info")
 
     def _toggle_read(self, book_id: int):
         if db.toggle_book_read(book_id) is not None:
@@ -1504,11 +1601,13 @@ class MainWindow(QMainWindow):
             open_containing_folder(book["filepath"])
 
     def _delete_book(self, book_id: int):
+        if self._typing_text() is not None:
+            return
         ids = self.selected_ids if book_id in self.selected_ids else {book_id}
         self._delete_books(sorted(ids))
 
     def _delete_selection(self):
-        if not self.selected_ids:
+        if self._typing_text() is not None or not self.selected_ids:
             return
         self._delete_books(sorted(self.selected_ids))
 
