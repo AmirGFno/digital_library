@@ -24,6 +24,7 @@ from config import ALL_EXTENSIONS
 from database import db
 from importer import scan_folder
 from ui import layout as layout_tools
+from ui import theme
 from ui.widgets import WrappingLabel, wrap_long_words
 from utils.settings import settings
 
@@ -126,7 +127,7 @@ class AddBookDialog(QDialog):
         file_layout.setContentsMargins(12, 10, 10, 10)
         file_layout.setSpacing(8)
         self.file_label = WrappingLabel("No file selected")
-        self.file_label.setStyleSheet("color: #aab3c5; font-size: 12px;")
+        self.file_label.setStyleSheet(f"color: {theme.TEXT_MUTED}; font-size: 12px;")
         file_btn = QPushButton("Browse...")
         file_btn.setObjectName("GhostButton")
         file_btn.clicked.connect(self._browse_files)
@@ -420,7 +421,7 @@ class BulkImportDialog(QDialog):
         folder_layout = QHBoxLayout(folder_card)
         folder_layout.setContentsMargins(12, 10, 10, 10)
         self.folder_label = QLabel("No folder selected")
-        self.folder_label.setStyleSheet("color: #aab3c5; font-size: 12px;")
+        self.folder_label.setStyleSheet(f"color: {theme.TEXT_MUTED}; font-size: 12px;")
         folder_btn = QPushButton("Browse folder...")
         folder_btn.setObjectName("GhostButton")
         folder_btn.clicked.connect(self._browse_folder)

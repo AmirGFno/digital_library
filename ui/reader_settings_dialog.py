@@ -214,7 +214,7 @@ class ReaderSettingsDialog(QDialog):
                 " border: 1px solid rgba(245, 181, 68, 90); border-radius: 12px; }"
             )
             self.rar_label.setStyleSheet(
-                "color: #ffd79a; font-size: 11px;"
+                f"color: {theme.ACCENT_GLOW}; font-size: 11px;"
             )
         self.rar_label.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse

@@ -36,7 +36,10 @@ class Settings:
             },
             "view": {
                 "columns": 4,
-                "theme": "dark",
+                # "system" follows the Windows light/dark setting, which is
+                # what the rest of a real desktop does.
+                "theme": "system",
+                "theme_chosen": False,
                 "sort": "series",
                 "filter": "all",
                 "format": "all",
@@ -55,7 +58,7 @@ class Settings:
                 "answered_folders": [],
             },
             "app": {
-                "version": "2.4.4",
+                "version": "2.5.0",
             },
             "updates": {
                 # The installed edition asks for a newer release once the
@@ -80,7 +83,8 @@ class Settings:
             if not isinstance(loaded, dict):
                 raise ValueError("settings root must be an object")
             merged = self._merge_settings(self.default_settings, loaded)
-            return self._migrate_reader_settings(merged)
+            merged = self._migrate_reader_settings(merged)
+            return self._migrate_theme_choice(merged)
         except Exception as exc:
             logger.error(f"Failed to load settings ({exc}); using defaults")
             return self._copy_defaults(self.default_settings)
@@ -128,6 +132,20 @@ class Settings:
         if not reader.get("default"):
             reader["default"] = SYSTEM_READER_ID
         reader.setdefault("per_format", {"archive": "", "pdf": "", "image": ""})
+        return data
+
+    def _migrate_theme_choice(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Drop the forced dark theme that older versions wrote by default.
+
+        Up to 2.4.x there was no way to choose a colour mode, so a stored
+        ``dark`` was never a decision the user made. Those copies start
+        following the Windows setting instead; a real choice is flagged.
+        """
+        view = data.setdefault("view", {})
+        if not view.get("theme_chosen"):
+            if view.get("theme") not in (None, "", "system", "light"):
+                view["theme"] = "system"
+            view["theme_chosen"] = False
         return data
 
     def save(self) -> bool:

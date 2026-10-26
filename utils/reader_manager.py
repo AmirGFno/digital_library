@@ -11,6 +11,7 @@ means that reader is reported as unavailable.
 """
 from __future__ import annotations
 
+import glob
 import os
 import re
 import shutil
@@ -89,6 +90,14 @@ class ReaderDefinition:
     mac_apps: Tuple[str, ...] = ()
     mac_commands: Tuple[str, ...] = ()
     arguments: Tuple[str, ...] = ()
+    # Install folders whose file name depends on the version, such as the
+    # portable "SumatraPDF-3.5.2-64.exe" or an ACBR folder named after its
+    # version. Patterns are expanded with %VARS% and matched with glob.
+    windows_globs: Tuple[str, ...] = ()
+    # Registry keys that store the install folder of the application.
+    windows_install_keys: Tuple[str, ...] = ()
+    # Executable names to look for inside those folders.
+    windows_install_exes: Tuple[str, ...] = ()
 
 
 WINDOWS = sys.platform.startswith("win")
@@ -157,8 +166,86 @@ CATALOG: Tuple[ReaderDefinition, ...] = (
             _env_path("%ProgramFiles(x86)%", "SumatraPDF", "SumatraPDF.exe"),
             _env_path("%LOCALAPPDATA%", "SumatraPDF", "SumatraPDF.exe"),
             _env_path("%ProgramFiles%", "SumatraPDF", "SumatraPDF-3.5.2-64.exe"),
+            _env_path("%ProgramFiles%", "SumatraPDF", "SumatraPDF-3.4.6-64.exe"),
         ),
         commands=("SumatraPDF", "sumatrapdf"),
+        # Portable builds are named after the version: SumatraPDF-3.5.2-64.exe
+        windows_globs=(
+            _env_path("%ProgramFiles%", "SumatraPDF", "SumatraPDF*.exe"),
+            _env_path("%ProgramFiles(x86)%", "SumatraPDF", "SumatraPDF*.exe"),
+            _env_path("%LOCALAPPDATA%", "SumatraPDF", "SumatraPDF*.exe"),
+            _env_path("%LOCALAPPDATA%", "Programs", "SumatraPDF", "SumatraPDF*.exe"),
+        ),
+    ),
+    ReaderDefinition(
+        id="adobe-reader",
+        name="Adobe Acrobat Reader",
+        formats=("pdf",),
+        windows=(
+            _env_path("%ProgramFiles(x86)%", "Adobe", "Acrobat Reader DC", "Reader",
+                      "AcroRd32.exe"),
+            _env_path("%ProgramFiles%", "Adobe", "Acrobat Reader DC", "Reader",
+                      "AcroRd32.exe"),
+            _env_path("%ProgramFiles(x86)%", "Adobe", "Acrobat Reader", "Reader",
+                      "AcroRd32.exe"),
+            _env_path("%ProgramFiles%", "Adobe", "Acrobat Reader", "Reader",
+                      "AcroRd32.exe"),
+        ),
+        commands=("AcroRd32", "acrobat", "acroread"),
+        # Adobe stores the install folder per release (11.0, 2015, DC...) in
+        # the registry instead of using a fixed path.
+        windows_install_keys=(
+            r"SOFTWARE\Adobe\Acrobat Reader",
+            r"SOFTWARE\WOW6432Node\Adobe\Acrobat Reader",
+        ),
+        windows_install_exes=("Reader\AcroRd32.exe", "AcroRd32.exe"),
+    ),
+    ReaderDefinition(
+        id="adobe-acrobat",
+        name="Adobe Acrobat",
+        formats=("pdf",),
+        windows=(
+            _env_path("%ProgramFiles%", "Adobe", "Acrobat DC", "Acrobat", "Acrobat.exe"),
+            _env_path("%ProgramFiles(x86)%", "Adobe", "Acrobat DC", "Acrobat",
+                      "Acrobat.exe"),
+            _env_path("%ProgramFiles%", "Adobe", "Acrobat", "Acrobat", "Acrobat.exe"),
+            _env_path("%ProgramFiles(x86)%", "Adobe", "Acrobat", "Acrobat",
+                      "Acrobat.exe"),
+        ),
+        commands=("Acrobat",),
+        windows_install_keys=(
+            r"SOFTWARE\Adobe\Adobe Acrobat",
+            r"SOFTWARE\WOW6432Node\Adobe\Adobe Acrobat",
+        ),
+        windows_install_exes=("Acrobat.exe", r"Acrobat\Acrobat.exe"),
+    ),
+    ReaderDefinition(
+        id="acbr",
+        name="ACBR Comic Book Reader",
+        formats=("archive", "pdf", "image"),
+        windows=(
+            _env_path("%ProgramFiles%", "ACBR Comic Book Reader",
+                      "ACBR Comic Book Reader.exe"),
+            _env_path("%ProgramFiles(x86)%", "ACBR Comic Book Reader",
+                      "ACBR Comic Book Reader.exe"),
+            _env_path("%LOCALAPPDATA%", "Programs", "ACBR Comic Book Reader",
+                      "ACBR Comic Book Reader.exe"),
+            _env_path("%LOCALAPPDATA%", "Programs", "ACBR", "ACBR Comic Book Reader.exe"),
+            _env_path("%ProgramFiles%", "ACBR", "ACBR Comic Book Reader.exe"),
+            _env_path("%ProgramFiles%", "ACBR", "ACBR.exe"),
+            _env_path("%ProgramFiles%", "ACBR Comic Book Reader", "ACBR.exe"),
+        ),
+        commands=("acbr", "ACBR"),
+        # The portable build keeps the version in the folder name.
+        windows_globs=(
+            _env_path("%ProgramFiles%", "ACBR*", "ACBR Comic Book Reader.exe"),
+            _env_path("%LOCALAPPDATA%", "Programs", "ACBR*",
+                      "ACBR Comic Book Reader.exe"),
+            _env_path("%ProgramFiles%", "ACBR*", "ACBR*.exe"),
+            _env_path("%USERPROFILE%", "Desktop", "ACBR*", "ACBR Comic Book Reader.exe"),
+            _env_path("%USERPROFILE%", "Downloads", "ACBR*",
+                      "ACBR Comic Book Reader.exe"),
+        ),
     ),
     ReaderDefinition(
         id="honeyview",
@@ -341,6 +428,75 @@ class ReaderManager:
             note="Let the operating system choose the application",
         )
 
+    @staticmethod
+    def _globbed_executable(definition: ReaderDefinition) -> str:
+        """Find a portable build whose file name carries the version."""
+        if not definition.windows_globs:
+            return ""
+        for pattern in definition.windows_globs:
+            try:
+                matches = sorted(glob.glob(os.path.expandvars(pattern)))
+            except (OSError, ValueError):
+                continue
+            for match in matches:
+                path = Path(match)
+                if path.is_file() and ReaderManager.looks_like_reader(path):
+                    return str(path)
+        return ""
+
+    @staticmethod
+    def _registry_install_executable(definition: ReaderDefinition) -> str:
+        r"""Read the install folder of an application from the registry.
+
+        Adobe does not install to a fixed path: every release keeps its folder
+        under ``HKLM\SOFTWARE\Adobe\Acrobat Reader\<release>\InstallPath``.
+        """
+        if not WINDOWS or not definition.windows_install_keys:
+            return ""
+        try:
+            import winreg
+        except ImportError:
+            return ""
+
+        hives = (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER)
+        folders: List[str] = []
+        for hive in hives:
+            for key_path in definition.windows_install_keys:
+                try:
+                    with winreg.OpenKey(hive, key_path) as root:
+                        try:
+                            value, _ = winreg.QueryValueEx(root, "InstallPath")
+                            if isinstance(value, str):
+                                folders.append(value)
+                        except OSError:
+                            pass
+                        index = 0
+                        while True:
+                            try:
+                                sub_name = winreg.EnumKey(root, index)
+                            except OSError:
+                                break
+                            index += 1
+                            try:
+                                with winreg.OpenKey(root, sub_name) as entry:
+                                    value, _ = winreg.QueryValueEx(entry, "InstallPath")
+                                    if isinstance(value, str):
+                                        folders.append(value)
+                            except OSError:
+                                continue
+                except OSError:
+                    continue
+
+        for folder in folders:
+            folder = os.path.expandvars(folder.strip().strip('"'))
+            for exe in definition.windows_install_exes:
+                # The catalog writes Windows separators; ``Path`` only splits
+                # them on Windows, so normalise before joining.
+                candidate = Path(folder) / exe.replace("\\", "/")
+                if candidate.is_file():
+                    return str(candidate)
+        return ""
+
     def _resolve_definition(self, definition: ReaderDefinition) -> Optional[ReaderInfo]:
         executable = ""
         app_bundle = False
@@ -350,6 +506,10 @@ class ReaderManager:
                 if candidate and Path(candidate).is_file():
                     executable = candidate
                     break
+            if not executable:
+                executable = self._globbed_executable(definition)
+            if not executable:
+                executable = self._registry_install_executable(definition)
         elif MACOS:
             for app in definition.mac_apps:
                 if Path(app).exists():
@@ -428,6 +588,12 @@ class ReaderManager:
         "ComicSeer.exe",
         "ebook-viewer.exe",
         "CDisplay.exe",
+        # Acrobat Reader / Acrobat, written by their installers under App Paths.
+        "AcroRd32.exe",
+        "Acrobat.exe",
+        # ACBR (Electron build). Older versions shipped as ACBR.exe.
+        "ACBR Comic Book Reader.exe",
+        "ACBR.exe",
     )
 
     def _windows_registered_executables(self) -> List[str]:
@@ -510,7 +676,8 @@ class ReaderManager:
                                 if display_name and not any(
                                     token in display_name.lower()
                                     for token in ("comic", "cdisplay", "mcomix", "yacreader",
-                                                  "sumatra", "honeyview", "calibre")
+                                                  "sumatra", "honeyview", "calibre",
+                                                  "acrobat", "acbr", "pdf")
                                 ):
                                     continue
                                 for value_name in ("DisplayIcon", "InstallLocation"):

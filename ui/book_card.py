@@ -352,13 +352,17 @@ class BookCard(QFrame):
         parts = []
         if self.book_data.get("volume"):
             parts.append(f"Vol. {self.book_data['volume']}")
-        writer = self.book_data.get("writer")
+        writer = str(self.book_data.get("writer") or "").strip()
+        # Importers very often write "Unknown" into ComicInfo.xml; printing it
+        # on every card wastes the one line the card has for real information.
+        if writer.lower() in ("unknown", "none", "n/a", "-", "?"):
+            writer = ""
         if writer:
-            parts.append(elide(str(writer), 16))
-        elif self.book_data.get("series_name"):
-            parts.append(elide(str(self.book_data["series_name"]), 16))
+            parts.append(elide(writer, 16))
         if self.book_data.get("year"):
             parts.append(str(self.book_data["year"]))
+        elif not writer and self.book_data.get("series_name"):
+            parts.append(elide(str(self.book_data["series_name"]), 16))
         if not parts:
             parts.append(Path(self.book_data["filepath"]).suffix.upper().lstrip("."))
         text = "  ·  ".join(parts)
@@ -714,6 +718,13 @@ class BookCard(QFrame):
     # ------------------------------------------------------------------
     # Data refresh
     # ------------------------------------------------------------------
+    def restyle(self) -> None:
+        """Re-read the palette after a light/dark switch."""
+        self._drawn_state = None
+        self._refresh_state()
+        self.select_circle.update()
+        self.update()
+
     def update_data(self, book_data: dict):
         self.book_data = book_data
         self.title_label.setText(self._elided_title())

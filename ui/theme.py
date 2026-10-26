@@ -5,11 +5,18 @@ Everything visual lives here: the palette, the global stylesheet and small
 helpers for shadows and gradients, so the whole application can be restyled from
 one place.
 
-The look is a dark "midnight" surface with warm ember accents, soft glass panels
-and generous rounding. Gradients are used sparingly (hero header, selection bar,
-cover overlays) because Qt stylesheets cannot animate them.
+The look follows Windows 11: compact command bars, flat menus, one-pixel
+borders, small corner radii and a neutral surface with the brand orange as the
+single accent. Both a light and a dark palette exist; the default follows the
+Windows colour mode and the View menu can pin one of them.
+
+All colour names are module-level strings on purpose: widgets build their small
+inline styles from ``theme.TEXT`` and friends, so ``set_mode()`` can repaint the
+whole program by swapping the values and re-applying the stylesheet.
 """
 from __future__ import annotations
+
+import weakref
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import (
@@ -19,7 +26,14 @@ from PyQt6.QtGui import (
     QPalette,
     QPixmap,
 )
-from PyQt6.QtWidgets import QGraphicsDropShadowEffect, QWidget
+from PyQt6.QtWidgets import (
+    QApplication,
+    QGraphicsDropShadowEffect,
+    QProxyStyle,
+    QStyle,
+    QStyleFactory,
+    QWidget,
+)
 
 from config import ASSETS_DIR
 
@@ -34,126 +48,283 @@ CHEVRON = _asset_url("chevron.png")
 CHECKMARK = _asset_url("check.png")
 RADIO_DOT = _asset_url("radio_dot.png")
 
-# ---------------------------------------------------------------- palette
-BG = "#0a0c10"
-BG_ELEVATED = "#0f1218"
-SURFACE = "#141822"
-SURFACE_HOVER = "#1a1f2b"
-SURFACE_ACTIVE = "#202634"
-BORDER = "#232a38"
-BORDER_SOFT = "#1b2130"
-BORDER_STRONG = "#2f3949"
-TEXT = "#eef1f7"
-TEXT_MUTED = "#9aa4b8"
-TEXT_DIM = "#6b7588"
 
-ACCENT = "#ff5b3d"
-ACCENT_HOVER = "#ff7357"
-ACCENT_PRESSED = "#e0462a"
-ACCENT_SOFT = "#3a1d17"
-ACCENT_GLOW = "#ff8a70"
+# ---------------------------------------------------------------- palettes
+# Windows 11 dark: window #202020, cards #2b2b2b, hairline borders.
+DARK = {
+    "MODE": "dark",
+    "BG": "#202020",
+    "BG_ELEVATED": "#272727",
+    "SURFACE": "#2b2b2b",
+    "SURFACE_HOVER": "#323232",
+    "SURFACE_ACTIVE": "#3a3a3a",
+    "BORDER": "#3a3a3a",
+    "BORDER_SOFT": "#313131",
+    "BORDER_STRONG": "#4a4a4a",
+    "TEXT": "#ffffff",
+    "TEXT_MUTED": "#c9c9c9",
+    "TEXT_DIM": "#9a9a9a",
+    "ACCENT": "#ff6a3d",
+    "ACCENT_HOVER": "#ff8059",
+    "ACCENT_PRESSED": "#e0552d",
+    "ACCENT_SOFT": "#3a241d",
+    "ACCENT_GLOW": "#ffa285",
+    "ACCENT_TINT": "rgba(255, 106, 61, 46)",
+    "SELECTION": "#3a241d",
+    "GOLD": "#f2c14e",
+    "GREEN": "#4cc38a",
+    "BLUE": "#4fa3f7",
+    "VIOLET": "#9b8cf7",
+    "VIOLET_SOFT": "#2a2540",
+    "SCROLL_HANDLE": "#4f4f4f",
+    "SCROLL_HANDLE_HOVER": "#6a6a6a",
+    "OVERLAY": "rgba(16, 16, 16, 205)",
+    "COVER_BG": "#232323",
+    "MENU_SELECTED": "#3a3a3a",
+    "SHADOW_ALPHA": 190,
+}
 
-VIOLET = "#8b5cf6"
-VIOLET_SOFT = "#241b3d"
-GOLD = "#f5b544"
-GREEN = "#34d399"
-BLUE = "#4aa8ff"
+# Windows 11 light: the default of a fresh Windows installation.
+LIGHT = {
+    "MODE": "light",
+    "BG": "#f3f3f3",
+    "BG_ELEVATED": "#f9f9f9",
+    "SURFACE": "#ffffff",
+    "SURFACE_HOVER": "#f4f4f4",
+    "SURFACE_ACTIVE": "#e9e9e9",
+    "BORDER": "#e1e1e1",
+    "BORDER_SOFT": "#ececec",
+    "BORDER_STRONG": "#d2d2d2",
+    "TEXT": "#1a1a1a",
+    "TEXT_MUTED": "#585858",
+    "TEXT_DIM": "#8a8a8a",
+    "ACCENT": "#e8552d",
+    "ACCENT_HOVER": "#f26a44",
+    "ACCENT_PRESSED": "#cf4522",
+    "ACCENT_SOFT": "#fdeae4",
+    "ACCENT_GLOW": "#b93d18",
+    "ACCENT_TINT": "rgba(232, 85, 45, 32)",
+    "SELECTION": "#fdeae4",
+    "GOLD": "#a9741a",
+    "GREEN": "#107c41",
+    "BLUE": "#0f6cbd",
+    "VIOLET": "#6b4fd8",
+    "VIOLET_SOFT": "#efeafd",
+    "SCROLL_HANDLE": "#c3c3c3",
+    "SCROLL_HANDLE_HOVER": "#a4a4a4",
+    "OVERLAY": "rgba(20, 20, 20, 210)",
+    "COVER_BG": "#f0f0f0",
+    "MENU_SELECTED": "#e9e9e9",
+    "SHADOW_ALPHA": 90,
+}
 
-# Kept for backwards compatibility with older modules.
-SECONDARY = VIOLET
+PALETTES = {"dark": DARK, "light": LIGHT}
+MODE = "light"
 
-FONT_STACK = '"Segoe UI Variable Text", "Segoe UI", "Inter", "Noto Sans", sans-serif'
-DISPLAY_STACK = '"Segoe UI Variable Display", "Segoe UI Semibold", "Inter", "Noto Sans", sans-serif'
-MONO_STACK = '"Cascadia Code", "JetBrains Mono", "Consolas", monospace'
+# The live palette values. ``set_mode()`` below replaces them with the
+# contents of the chosen palette; declaring them here keeps linters and
+# type checkers aware of the names, which the widgets import directly.
+BG: str = LIGHT["BG"]
+BG_ELEVATED: str = LIGHT["BG_ELEVATED"]
+SURFACE: str = LIGHT["SURFACE"]
+SURFACE_HOVER: str = LIGHT["SURFACE_HOVER"]
+SURFACE_ACTIVE: str = LIGHT["SURFACE_ACTIVE"]
+BORDER: str = LIGHT["BORDER"]
+BORDER_SOFT: str = LIGHT["BORDER_SOFT"]
+BORDER_STRONG: str = LIGHT["BORDER_STRONG"]
+TEXT: str = LIGHT["TEXT"]
+TEXT_MUTED: str = LIGHT["TEXT_MUTED"]
+TEXT_DIM: str = LIGHT["TEXT_DIM"]
+ACCENT: str = LIGHT["ACCENT"]
+ACCENT_HOVER: str = LIGHT["ACCENT_HOVER"]
+ACCENT_PRESSED: str = LIGHT["ACCENT_PRESSED"]
+ACCENT_SOFT: str = LIGHT["ACCENT_SOFT"]
+ACCENT_GLOW: str = LIGHT["ACCENT_GLOW"]
+ACCENT_TINT: str = LIGHT["ACCENT_TINT"]
+SELECTION: str = LIGHT["SELECTION"]
+GOLD: str = LIGHT["GOLD"]
+GREEN: str = LIGHT["GREEN"]
+BLUE: str = LIGHT["BLUE"]
+VIOLET: str = LIGHT["VIOLET"]
+VIOLET_SOFT: str = LIGHT["VIOLET_SOFT"]
+SCROLL_HANDLE: str = LIGHT["SCROLL_HANDLE"]
+SCROLL_HANDLE_HOVER: str = LIGHT["SCROLL_HANDLE_HOVER"]
+OVERLAY: str = LIGHT["OVERLAY"]
+COVER_BG: str = LIGHT["COVER_BG"]
+MENU_SELECTED: str = LIGHT["MENU_SELECTED"]
+SHADOW_ALPHA: int = LIGHT["SHADOW_ALPHA"]
+
+FONT_STACK = (
+    '"Segoe UI Variable Text", "Segoe UI", "Inter", "Noto Sans", '
+    '"DejaVu Sans", sans-serif'
+)
+DISPLAY_STACK = (
+    '"Segoe UI Variable Display", "Segoe UI Semibold", "Segoe UI", "Inter", '
+    '"Noto Sans", sans-serif'
+)
+MONO_STACK = '"Cascadia Mono", "Cascadia Code", "Consolas", monospace'
 
 
-DARK_STYLESHEET = f"""
+def _apply_palette(values: dict) -> None:
+    """Copy one palette into the module namespace."""
+    globals().update({key: value for key, value in values.items() if key != "MODE"})
+
+
+# Start with the light palette so the names exist even before apply_theme().
+_apply_palette(LIGHT)
+
+
+def current_mode() -> str:
+    return MODE
+
+
+def set_mode(mode: str | None = None) -> str:
+    """Switch the palette. ``None``/``system`` follows the Windows colour mode."""
+    global MODE
+    if mode in (None, "", "system"):
+        mode = _system_mode()
+    mode = "dark" if str(mode).lower() == "dark" else "light"
+    MODE = mode
+    _apply_palette(PALETTES[mode])
+    return mode
+
+
+def _system_mode() -> str:
+    """Ask Windows whether the user runs a dark or a light theme."""
+    try:
+        app = QApplication.instance()
+        if app is not None and hasattr(app.styleHints(), "colorScheme"):
+            scheme = app.styleHints().colorScheme()
+            if scheme == Qt.ColorScheme.Dark:
+                return "dark"
+    except Exception:
+        pass
+    return "light"
+
+
+def build_stylesheet() -> str:
+    """The Windows-style stylesheet for the palette that is active now."""
+    return f"""
+/* ------------------------------------------------------------- window */
 QWidget {{
     background-color: {BG};
     color: {TEXT};
     font-family: {FONT_STACK};
-    font-size: 13px;
+    font-size: 9pt;
 }}
 QMainWindow, QDialog {{
     background-color: {BG};
 }}
 QToolTip {{
-    background-color: {SURFACE_ACTIVE};
+    background-color: {SURFACE};
     color: {TEXT};
     border: 1px solid {BORDER_STRONG};
-    border-radius: 8px;
-    padding: 6px 9px;
+    border-radius: 4px;
+    padding: 4px 8px;
+}}
+QWidget#ContentArea, QWidget#LibraryGrid, QWidget#GridHost {{
+    background-color: {BG};
+}}
+QWidget#LibraryGrid, QWidget#GridHost {{
+    background: transparent;
+}}
+QWidget#Chip {{
+    background-color: {SURFACE};
+    border: 1px solid {BORDER};
+    border-radius: 4px;
+}}
+QWidget#Chip:hover {{
+    background-color: {SURFACE_HOVER};
+    border-color: {BORDER_STRONG};
+}}
+QScrollArea#GridViewport {{
+    background: transparent;
+    border: none;
+}}
+QScrollArea#GridViewport > QWidget > QWidget {{
+    background: transparent;
 }}
 
-/* ------------------------------------------------------------ typography */
+/* ------------------------------------------------------------- typography */
 QLabel {{
     background: transparent;
 }}
 QLabel#TitleLabel {{
     font-family: {DISPLAY_STACK};
-    font-size: 22px;
-    font-weight: 700;
-    color: #ffffff;
+    font-size: 15pt;
+    font-weight: 600;
+    color: {TEXT};
 }}
 QLabel#HeroTitle {{
     font-family: {DISPLAY_STACK};
-    font-size: 19px;
-    font-weight: 700;
-    color: #ffffff;
+    font-size: 10.5pt;
+    font-weight: 600;
+    color: {TEXT};
+}}
+QLabel#WelcomeTitle {{
+    font-family: {DISPLAY_STACK};
+    font-size: 19pt;
+    font-weight: 600;
+    color: {TEXT};
+    letter-spacing: -0.2px;
 }}
 QLabel#SubtitleLabel {{
     color: {TEXT_MUTED};
-    font-size: 12px;
+    font-size: 9pt;
 }}
 QLabel#MutedLabel {{
     color: {TEXT_DIM};
-    font-size: 11px;
+    font-size: 8pt;
 }}
 QLabel#SectionLabel {{
     color: {TEXT_DIM};
-    font-size: 10px;
-    font-weight: 700;
+    font-size: 7.5pt;
+    font-weight: 600;
+    letter-spacing: 0.4px;
 }}
 QLabel#QuestionLabel {{
-    color: #ffd79a;
-    background-color: rgba(245, 181, 68, 26);
-    border: 1px solid rgba(245, 181, 68, 76);
-    border-radius: 10px;
-    padding: 10px 12px;
-    font-size: 13px;
-    font-weight: 600;
+    color: {TEXT};
+    background-color: {ACCENT_SOFT};
+    border: 1px solid {BORDER};
+    border-left: 3px solid {ACCENT};
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-size: 9pt;
 }}
 
-/* ------------------------------------------------------------ chrome */
+/* ------------------------------------------------------------- menu bar */
 QMenuBar {{
-    background-color: {BG_ELEVATED};
-    border-bottom: 1px solid {BORDER_SOFT};
-    padding: 2px 8px;
+    background-color: {SURFACE};
+    border: none;
+    padding: 2px 6px;
+    color: {TEXT};
 }}
 QMenuBar::item {{
     background: transparent;
-    padding: 6px 11px;
-    border-radius: 7px;
-    color: {TEXT_MUTED};
+    padding: 3px 9px;
+    border-radius: 4px;
+    color: {TEXT};
 }}
 QMenuBar::item:selected {{
     background-color: {SURFACE_HOVER};
-    color: {TEXT};
+}}
+QMenuBar::item:pressed {{
+    background-color: {SURFACE_ACTIVE};
 }}
 QMenu {{
-    background-color: {SURFACE};
+    background-color: {BG_ELEVATED};
     border: 1px solid {BORDER_STRONG};
-    border-radius: 12px;
-    padding: 8px;
+    border-radius: 6px;
+    padding: 4px;
 }}
 QMenu::item {{
-    padding: 8px 28px 8px 14px;
-    border-radius: 7px;
+    padding: 6px 28px 6px 12px;
+    border-radius: 4px;
     color: {TEXT};
 }}
 QMenu::item:selected {{
-    background-color: {ACCENT};
-    color: #ffffff;
+    background-color: {MENU_SELECTED};
+    color: {TEXT};
 }}
 QMenu::item:disabled {{
     color: {TEXT_DIM};
@@ -161,123 +332,148 @@ QMenu::item:disabled {{
 QMenu::separator {{
     height: 1px;
     background: {BORDER};
-    margin: 6px 10px;
+    margin: 4px 8px;
 }}
 QMenu::icon {{
     padding-left: 8px;
 }}
 
+/* ------------------------------------------------------------- bars */
 QToolBar {{
-    background-color: {BG};
+    background-color: {BG_ELEVATED};
     border: none;
     border-bottom: 1px solid {BORDER_SOFT};
-    padding: 10px 14px;
-    spacing: 10px;
+    padding: 3px 8px;
+    spacing: 4px;
 }}
 QToolBar::separator {{
     background: {BORDER};
     width: 1px;
-    margin: 6px 4px;
+    margin: 5px 4px;
+}}
+QFrame#AppBar {{
+    background-color: {BG_ELEVATED};
+    border-bottom: 1px solid {BORDER};
+}}
+QFrame#CommandBar {{
+    background-color: {BG_ELEVATED};
+    border-bottom: 1px solid {BORDER_SOFT};
+}}
+QFrame#PageHeader {{
+    background: transparent;
+}}
+QFrame#AccentLine {{
+    background-color: {ACCENT};
+    border: none;
+    max-height: 2px;
+}}
+QFrame#SidebarPanel {{
+    background-color: {BG_ELEVATED};
+    border: none;
+    border-right: 1px solid {BORDER};
+}}
+QFrame#ViewBar {{
+    background: transparent;
 }}
 
 QStatusBar {{
     background-color: {BG_ELEVATED};
-    color: {TEXT_DIM};
+    color: {TEXT_MUTED};
     border-top: 1px solid {BORDER_SOFT};
-    padding: 2px 12px;
+    padding: 1px 10px;
 }}
 QStatusBar::item {{
     border: none;
 }}
 
-/* ------------------------------------------------------------ inputs */
+/* ------------------------------------------------------------- inputs */
 QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox, QTextEdit, QPlainTextEdit {{
     background-color: {SURFACE};
-    border: 1px solid {BORDER};
-    border-radius: 10px;
-    padding: 7px 11px;
+    border: 1px solid {BORDER_STRONG};
+    border-radius: 4px;
+    padding: 4px 8px;
     color: {TEXT};
     selection-background-color: {ACCENT};
     selection-color: #ffffff;
+    min-height: 20px;
 }}
 QLineEdit:hover, QComboBox:hover, QSpinBox:hover {{
-    border-color: {BORDER_STRONG};
+    background-color: {SURFACE_HOVER};
 }}
 QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus,
 QTextEdit:focus, QPlainTextEdit:focus {{
     border: 1px solid {ACCENT};
-    background-color: {SURFACE_HOVER};
+    background-color: {SURFACE};
 }}
 QLineEdit:disabled, QComboBox:disabled, QSpinBox:disabled {{
     color: {TEXT_DIM};
     background-color: {BG_ELEVATED};
 }}
 QLineEdit#SearchInput {{
-    border-radius: 12px;
-    padding: 8px 14px;
-    font-size: 13px;
+    border-radius: 4px;
+    padding: 4px 10px;
     background-color: {SURFACE};
 }}
 QLineEdit#SearchInput:focus {{
-    background-color: {SURFACE_HOVER};
+    background-color: {SURFACE};
     border: 1px solid {ACCENT};
 }}
 QComboBox {{
-    padding-right: 24px;
+    padding-right: 22px;
 }}
 QComboBox::drop-down {{
     border: none;
-    width: 24px;
+    width: 20px;
     subcontrol-origin: padding;
     subcontrol-position: center right;
 }}
 QComboBox::down-arrow {{
     image: url("{CHEVRON}");
-    width: 12px;
-    height: 8px;
+    width: 10px;
+    height: 6px;
     margin-right: 6px;
 }}
 QComboBox QAbstractItemView {{
-    background-color: {SURFACE};
+    background-color: {BG_ELEVATED};
     border: 1px solid {BORDER_STRONG};
-    border-radius: 10px;
-    padding: 6px;
-    selection-background-color: {ACCENT};
-    selection-color: #ffffff;
+    border-radius: 4px;
+    padding: 3px;
+    selection-background-color: {SURFACE_ACTIVE};
+    selection-color: {TEXT};
     outline: none;
 }}
 QSpinBox::up-button, QSpinBox::down-button {{
-    width: 16px;
+    width: 14px;
     background: transparent;
     border: none;
 }}
 
-/* ------------------------------------------------------------ buttons */
+/* ------------------------------------------------------------- buttons */
 QPushButton {{
-    background-color: {SURFACE_ACTIVE};
-    border: 1px solid {BORDER};
-    border-radius: 10px;
-    padding: 8px 16px;
+    background-color: {SURFACE};
+    border: 1px solid {BORDER_STRONG};
+    border-radius: 4px;
+    padding: 4px 12px;
     color: {TEXT};
-    font-weight: 500;
+    font-weight: 400;
+    min-height: 20px;
 }}
 QPushButton:hover {{
-    background-color: #262d3c;
-    border-color: {BORDER_STRONG};
+    background-color: {SURFACE_HOVER};
 }}
 QPushButton:pressed {{
-    background-color: {SURFACE};
+    background-color: {SURFACE_ACTIVE};
 }}
 QPushButton:disabled {{
     color: {TEXT_DIM};
-    border-color: {BORDER_SOFT};
+    border-color: {BORDER};
     background-color: {BG_ELEVATED};
 }}
 QPushButton#PrimaryButton {{
     background-color: {ACCENT};
     border: 1px solid {ACCENT};
     color: #ffffff;
-    font-weight: 700;
+    font-weight: 600;
 }}
 QPushButton#PrimaryButton:hover {{
     background-color: {ACCENT_HOVER};
@@ -288,58 +484,92 @@ QPushButton#PrimaryButton:pressed {{
 }}
 QPushButton#GhostButton {{
     background: transparent;
-    border: 1px solid {BORDER};
-    color: {TEXT_MUTED};
+    border: 1px solid transparent;
+    color: {TEXT};
 }}
 QPushButton#GhostButton:hover {{
-    color: {TEXT};
-    border-color: {BORDER_STRONG};
     background-color: {SURFACE_HOVER};
+    border-color: {BORDER_SOFT};
 }}
 QPushButton#DangerButton {{
     background-color: transparent;
-    border: 1px solid #7a2c1c;
-    color: #ff9b83;
+    border: 1px solid {BORDER_STRONG};
+    color: {ACCENT_GLOW};
 }}
 QPushButton#DangerButton:hover {{
-    background-color: rgba(255, 91, 61, 24);
+    background-color: {ACCENT_SOFT};
+    border-color: {ACCENT};
 }}
 
 QToolButton {{
     background-color: transparent;
     border: 1px solid transparent;
-    border-radius: 9px;
-    padding: 6px 10px;
-    color: {TEXT_MUTED};
+    border-radius: 4px;
+    padding: 3px 7px;
+    color: {TEXT};
 }}
 QToolButton:hover {{
     background-color: {SURFACE_HOVER};
-    color: {TEXT};
+    border-color: {BORDER_SOFT};
+}}
+QToolButton:pressed {{
+    background-color: {SURFACE_ACTIVE};
 }}
 QToolButton:checked {{
-    background-color: {ACCENT_SOFT};
-    color: {ACCENT_GLOW};
-    border: 1px solid rgba(255, 91, 61, 90);
+    background-color: {SURFACE_ACTIVE};
+    border: 1px solid {BORDER_STRONG};
+    color: {TEXT};
 }}
 QToolButton#IconButton {{
-    padding: 6px;
-    border-radius: 10px;
+    padding: 3px;
+    border-radius: 4px;
+}}
+QToolButton#FilterChip {{
+    background-color: {SURFACE};
+    color: {TEXT_MUTED};
+    border: 1px solid {BORDER_STRONG};
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 9pt;
+}}
+QToolButton#FilterChip:hover {{
+    background-color: {SURFACE_HOVER};
+    color: {TEXT};
+}}
+QToolButton#FilterChip:checked {{
+    background-color: {ACCENT_SOFT};
+    color: {ACCENT_GLOW};
+    border: 1px solid {ACCENT};
+}}
+QToolButton#ViewButton {{
+    padding: 4px 9px;
+    color: {TEXT_MUTED};
+}}
+QToolButton#ViewButton:checked {{
+    background-color: {SURFACE_ACTIVE};
+    color: {TEXT};
+    border: 1px solid {BORDER_STRONG};
+}}
+QToolButton#ToolBarButton {{
+    padding: 4px 9px;
+    border-radius: 4px;
+    color: {TEXT};
 }}
 
-/* ------------------------------------------------------------ toggles */
+/* ------------------------------------------------------------- toggles */
 QCheckBox, QRadioButton {{
-    spacing: 9px;
+    spacing: 8px;
     background: transparent;
 }}
 QCheckBox::indicator, QRadioButton::indicator {{
-    width: 17px;
-    height: 17px;
-    border-radius: 5px;
+    width: 15px;
+    height: 15px;
+    border-radius: 3px;
     border: 1px solid {BORDER_STRONG};
     background-color: {SURFACE};
 }}
 QRadioButton::indicator {{
-    border-radius: 9px;
+    border-radius: 8px;
 }}
 QCheckBox::indicator:checked {{
     background-color: {ACCENT};
@@ -355,169 +585,142 @@ QCheckBox::indicator:hover, QRadioButton::indicator:hover {{
     border-color: {ACCENT};
 }}
 
-/* ------------------------------------------------------------ containers */
+/* ------------------------------------------------------------- containers */
 QGroupBox {{
     border: 1px solid {BORDER};
-    border-radius: 14px;
-    margin-top: 16px;
-    padding: 18px 14px 12px 14px;
+    border-radius: 6px;
+    margin-top: 14px;
+    padding: 16px 12px 10px 12px;
     font-weight: 600;
 }}
 QGroupBox::title {{
     subcontrol-origin: margin;
     subcontrol-position: top left;
-    padding: 0 8px;
-    left: 14px;
+    padding: 0 6px;
+    left: 10px;
     color: {TEXT};
-    font-size: 12px;
-    font-weight: 700;
-}}
-
-QFrame#HeroBar {{
-    background-color: {BG_ELEVATED};
-    border-bottom: 1px solid {BORDER_SOFT};
-}}
-QWidget#ContentArea, QWidget#LibraryGrid, QWidget#GridHost {{
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                                stop:0 #0e121b, stop:0.5 {BG}, stop:1 #07090d);
-}}
-QWidget#LibraryGrid, QWidget#GridHost {{
-    background: transparent;
-}}
-QScrollArea#GridViewport {{
-    background: transparent;
-}}
-QScrollArea#GridViewport > QWidget > QWidget {{
-    background: transparent;
-}}
-QFrame#CommandBar {{
-    background-color: {BG_ELEVATED};
-    border-bottom: 1px solid {BORDER_SOFT};
-}}
-QToolButton#FilterChip {{
-    background-color: {SURFACE};
-    color: {TEXT_MUTED};
-    border: 1px solid {BORDER};
-    border-radius: 12px;
-    padding: 6px 12px;
-    font-size: 12px;
+    font-size: 9pt;
     font-weight: 600;
 }}
-QToolButton#FilterChip:hover {{
-    background-color: {SURFACE_HOVER};
-    color: {TEXT};
-    border: 1px solid {BORDER_STRONG};
-}}
-QToolButton#FilterChip:checked {{
-    background-color: rgba(245, 181, 68, 34);
-    color: {GOLD};
-    border: 1px solid rgba(245, 181, 68, 110);
-}}
-QFrame#AccentLine {{
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                stop:0 {ACCENT}, stop:0.35 {ACCENT_GLOW},
-                                stop:0.75 rgba(255, 138, 112, 40),
-                                stop:1 rgba(255, 138, 112, 0));
-    border: none;
-}}
-QFrame#SidebarPanel {{
-    background-color: {BG_ELEVATED};
-    border-right: 1px solid {BORDER_SOFT};
-}}
 QFrame#SelectionBar {{
-    background-color: {SURFACE_ACTIVE};
+    background-color: {SURFACE};
     border: 1px solid {BORDER_STRONG};
-    border-radius: 16px;
+    border-radius: 6px;
 }}
 QFrame#Toast {{
-    background-color: {SURFACE_ACTIVE};
+    background-color: {SURFACE};
     border: 1px solid {BORDER_STRONG};
-    border-radius: 12px;
+    border-radius: 6px;
 }}
 QFrame#Chip {{
     background-color: {SURFACE};
     border: 1px solid {BORDER};
-    border-radius: 12px;
+    border-radius: 6px;
 }}
 QFrame#CoverFrame {{
-    background-color: {BG_ELEVATED};
+    background-color: {COVER_BG};
     border: none;
-    border-radius: 12px;
+    border-radius: 4px;
 }}
 QFrame#Divider {{
-    background-color: {BORDER_SOFT};
+    background-color: {BORDER};
     max-height: 1px;
     border: none;
 }}
+QFrame#EmptyState {{
+    background: transparent;
+}}
 
-/* ------------------------------------------------------------ lists */
-QListWidget, QTreeWidget, QTableWidget {{
+/* ------------------------------------------------------------- lists */
+QListWidget, QTreeWidget, QTableWidget, QTableView {{
     background-color: transparent;
     border: none;
     outline: none;
     alternate-background-color: transparent;
 }}
 QListWidget::item, QTreeWidget::item {{
-    padding: 6px 8px;
-    border-radius: 9px;
-    color: {TEXT_MUTED};
+    padding: 5px 8px;
+    border-radius: 4px;
+    color: {TEXT};
 }}
 QListWidget::item:hover, QTreeWidget::item:hover {{
     background-color: {SURFACE_HOVER};
-    color: {TEXT};
 }}
 QListWidget::item:selected, QTreeWidget::item:selected {{
     background-color: {SURFACE_ACTIVE};
     color: {TEXT};
 }}
 QListWidget#SeriesList::item {{
-    padding: 2px;
-    margin: 2px 0;
-    border-radius: 10px;
-    color: {TEXT};
+    padding: 1px;
+    margin: 1px 4px;
+    border-radius: 4px;
+    border-left: 3px solid transparent;
+}}
+QListWidget#SeriesList::item:hover {{
+    background-color: {SURFACE_HOVER};
 }}
 QListWidget#SeriesList::item:selected {{
-    background-color: {SURFACE_ACTIVE};
+    background-color: {SELECTION};
+    border-left: 3px solid {ACCENT};
 }}
-QTableWidget {{
+QListWidget#NavList {{
+    background: transparent;
+}}
+QListWidget#NavList::item {{
+    padding: 1px;
+    margin: 1px 6px;
+    border-radius: 4px;
+    border-left: 3px solid transparent;
+}}
+QListWidget#NavList::item:selected {{
+    background-color: {SELECTION};
+    border-left: 3px solid {ACCENT};
+}}
+QTableView#BooksTable {{
     background-color: {SURFACE};
     border: 1px solid {BORDER};
-    border-radius: 12px;
-    gridline-color: {BORDER_SOFT};
-    selection-background-color: {SURFACE_ACTIVE};
+    border-radius: 4px;
+    gridline-color: transparent;
+    selection-background-color: {SELECTION};
     selection-color: {TEXT};
+    alternate-background-color: {BG_ELEVATED};
 }}
 QHeaderView::section {{
     background-color: {BG_ELEVATED};
-    font-size: 11px;
+    font-size: 8.5pt;
     color: {TEXT_MUTED};
     border: none;
     border-bottom: 1px solid {BORDER};
-    padding: 8px 10px;
+    border-right: 1px solid transparent;
+    padding: 5px 8px;
     font-weight: 600;
+}}
+QHeaderView::section:hover {{
+    background-color: {SURFACE_HOVER};
+    color: {TEXT};
 }}
 QTableCornerButton::section {{
     background-color: {BG_ELEVATED};
     border: none;
 }}
 
-/* ------------------------------------------------------------ scroll */
+/* ------------------------------------------------------------- scroll */
 QScrollArea {{
     border: none;
     background: transparent;
 }}
 QScrollBar:vertical {{
     background: transparent;
-    width: 11px;
-    margin: 3px 2px;
+    width: 12px;
+    margin: 2px;
 }}
 QScrollBar::handle:vertical {{
-    background: #2b3342;
-    border-radius: 5px;
-    min-height: 32px;
+    background: {SCROLL_HANDLE};
+    border-radius: 3px;
+    min-height: 28px;
 }}
 QScrollBar::handle:vertical:hover {{
-    background: #3a4457;
+    background: {SCROLL_HANDLE_HOVER};
 }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
@@ -526,13 +729,16 @@ QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
 }}
 QScrollBar:horizontal {{
     background: transparent;
-    height: 11px;
-    margin: 2px 3px;
+    height: 12px;
+    margin: 2px;
 }}
 QScrollBar::handle:horizontal {{
-    background: #2b3342;
-    border-radius: 5px;
-    min-width: 32px;
+    background: {SCROLL_HANDLE};
+    border-radius: 3px;
+    min-width: 28px;
+}}
+QScrollBar::handle:horizontal:hover {{
+    background: {SCROLL_HANDLE_HOVER};
 }}
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal,
 QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
@@ -540,67 +746,62 @@ QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
     background: transparent;
 }}
 QSplitter::handle {{
-    background-color: {BORDER_SOFT};
+    background-color: {BORDER};
     width: 1px;
 }}
 
-/* ------------------------------------------------------------ progress */
+/* ------------------------------------------------------------- progress */
 QProgressBar {{
-    background-color: {SURFACE};
+    background-color: {SURFACE_ACTIVE};
     border: none;
-    border-radius: 5px;
+    border-radius: 3px;
     text-align: center;
-    height: 8px;
+    height: 6px;
     color: transparent;
 }}
 QProgressBar::chunk {{
     background-color: {ACCENT};
-    border-radius: 5px;
+    border-radius: 3px;
 }}
 QProgressDialog {{
-    background-color: {SURFACE};
+    background-color: {BG_ELEVATED};
     border: 1px solid {BORDER_STRONG};
-    border-radius: 14px;
+    border-radius: 6px;
 }}
 
-/* ------------------------------------------------------------ tabs */
+/* ------------------------------------------------------------- tabs */
 QTabWidget::pane {{
     border: 1px solid {BORDER};
-    border-radius: 12px;
-    top: -1px;
-}}
-QTabWidget::pane {{
-    border: 1px solid {BORDER};
-    border-radius: 14px;
+    border-radius: 6px;
     background-color: {BG_ELEVATED};
-    padding: 10px;
+    padding: 8px;
 }}
 QTabBar::tab {{
-    background-color: {SURFACE};
+    background-color: transparent;
     color: {TEXT_MUTED};
-    padding: 8px 18px;
-    border: 1px solid {BORDER};
-    border-radius: 10px;
-    margin-right: 6px;
-    font-weight: 600;
+    padding: 5px 12px;
+    border: 1px solid transparent;
+    border-bottom: 2px solid transparent;
+    margin-right: 2px;
 }}
 QTabBar::tab:hover {{
     color: {TEXT};
     background: {SURFACE_HOVER};
 }}
 QTabBar::tab:selected {{
-    background: {SURFACE_ACTIVE};
     color: {TEXT};
+    border-bottom: 2px solid {ACCENT};
 }}
 """
 
 
-# Card state accents (dynamic properties set by BookCard)
-CARD_STATE_STYLESHEET = f"""
+def card_stylesheet() -> str:
+    """Card state rules; dynamic properties are set by BookCard."""
+    return f"""
 QFrame#BookCard {{
     background-color: {SURFACE};
-    border: 1px solid {BORDER_SOFT};
-    border-radius: 16px;
+    border: 1px solid {BORDER};
+    border-radius: 6px;
 }}
 QFrame#BookCard:hover {{
     background-color: {SURFACE_HOVER};
@@ -608,16 +809,16 @@ QFrame#BookCard:hover {{
 }}
 QFrame#BookCard[selected="true"] {{
     border: 2px solid {ACCENT};
-    background-color: {SURFACE_ACTIVE};
+    background-color: {ACCENT_SOFT};
 }}
 QFrame#BookCard[isRead="true"] {{
     background-color: {BG_ELEVATED};
 }}
 QFrame#BookCard[favorite="true"] {{
-    border: 1px solid rgba(245, 181, 68, 110);
+    border: 1px solid {BORDER};
 }}
 QFrame#BookCard[favorite="true"]:hover {{
-    border: 1px solid {GOLD};
+    border: 1px solid {BORDER_STRONG};
 }}
 
 /* Card children. They used to carry their own stylesheets, which meant a
@@ -625,12 +826,12 @@ QFrame#BookCard[favorite="true"]:hover {{
    now and the card only toggles dynamic properties. */
 QLabel#CardCover {{
     color: {TEXT_DIM};
-    font-size: 11px;
+    font-size: 8pt;
     background: transparent;
 }}
 QLabel#CardTitle {{
     color: {TEXT};
-    font-size: 13px;
+    font-size: 9pt;
     font-weight: 600;
     background: transparent;
 }}
@@ -639,22 +840,22 @@ QFrame#BookCard[isRead="true"] QLabel#CardTitle {{
 }}
 QLabel#CardInfo {{
     color: {TEXT_MUTED};
-    font-size: 11px;
+    font-size: 8pt;
     background: transparent;
 }}
 QLabel#CardRating {{
     color: {GOLD};
-    font-size: 10px;
+    font-size: 8pt;
     background: transparent;
 }}
 QLabel#CardStatusDot {{
     color: {TEXT_DIM};
-    font-size: 9px;
+    font-size: 7pt;
     background: transparent;
 }}
 QLabel#CardStatus {{
     color: {TEXT_DIM};
-    font-size: 10px;
+    font-size: 8pt;
     background: transparent;
 }}
 QFrame#BookCard[isRead="true"] QLabel#CardStatusDot,
@@ -663,43 +864,43 @@ QFrame#BookCard[isRead="true"] QLabel#CardStatus {{
 }}
 QLabel#CardFormatBadge {{
     color: #ffffff;
-    font-size: 9px;
+    font-size: 7pt;
     font-weight: 700;
-    background: rgba(10, 12, 16, 200);
-    border-radius: 6px;
-    padding: 2px 6px;
+    background: rgba(16, 16, 16, 150);
+    border-radius: 3px;
+    padding: 1px 5px;
 }}
 QLabel#CardFormatBadge[format="cbz"] {{
-    color: {BLUE};
+    color: #8fc7ff;
 }}
 QLabel#CardFormatBadge[format="cbr"] {{
-    color: {ACCENT};
+    color: #ffb199;
 }}
 QLabel#CardFormatBadge[format="cb7"] {{
-    color: {VIOLET};
+    color: #c8b6ff;
 }}
 QLabel#CardFormatBadge[format="cbt"] {{
-    color: {GOLD};
+    color: #ffd98a;
 }}
 QLabel#CardFormatBadge[format="pdf"] {{
-    color: #f87171;
+    color: #ff9d9d;
 }}
 QLabel#CardFavoriteBadge {{
-    color: {GOLD};
-    font-size: 13px;
-    background: rgba(10, 12, 16, 190);
-    border-radius: 12px;
+    color: #f5c451;
+    font-size: 10pt;
+    background: {OVERLAY};
+    border-radius: 9px;
 }}
 QWidget#CardQuickBar {{
-    background: rgba(8, 10, 14, 225);
-    border-radius: 10px;
+    background: {OVERLAY};
+    border-radius: 4px;
 }}
 QToolButton#CardQuickButton {{
     border: none;
     background: transparent;
-    color: {TEXT};
-    font-size: 13px;
-    border-radius: 7px;
+    color: #ffffff;
+    font-size: 9pt;
+    border-radius: 4px;
 }}
 QToolButton#CardQuickButton:hover {{
     background: {ACCENT};
@@ -709,19 +910,19 @@ QToolButton#CardQuickButton:hover {{
 
 
 def build_palette() -> QPalette:
-    """Dark palette; keeps native widgets (dialogs, arrows, menus) consistent."""
+    """Native palette, so dialogs and arrows match the stylesheet."""
     palette = QPalette()
     palette.setColor(QPalette.ColorRole.Window, QColor(BG))
     palette.setColor(QPalette.ColorRole.WindowText, QColor(TEXT))
     palette.setColor(QPalette.ColorRole.Base, QColor(SURFACE))
     palette.setColor(QPalette.ColorRole.AlternateBase, QColor(SURFACE_HOVER))
-    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(SURFACE_ACTIVE))
+    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(SURFACE))
     palette.setColor(QPalette.ColorRole.ToolTipText, QColor(TEXT))
     palette.setColor(QPalette.ColorRole.Text, QColor(TEXT))
     palette.setColor(QPalette.ColorRole.Button, QColor(SURFACE))
     palette.setColor(QPalette.ColorRole.ButtonText, QColor(TEXT))
     palette.setColor(QPalette.ColorRole.BrightText, QColor(ACCENT_GLOW))
-    palette.setColor(QPalette.ColorRole.Link, QColor(ACCENT_GLOW))
+    palette.setColor(QPalette.ColorRole.Link, QColor(ACCENT))
     palette.setColor(QPalette.ColorRole.Highlight, QColor(ACCENT))
     palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
     palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(TEXT_DIM))
@@ -743,31 +944,105 @@ def logo_pixmap(size: int = 46) -> QPixmap:
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             )
-            return rounded_pixmap(scaled, size // 3).scaled(
+            return rounded_pixmap(scaled, size // 4).scaled(
                 size,
                 size,
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             )
-    return gradient_pixmap(size, size, ACCENT, "#ff9f68", max(8, size // 3))
+    return gradient_pixmap(size, size, ACCENT, ACCENT_HOVER, max(4, size // 4))
 
 
-def apply_theme(app):
-    """Apply the dark theme to the whole application."""
-    app.setStyle("Fusion")
+class _WindowsStyle(QProxyStyle):
+    """Fusion, minus the permanently underlined menu accelerators.
+
+    Windows 11 only underlines the Alt accelerators while Alt is held down;
+    Qt draws them all the time, which is what makes a menu bar look old. The
+    letters still work, they are just not printed with a rule under them.
+    """
+
+    def styleHint(self, hint, option=None, widget=None, return_data=None):  # noqa: N802
+        if hint == QStyle.StyleHint.SH_UnderlineShortcut:
+            return 0
+        return super().styleHint(hint, option, widget, return_data)
+
+
+# Widgets that paint a few of their colours inline (they are created once and
+# live for the whole session) register here; a palette change calls their
+# ``restyle()`` so switching light/dark is instant instead of rebuilding the
+# window. Weak references keep closed windows out of the list.
+_restylers: "list[weakref.ReferenceType]" = []
+
+
+def register_restyle(widget) -> None:
+    """Call ``widget.restyle()`` whenever the colour mode changes."""
+    if getattr(widget, "restyle", None) is None:
+        return
+    _restylers.append(weakref.ref(widget))
+
+
+def _run_restylers() -> None:
+    alive = []
+    for reference in _restylers:
+        widget = reference()
+        if widget is None:
+            continue
+        alive.append(reference)
+        try:
+            widget.restyle()
+        except RuntimeError:  # the C++ object is already gone
+            continue
+    _restylers[:] = alive
+
+
+# The proxy style and its base stay alive for the whole process. Letting the
+# base be collected while Qt still points at it is a dangling pointer, and
+# replacing the application style on every repaint is an easy way to crash.
+_STYLE: "tuple[QProxyStyle, QStyle] | None" = None
+
+
+def _install_style(app) -> None:
+    global _STYLE
+    if _STYLE is not None:
+        return
+    base = QStyleFactory.create("Fusion")
+    if base is None:
+        base = app.style()
+    proxy = _WindowsStyle(base)
+    _STYLE = (proxy, base)
+    app.setStyle(proxy)
+
+
+def apply_theme(app, mode: str | None = None):
+    """Apply the palette to the whole application.
+
+    ``mode`` is ``light``, ``dark`` or ``system`` (the default). It is stored
+    with the other view settings so the choice survives a restart.
+    """
+    if mode is None:
+        try:
+            from utils.settings import settings
+
+            mode = settings.get_view("theme", "system")
+        except Exception:
+            mode = "system"
+    set_mode(mode)
+    _install_style(app)
     app.setPalette(build_palette())
-    app.setStyleSheet(DARK_STYLESHEET + CARD_STATE_STYLESHEET)
+    app.setStyleSheet(build_stylesheet() + card_stylesheet())
+    _run_restylers()
+    return MODE
 
 
 # ---------------------------------------------------------------- helpers
 def add_shadow(widget: QWidget, blur: int = 26, y_offset: int = 8,
-               color: str = "#000000", alpha: int = 170) -> QGraphicsDropShadowEffect:
+               color: str = "#000000", alpha: int | None = None) -> QGraphicsDropShadowEffect:
     """Attach a soft drop shadow (used on floating panels, not on every card)."""
     effect = QGraphicsDropShadowEffect(widget)
     effect.setBlurRadius(blur)
     effect.setOffset(0, y_offset)
     shadow_color = QColor(color)
-    shadow_color.setAlpha(alpha)
+    shadow_color.setAlpha(SHADOW_ALPHA if alpha is None else alpha)
     effect.setColor(shadow_color)
     widget.setGraphicsEffect(effect)
     return effect
