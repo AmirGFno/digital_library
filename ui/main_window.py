@@ -2104,8 +2104,9 @@ class MainWindow(QMainWindow):
             settings.defer_update(info.version)
 
     def _quit_for_update(self):
-        """Let the update helper take over once this process is gone."""
+        """Close cleanly so the helper finds no file in use, then exit."""
         app = QApplication.instance()
+        self.close()
         if app is not None:
             QTimer.singleShot(0, app.quit)
 
