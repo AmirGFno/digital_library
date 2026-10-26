@@ -680,7 +680,6 @@ class MainWindow(QMainWindow):
     COMPACT_WIDTH = 1180
     NARROW_WIDTH = 940
     TINY_WIDTH = 760
-    TOOLBAR_NARROW = 1000
 
     def _apply_responsive_layout(self):
         """Fold the header instead of letting its buttons leave the window."""
@@ -706,14 +705,10 @@ class MainWindow(QMainWindow):
         # The overflow menu appears as soon as anything moved into it.
         self.overflow_button.setVisible(narrow or tiny)
 
-        # Captions of the filter combos are the first thing to go.
-        for label in getattr(self, "filter_captions", []):
-            label.setVisible(width >= self.NARROW_WIDTH)
-
-        # On a narrow window the search box gets its own row, so no combo has
-        # to squeeze its text into half of its width.
+        # On a narrow window the search box gets its own row (or two), so no
+        # combo has to squeeze its text into half of its width.
         if hasattr(self, "command_grid"):
-            self._layout_command_bar(narrow=width < self.TOOLBAR_NARROW)
+            self._layout_command_bar()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -775,40 +770,78 @@ class MainWindow(QMainWindow):
         self.favorites_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.favorites_button.toggled.connect(self._on_favorites_toggled)
 
-        self.filter_captions = [self.show_caption, self.sort_caption]
         for combo in (self.read_filter_combo, self.format_combo, self.sort_combo):
             combo.setMinimumWidth(120)
-        self._layout_command_bar(narrow=False)
+        self._layout_command_bar("wide")
         self.command_layout.addWidget(bar)
         self._restore_view_controls()
 
-    def _layout_command_bar(self, narrow: bool):
-        """One row on a wide window, two rows on a narrow one.
+    def _command_bar_mode(self) -> str:
+        """Which arrangement of the filter bar fits the current width.
 
-        A single row cannot fit the search box and three combo boxes in 760 px,
-        and a squeezed combo shows only half of its text.
+        Everything is measured instead of guessed: the combo boxes are much
+        wider with the Windows font than on Linux, so a fixed breakpoint put
+        three of them in one row and Qt clipped their labels to half a word.
         """
         grid = self.command_grid
+        spacing = grid.spacing()
+        margin = grid.contentsMargins()
+        available = self.width() - margin.left() - margin.right()
+
+        hint = lambda widget: widget.sizeHint().width()  # noqa: E731
+        wide = (
+            self.search_input.minimumWidth()
+            + hint(self.show_caption)
+            + hint(self.read_filter_combo)
+            + hint(self.format_combo)
+            + hint(self.sort_caption)
+            + hint(self.sort_combo)
+            + hint(self.favorites_button)
+            + 6 * spacing
+        )
+        two_rows = max(
+            self.search_input.minimumWidth() + hint(self.favorites_button) + spacing,
+            hint(self.read_filter_combo)
+            + hint(self.format_combo)
+            + hint(self.sort_combo)
+            + 2 * spacing,
+        )
+
+        # A little slack: Qt rounds widget sizes up, and a row that only just
+        # fits still shaves a few pixels off the last combo box.
+        slack = 24
+        if available >= wide + slack:
+            return "wide"
+        if available >= two_rows + slack:
+            return "two"
+        # Three rows always fit: two combo boxes side by side plus the search
+        # box above them, with the favourites chip next to it.
+        return "three"
+
+    def _layout_command_bar(self, mode: str | None = None):
+        """One row when there is room, otherwise two or three."""
+        grid = self.command_grid
+        mode = mode or self._command_bar_mode()
+        if getattr(self, "_command_bar_mode_name", None) == mode:
+            return
+        self._command_bar_mode_name = mode
+
         for widget in (
             self.search_input, self.show_caption, self.read_filter_combo,
             self.format_combo, self.sort_caption, self.sort_combo,
             self.favorites_button,
         ):
             grid.removeWidget(widget)
+        for column in range(7):
+            grid.setColumnStretch(column, 0)
+        for row in range(4):
+            grid.setRowStretch(row, 0)
 
-        if narrow:
-            grid.addWidget(self.search_input, 0, 0, 1, 1)
-            grid.addWidget(self.favorites_button, 0, 1, 1, 1)
-            grid.addWidget(self.show_caption, 1, 0, 1, 1,
-                           Qt.AlignmentFlag.AlignLeft)
-            grid.addWidget(self.read_filter_combo, 1, 1, 1, 1)
-            grid.addWidget(self.format_combo, 1, 2, 1, 1)
-            grid.addWidget(self.sort_combo, 1, 3, 1, 1)
-            grid.setColumnStretch(0, 1)
-            grid.setColumnStretch(1, 0)
-            grid.setColumnStretch(2, 0)
-            grid.setColumnStretch(3, 0)
-        else:
+        show_captions = mode == "wide"
+        self.show_caption.setVisible(show_captions)
+        self.sort_caption.setVisible(show_captions)
+
+        if mode == "wide":
             grid.addWidget(self.search_input, 0, 0, 1, 1)
             grid.addWidget(self.show_caption, 0, 1, 1, 1)
             grid.addWidget(self.read_filter_combo, 0, 2, 1, 1)
@@ -816,12 +849,25 @@ class MainWindow(QMainWindow):
             grid.addWidget(self.sort_caption, 0, 4, 1, 1)
             grid.addWidget(self.sort_combo, 0, 5, 1, 1)
             grid.addWidget(self.favorites_button, 0, 6, 1, 1)
-            for column in (2, 3, 5, 6):
-                grid.setColumnStretch(column, 0)
-            grid.setColumnStretch(1, 0)
-            grid.setColumnStretch(4, 0)
             grid.setColumnStretch(0, 1)
-        self._command_bar_narrow = narrow
+        elif mode == "two":
+            grid.addWidget(self.search_input, 0, 0, 1, 3)
+            grid.addWidget(self.favorites_button, 0, 3, 1, 1)
+            grid.addWidget(self.read_filter_combo, 1, 0, 1, 1)
+            grid.addWidget(self.format_combo, 1, 1, 1, 1)
+            grid.addWidget(self.sort_combo, 1, 2, 1, 1)
+            grid.setColumnStretch(2, 1)
+        else:
+            grid.addWidget(self.search_input, 0, 0, 1, 3)
+            grid.addWidget(self.favorites_button, 0, 3, 1, 1)
+            grid.addWidget(self.read_filter_combo, 1, 0, 1, 4)
+            grid.addWidget(self.format_combo, 2, 0, 1, 4)
+            grid.addWidget(self.sort_combo, 3, 0, 1, 4)
+            grid.setColumnStretch(3, 1)
+
+        self._command_bar_narrow = mode != "wide"
+        grid.invalidate()
+        grid.activate()
 
     @staticmethod
     def _field_label(text: str) -> QLabel:
@@ -1061,6 +1107,11 @@ class MainWindow(QMainWindow):
             icon = app.windowIcon()
         if not icon.isNull():
             self.setWindowIcon(icon)
+        # A combo box only knows how wide its text really is once it has been
+        # polished for the first time, which happens during this event. Fold
+        # the filter bar again now that the numbers are final, otherwise a
+        # narrow window keeps a one-row bar that clips "All formats".
+        QTimer.singleShot(0, self._apply_responsive_layout)
 
     def closeEvent(self, event):
         self._save_state()

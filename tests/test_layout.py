@@ -24,6 +24,15 @@ SMALL = (1092, 614)      # a 1366x768 laptop at 125 % scaling
 TINY = (872, 470)        # a 1024x600 netbook
 
 
+@pytest.fixture(autouse=True)
+def app_theme(qt_app):
+    """The real stylesheet: it changes the width of every combo box."""
+    from ui.theme import apply_theme
+
+    apply_theme(qt_app)
+    return qt_app
+
+
 @pytest.fixture()
 def screen(monkeypatch):
     """Pin the screen size the windows see (the dialogs ask ui.layout)."""
@@ -226,9 +235,42 @@ def test_the_command_bar_wraps_on_a_narrow_window(qt_app):
     for _ in range(4):
         qt_app.processEvents()
     assert window._command_bar_narrow is True
-    # Every filter keeps enough room for its own text.
+    # Every filter keeps enough room for its own text: that is what the user
+    # sees when a combo box is squeezed to "Series & vo...".
     for combo in (window.read_filter_combo, window.format_combo, window.sort_combo):
-        assert combo.width() >= combo.sizeHint().width() - 4, combo.currentText()
+        assert combo.width() >= combo.sizeHint().width() - 4, (
+            f"{combo.currentText()}: {combo.width()} px for "
+            f"{combo.sizeHint().width()} px of text"
+        )
+    window.close()
+
+
+def test_a_wide_font_never_squeezes_a_filter(qt_app):
+    """Windows draws the combo text wider than Linux does.
+
+    The bar used to fold at a fixed 1000 px, which was measured with the Linux
+    font: on Windows the three filters still sat in one row and Qt cut their
+    labels to "All forma". The bar now measures the text it has to show, so a
+    wider font has to make it fold further instead of clipping.
+    """
+    from ui.main_window import MainWindow
+
+    window = MainWindow(run_startup=False)
+    combos = (window.read_filter_combo, window.format_combo, window.sort_combo)
+    for combo in combos:
+        for index in range(combo.count()):
+            combo.setItemText(index, combo.itemText(index) + "  widespecimen")
+    _show(qt_app, window, 820, 600)
+
+    assert window._command_bar_narrow is True
+    for combo in combos:
+        assert combo.width() >= combo.sizeHint().width() - 4, (
+            f"{combo.currentText()}: {combo.width()} px for "
+            f"{combo.sizeHint().width()} px of text"
+        )
+    # The extra rows push the bar down but never over the window edge.
+    bar = window.search_input.parentWidget()
+    assert bar.width() <= window.width()
     window.close()
 
 
