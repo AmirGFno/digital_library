@@ -107,11 +107,11 @@ class UpdateDialog(QDialog):
 
         self.setWindowTitle("Update Digital Library")
         self.setModal(True)
-        self.setMinimumSize(620, 430)
-        # Resize before show() so the taller error page does not stretch the
-        # offer page with empty space.
-        self.resize(620, 440)
+        self.setMinimumSize(600, 340)
         self._build_ui()
+        # Hug the content: the stack reports the tallest page (the error one),
+        # so nothing gets clipped when a download fails.
+        self.resize(620, max(340, self.sizeHint().height()))
 
     # ------------------------------------------------------------------
     # Construction
@@ -184,8 +184,12 @@ class UpdateDialog(QDialog):
             browser.setObjectName("UpdateNotes")
             browser.setOpenExternalLinks(True)
             browser.setPlainText(notes)
-            browser.setMinimumHeight(140)
-            browser.setMaximumHeight(210)
+            # Size the notes box to its text so a short changelog does not
+            # leave a large empty frame; long notes scroll inside the cap.
+            document = browser.document()
+            document.setTextWidth(536)
+            needed = int(document.size().height()) + 40
+            browser.setFixedHeight(max(112, min(210, needed)))
             browser.setStyleSheet(
                 f"QTextBrowser {{ background: {theme.SURFACE};"
                 f" border: 1px solid {theme.BORDER}; border-radius: 12px;"
@@ -203,7 +207,7 @@ class UpdateDialog(QDialog):
             details.append(f"download size {self.plan.size_text}")
         details.append("SHA-256 checked before installing")
         if can_install:
-            details.append("the app restarts by itself when the files are in place")
+            details.append("restarts automatically afterwards")
         hint = QLabel("  ·  ".join(details))
         hint.setObjectName("MutedLabel")
         hint.setWordWrap(True)
