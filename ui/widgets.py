@@ -65,7 +65,10 @@ class IconButton(QToolButton):
         self.setToolTip(tooltip)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setAutoRaise(True)
-        self.setFixedSize(32, 32)
+        # Only the height is fixed: a wider glyph (or a bigger Windows text
+        # scale) must not be cut in half.
+        self.setFixedHeight(32)
+        self.setMinimumWidth(32)
         self.setStyleSheet("font-size: 15px;")
 
 
@@ -356,10 +359,11 @@ class SelectionBar(QFrame):
         self.setObjectName("SelectionBar")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setFixedHeight(56)
-        self.setMinimumWidth(560)
+        self.setMinimumWidth(300)
         theme.add_shadow(self, blur=40, y_offset=12, alpha=220)
 
-        layout = QHBoxLayout(self)
+        self._layout = QHBoxLayout(self)
+        layout = self._layout
         layout.setContentsMargins(16, 8, 12, 8)
         layout.setSpacing(8)
 
@@ -387,11 +391,19 @@ class SelectionBar(QFrame):
             layout.addWidget(button)
             return button
 
-        add_button("▶  Open", self.open_requested.emit)
-        add_button("✓  Read", lambda: self.read_requested.emit(True))
-        add_button("↺  Unread", lambda: self.read_requested.emit(False))
-        add_button("★  Favorite", lambda: self.favorite_requested.emit(True))
-        add_button("☰  Series", self.series_requested.emit)
+        # Each entry keeps its full label and its short form: on a narrow
+        # window the icons alone are used so that no button is cut in half.
+        self._buttons = []
+        for full, short, slot in (
+            ("▶  Open", "▶", self.open_requested.emit),
+            ("✓  Read", "✓", lambda: self.read_requested.emit(True)),
+            ("↺  Unread", "↺", lambda: self.read_requested.emit(False)),
+            ("★  Favorite", "★", lambda: self.favorite_requested.emit(True)),
+            ("☰  Series", "☰", self.series_requested.emit),
+        ):
+            button = add_button(full, slot)
+            button.setToolTip(full.replace("  ", " "))
+            self._buttons.append((button, full, short))
         layout.addStretch(1)
 
         close = QToolButton()
@@ -406,6 +418,31 @@ class SelectionBar(QFrame):
 
     def set_count(self, count: int):
         self.count_label.setText(f"{count} selected")
+        self.count_label.setToolTip(f"{count} selected")
+
+    def use_compact_labels(self, compact: bool):
+        """Shorten the buttons so the bar fits a narrow window."""
+        for button, full, short in getattr(self, "_buttons", []):
+            if button.text() != (short if compact else full):
+                button.setText(short if compact else full)
+                button.updateGeometry()
+        self.updateGeometry()
+
+    def sizeHint(self):  # noqa: N802 - Qt API
+        """The width the current labels need - never the cached one.
+
+        ``super().sizeHint()`` is not refreshed after the labels change, and
+        the window compares the two to decide when to shorten them.
+        """
+        hint = super().sizeHint()
+        widths = [self.count_label.sizeHint().width()]
+        widths += [button.sizeHint().width() for button, _full, _short in self._buttons]
+        margins = self._layout.contentsMargins()
+        spacing = self._layout.spacing() * (len(widths) + 3)
+        return QSize(
+            sum(widths) + margins.left() + margins.right() + spacing + 40,
+            hint.height(),
+        )
 
 
 # ---------------------------------------------------------------- empty state

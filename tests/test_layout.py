@@ -263,3 +263,27 @@ def test_the_column_setting_is_only_an_upper_bound(qt_app):
     assert window.columns_that_fit() < 6
     assert window._layout_columns == window.columns_that_fit()
     window.close()
+
+
+def test_the_selection_bar_shortens_its_labels_on_a_narrow_window(qt_app):
+    from PyQt6.QtWidgets import QAbstractButton
+
+    from ui.main_window import MainWindow
+
+    window = MainWindow(run_startup=False)
+    _show(qt_app, window, 1400, 900)
+    window.select_all()
+    for _ in range(4):
+        qt_app.processEvents()
+
+    def overflowing():
+        bad = []
+        for child in window.selection_bar.findChildren(QAbstractButton):
+            if child.text() and child.width() + 2 < child.sizeHint().width():
+                bad.append(child.text())
+        return bad
+
+    if not window.book_cards:
+        pytest.skip("the empty library has no cards to select")
+    assert not overflowing(), overflowing()
+    window.close()

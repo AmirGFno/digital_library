@@ -48,6 +48,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSpinBox,
+    QSizePolicy,
     QSplitter,
     QStatusBar,
     QToolButton,
@@ -361,7 +362,7 @@ class MainWindow(QMainWindow):
 
         self.settings_button = QPushButton("⚙")
         self.settings_button.setObjectName("GhostButton")
-        self.settings_button.setFixedWidth(42)
+        self.settings_button.setMinimumWidth(44)
         self.settings_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.settings_button.setToolTip("Reader settings (Ctrl+,)")
         self.settings_button.clicked.connect(self._show_reader_settings)
@@ -469,6 +470,9 @@ class MainWindow(QMainWindow):
         self.selection_bar = SelectionBar()
         self.selection_bar.setVisible(False)
         self.selection_bar.setMaximumWidth(760)
+        self.selection_bar.setSizePolicy(
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed
+        )
         selection_strip = QHBoxLayout()
         selection_strip.setContentsMargins(0, 4, 0, 0)
         selection_strip.addStretch(1)
@@ -1814,11 +1818,25 @@ class MainWindow(QMainWindow):
             card.set_multi_selected(selected and multi)
         self.update_selection_bars()
 
+    def _fit_selection_bar(self):
+        """Short labels when the bar would not fit the window."""
+        bar = getattr(self, "selection_bar", None)
+        if bar is None or not bar.isVisible():
+            return
+        # The sidebar and the grid margins take part of the width; the bar
+        # lives under the grid, so it can use what the content area has.
+        available = max(0, self.width() - self.series_panel.width() - 80)
+        bar.use_compact_labels(False)
+        if bar.sizeHint().width() > available:
+            bar.use_compact_labels(True)
+
     def update_selection_bars(self):
         count = len(self.selected_ids)
         # A single click only highlights a card; the group bar belongs to the
         # "pick several books" mode (or to a real multi-selection).
         grouping = self._selection_mode or count > 1
+        if grouping:
+            QTimer.singleShot(0, self._fit_selection_bar)
         self.selection_label.setText(f"{count} selected" if grouping else "")
         self.delete_selection_action.setEnabled(count > 0)
 
@@ -1827,6 +1845,7 @@ class MainWindow(QMainWindow):
             return
         bar.set_count(count)
         bar.setVisible(count > 0 and grouping)
+        self._fit_selection_bar()
         if hasattr(self, "page_count"):
             self.page_count.setText(
                 f"{count} selected" if count and grouping else self._page_count_text
