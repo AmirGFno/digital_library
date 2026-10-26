@@ -21,9 +21,10 @@
 !ifndef OUTFILE
   !define OUTFILE "DigitalLibrary-Setup.exe"
 !endif
-; Allows a syntax-only build on a machine without the compressor stubs.
+; NSIS resolves relative paths against this script, not the working directory,
+; so the icon is addressed from the installer folder.
 !ifndef APP_ICON
-  !define APP_ICON "assets\icon.ico"
+  !define APP_ICON "${__FILEDIR__}\..\assets\icon.ico"
 !endif
 
 !define APP_NAME "Digital Library"
