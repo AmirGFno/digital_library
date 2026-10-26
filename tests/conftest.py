@@ -65,17 +65,34 @@ def qt_app():
     return app
 
 
+def _annotate(title: str, detail: str) -> None:
+    # pytest captures ``print``; the workflow command has to reach the step log
+    # itself, so it is written straight to the real stdout.
+    stream = getattr(sys, "__stdout__", None) or sys.stdout
+    safe = " ".join(str(detail).split())[:380]
+    stream.write(f"::error title={title}::{safe}\n")
+    stream.flush()
+
+
 def pytest_runtest_logreport(report):
     """Surface a failing test as an annotation on the GitHub run page.
 
-    The Actions log download is not always reachable, while the annotations of
+    The Actions log archive is not always reachable, while the annotations of
     a check run are; this turns every failure into one readable line there.
     """
     import os as _os
 
     if not _os.environ.get("GITHUB_ACTIONS"):
         return
-    if report.failed and report.when == "call":
-        message = str(report.longrepr).strip().splitlines()
-        detail = message[-1] if message else "failed"
-        print(f"::error title={report.nodeid}::{detail[:400]}")
+    if report.failed and report.when in ("call", "setup"):
+        lines = [line for line in str(report.longrepr).strip().splitlines() if line.strip()]
+        detail = lines[-1] if lines else "failed"
+        _annotate(report.nodeid, detail)
+
+
+def pytest_collectreport(report):
+    import os as _os
+
+    if _os.environ.get("GITHUB_ACTIONS") and report.failed:
+        lines = [line for line in str(report.longrepr).strip().splitlines() if line.strip()]
+        _annotate(f"collect {report.nodeid}", lines[-1] if lines else "collection failed")
