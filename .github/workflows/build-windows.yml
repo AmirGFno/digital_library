@@ -33,10 +33,10 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: python scripts/smoke.py
 
-      - name: Build executable
+      - name: Build portable executable
         run: pyinstaller --noconfirm --clean DigitalLibrary.spec
 
-      - name: Packaged application self-test
+      - name: Portable application self-test
         shell: pwsh
         run: |
           $process = Start-Process -FilePath "dist\DigitalLibrary.exe" `
@@ -50,16 +50,133 @@ jobs:
             throw "Packaged application self-test failed with exit code $($process.ExitCode)"
           }
 
-      - name: Package artifact
+      - name: Build installed folder
+        run: pyinstaller --noconfirm --clean --distpath dist\installed DigitalLibraryInstalled.spec
+
+      - name: Installed application self-test
         shell: pwsh
         run: |
-          $version = (Get-Content config.py | Select-String 'APP_VERSION = "([^"]+)"').Matches.Groups[1].Value
-          New-Item -ItemType Directory -Force -Path release | Out-Null
-          Copy-Item dist\DigitalLibrary.exe "release\DigitalLibrary-$version-windows-x64.exe"
-          Compress-Archive -Path "release\DigitalLibrary-$version-windows-x64.exe" `
-            -DestinationPath "release\DigitalLibrary-$version-windows-x64.zip"
-          (Get-FileHash "release\DigitalLibrary-$version-windows-x64.zip" -Algorithm SHA256).Hash `
-            | Out-File "release\SHA256.txt"
+          $process = Start-Process -FilePath "dist\installed\DigitalLibrary\DigitalLibrary.exe" `
+            -ArgumentList "--self-test" -PassThru
+          if (-not $process.WaitForExit(180000)) {
+            $process.Kill()
+            throw "Installed build self-test timed out"
+          }
+          if ($process.ExitCode -ne 0) {
+            Get-Content dist\installed\DigitalLibrary\logs\*.log -ErrorAction SilentlyContinue |
+              Select-Object -Last 80
+            throw "Installed build self-test failed with exit code $($process.ExitCode)"
+          }
+          # The self-test writes a library next to the exe; that must never end
+          # up inside the installer or the update package.
+          foreach ($folder in @("data", "logs", "thumbnails", "custom_covers", "fallback_covers")) {
+            Remove-Item -Recurse -Force "dist\installed\DigitalLibrary\$folder" -ErrorAction SilentlyContinue
+          }
+
+      - name: Build setup program
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          try {
+            $version = (Get-Content config.py | Select-String 'APP_VERSION = "([^"]+)"').Matches.Groups[1].Value
+            Write-Host "Building the setup program for $version"
+            New-Item -ItemType Directory -Force -Path release | Out-Null
+            Copy-Item dist\DigitalLibrary.exe "release\DigitalLibrary-$version-windows-x64.exe"
+
+            Write-Host "Installing NSIS ..."
+            choco install nsis --yes --no-progress
+            Write-Host "choco exit code: $LASTEXITCODE"
+
+            $candidates = @(
+              "C:\Program Files (x86)\NSIS\makensis.exe",
+              "C:\Program Files\NSIS\makensis.exe",
+              "$env:ProgramFiles\NSIS\makensis.exe",
+              "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
+            )
+            $makensis = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+            if (-not $makensis) {
+              $found = Get-ChildItem -Path "C:\" -Filter makensis.exe -Recurse -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+              if ($found) { $makensis = $found.FullName }
+            }
+            if (-not $makensis) {
+              Write-Host "::error title=NSIS::makensis.exe was not found after installing NSIS"
+              exit 1
+            }
+            Write-Host "Using $makensis"
+
+            $setup = Join-Path $PWD "build\installer\DigitalLibrary-$version-Setup.exe"
+            New-Item -ItemType Directory -Force -Path (Split-Path $setup) | Out-Null
+            $log = "build\makensis.log"
+            & $makensis "/V3" "/DVERSION=$version" "/DSRCDIR=$PWD\dist\installed\DigitalLibrary" `
+              "/DAPP_ICON=$PWD\assets\icon.ico" `
+              "/DOUTFILE=$setup" "$PWD\installer\DigitalLibrary.nsi" *>&1 | Tee-Object -FilePath $log
+            $code = $LASTEXITCODE
+            Get-Content $log -Tail 40 | ForEach-Object { Write-Host $_ }
+            Write-Host "makensis exit code: $code"
+            if ($code -ne 0 -or -not (Test-Path $setup)) {
+              $tail = (Get-Content $log -Tail 12) -join " | "
+              Write-Host "::error title=Setup::makensis failed (exit $code): $tail"
+              exit 1
+            }
+            Compress-Archive -LiteralPath $setup -DestinationPath "release\DigitalLibrary-$version-setup.zip"
+            Write-Host "setup program ready"
+          } catch {
+            Write-Host "::error title=Setup build::$($_.Exception.Message)"
+            exit 1
+          }
+
+      - name: Build update package
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          try {
+            $version = (Get-Content config.py | Select-String 'APP_VERSION = "([^"]+)"').Matches.Groups[1].Value
+            $previousZip = ""
+            $releases = gh release list --limit 20 --json tagName,publishedAt | ConvertFrom-Json
+            Write-Host "known releases: $($releases.tagName -join ', ')"
+            $previous = $releases |
+              Where-Object { $_.tagName -ne "v$version" } |
+              Sort-Object publishedAt -Descending |
+              Select-Object -First 1
+            if ($previous) {
+              $assets = gh release view $previous.tagName --json assets | ConvertFrom-Json
+              $asset = $assets.assets |
+                Where-Object { $_.name -like "*-update.zip" } |
+                Select-Object -First 1
+              if ($asset) {
+                Write-Host "previous update package: $($asset.name) from $($previous.tagName)"
+                New-Item -ItemType Directory -Force -Path build\previous-update | Out-Null
+                gh release download $previous.tagName --pattern $asset.name --dir build\previous-update
+                $previousZip = (Get-ChildItem build\previous-update\*.zip | Select-Object -First 1).FullName
+              } else {
+                Write-Host "release $($previous.tagName) has no update package yet: shipping every file"
+              }
+            }
+
+            $buildArgs = @(
+              "scripts\build_update_package.py",
+              "--dist", "dist\installed\DigitalLibrary",
+              "--version", $version,
+              "--output", "release\DigitalLibrary-$version-windows-x64-update.zip"
+            )
+            if ($previousZip) { $buildArgs += @("--previous", $previousZip) }
+            python @buildArgs
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "::error title=Update package::the update package could not be built"
+              exit 1
+            }
+            $lines = foreach ($file in (Get-ChildItem release\*.exe, release\*.zip)) {
+              "{0}  {1}" -f (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLower(), $file.Name
+            }
+            $lines | Out-File -FilePath release\SHA256.txt -Encoding ascii
+            Get-ChildItem release | Format-Table Name, Length
+          } catch {
+            Write-Host "::error title=Update package::$($_.Exception.Message)"
+            exit 1
+          }
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -68,6 +185,14 @@ jobs:
           path: release/*
           if-no-files-found: error
 
+      - name: Upload installer log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: makensis-log
+          path: build/makensis.log
+          if-no-files-found: ignore
+
   publish:
     needs: build
     if: >-
@@ -75,7 +200,7 @@ jobs:
       (github.event_name == 'push' && contains(github.event.head_commit.message, '[release]'))
     runs-on: ubuntu-latest
     steps:
-      - name: Download built package
+      - name: Download built packages
         uses: actions/download-artifact@v4
         with:
           name: DigitalLibrary-windows-x64
@@ -86,20 +211,28 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          VERSION="$(basename release/DigitalLibrary-*-windows-x64.zip | sed -E 's/^DigitalLibrary-([0-9]+\.[0-9]+\.[0-9]+)-windows-x64\.zip$/\1/')"
+          VERSION="$(basename release/DigitalLibrary-*-windows-x64-update.zip | sed -E 's/^DigitalLibrary-([0-9]+\.[0-9]+\.[0-9]+)-windows-x64-update\.zip$/\1/')"
           TAG="v${VERSION}"
           cat > notes.md <<'EOF'
-          Windows x64 build of Digital Library.
+          Digital Library for Windows x64. Three downloads:
 
-          Download the ZIP, extract it and run DigitalLibrary.exe. Python is not required; the application is portable and stores data folders next to the executable.
+          - **Setup (ZIP)** - recommended. It contains DigitalLibrary-Setup.exe. The wizard installs the app under Program Files, adds Start Menu and desktop shortcuts and registers a normal uninstaller. The installed app updates itself in place.
+          - **Portable (EXE)** - one file, nothing to install. Put it anywhere and run it; the library data stays next to it.
+          - **Update (ZIP)** - only for an installed copy. It contains just the files that changed. Installed copies find it by themselves: open the app and accept the update.
 
           The executable is not code-signed, so Windows SmartScreen may show a warning the first time (More info -> Run anyway).
 
-          SHA256 checksum is attached as SHA256.txt.
+          SHA256 checksums of every file are attached as SHA256.txt.
 
           ---
 
-          نسخه ویندوز 64 بیتی. فایل ZIP را دانلود، از حالت فشرده خارج و DigitalLibrary.exe را اجرا کنید. نیازی به نصب پایتون نیست و برنامه Portable است.
+          نسخه ویندوز ۶۴ بیتی، سه فایل:
+
+          - **فایل فشردهٔ Setup** - پیشنهادی. برنامه نصب حرفه‌ای داخلش است، در Program Files نصب می‌شود، میان‌بر می‌سازد و حذف‌کنندهٔ استاندارد دارد. نسخهٔ نصبی خودش را در جا آپدیت می‌کند.
+          - **نسخهٔ Portable** - یک فایل اجرایی، بدون نصب.
+          - **فایل آپدیت** - فقط برای نسخهٔ نصبی و فقط شامل فایل‌هایی که عوض شده‌اند. برنامه خودش پیدایش می‌کند.
+
+          کد فایل‌ها در SHA256.txt آمده است.
           EOF
           if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$TAG" \

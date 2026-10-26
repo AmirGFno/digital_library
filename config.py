@@ -14,7 +14,12 @@ import sys
 from pathlib import Path
 
 APP_NAME = "Digital Library"
-APP_VERSION = "2.3.3"
+APP_VERSION = "2.4.0"
+
+# The setup installer drops this marker next to the executable. It is what
+# tells the app apart from the portable single-file build: only an installed
+# copy may replace its own files and must keep user data outside Program Files.
+INSTALL_MARKER = "install_info.json"
 
 
 def _app_dir() -> Path:
@@ -57,9 +62,32 @@ def _is_writable(directory: Path) -> bool:
 APP_DIR = _app_dir()
 RESOURCE_DIR = _resource_dir()
 
+
+def is_installed_copy(directory: Path | None = None) -> bool:
+    """True when this executable came from the setup installer.
+
+    A source checkout is never an installed copy, even if a stray marker file
+    exists: replacing files only makes sense for a packaged build.
+    """
+    if directory is None:
+        if not getattr(sys, "frozen", False):
+            return False
+        folder = APP_DIR
+    else:
+        folder = Path(directory)
+    return (folder / INSTALL_MARKER).is_file()
+
+
+INSTALLED_COPY = is_installed_copy()
+
 # Portable by default (data lives next to the executable); installed copies in
-# read-only locations fall back to the per-user data directory.
-BASE_DIR = APP_DIR if _is_writable(APP_DIR / "data") else _user_data_dir()
+# read-only locations fall back to the per-user data directory. An installed
+# copy always uses the per-user folder: updates rewrite the program files, so
+# the library must never live inside the installation folder.
+if INSTALLED_COPY:
+    BASE_DIR = _user_data_dir()
+else:
+    BASE_DIR = APP_DIR if _is_writable(APP_DIR / "data") else _user_data_dir()
 
 DATA_DIR = BASE_DIR / "data"
 THUMBNAILS_DIR = BASE_DIR / "thumbnails"

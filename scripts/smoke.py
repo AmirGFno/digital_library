@@ -16,6 +16,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "scripts"))
 
 from PyQt6.QtCore import Qt  # noqa: E402
 from PyQt6.QtWidgets import QApplication  # noqa: E402
@@ -173,6 +174,61 @@ def main() -> int:
     assert window._prune_missing_files(silent=False) >= 1, "missing file was not pruned"
     assert db.get_book(victim["id"]) is None, "record of a deleted file survived"
     assert not victim_path.exists()
+
+    # --- update prompt --------------------------------------------------
+    from ui.update_dialog import UpdateDialog
+    from utils import updater
+
+    update_info = updater.UpdateInfo(
+        version="2.5.0",
+        tag="v2.5.0",
+        notes="Smoke notes",
+        page_url="https://example.test/releases",
+        asset_url="https://example.test/update.zip",
+        asset_name="DigitalLibrary-2.5.0-windows-x64-update.zip",
+        asset_size=2 * 1024 * 1024,
+        checksum_url="https://example.test/SHA256.txt",
+    )
+    installed = []
+    update_dialog = UpdateDialog(
+        update_info,
+        parent=window,
+        download=lambda report: (
+            report(1024 * 1024, 2 * 1024 * 1024),
+            root / "DigitalLibrary-2.5.0-update.zip",
+        )[1],
+        install=installed.append,
+    )
+    app.processEvents()
+    update_dialog.start_download(inline=True)
+    assert update_dialog.applying, "the update dialog never reached the install step"
+    assert installed, "the downloaded package was not handed to the installer"
+    assert update_dialog.result() == update_dialog.DialogCode.Accepted
+    update_dialog.close()
+
+    # --- patch package: only changed files, removals recorded -----------
+    import build_update_package
+
+    old_build = root / "build-2.4.0"
+    (old_build / "_internal").mkdir(parents=True)
+    (old_build / "DigitalLibrary.exe").write_bytes(b"old exe")
+    (old_build / "_internal" / "same.dll").write_bytes(b"same")
+    (old_build / "_internal" / "gone.dll").write_bytes(b"gone")
+    first = root / "update-2.4.0.zip"
+    build_update_package.build_package(old_build, "2.4.0", first)
+
+    new_build = root / "build-2.5.0"
+    (new_build / "_internal").mkdir(parents=True)
+    (new_build / "DigitalLibrary.exe").write_bytes(b"new exe")
+    (new_build / "_internal" / "same.dll").write_bytes(b"same")
+    (new_build / "_internal" / "added.dll").write_bytes(b"added")
+    second = root / "update-2.5.0.zip"
+    summary = build_update_package.build_package(
+        new_build, "2.5.0", second, previous=first
+    )
+    assert summary["files_shipped"] == 3, summary  # exe, added.dll, marker
+    assert summary["files_removed"] == 1, summary
+    assert updater.read_update_manifest(second)["removed"] == ["_internal/gone.dll"]
 
     window.close()
     print("SMOKE OK")

@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -54,7 +55,15 @@ class Settings:
                 "answered_folders": [],
             },
             "app": {
-                "version": "2.3.3",
+                "version": "2.4.0",
+            },
+            "updates": {
+                # The installed edition asks for a newer release once the
+                # window is up; a postponed version is not asked again for a
+                # day, so the prompt never becomes noise.
+                "auto_check": True,
+                "deferred_version": "",
+                "deferred_at": "",
             },
         }
         self.settings = self._load_settings()
@@ -245,6 +254,33 @@ class Settings:
     def set_columns(self, columns: int):
         self.settings.setdefault("view", {})["columns"] = int(columns)
         self.save()
+
+    # ------------------------------------------------------------------
+    # Updates
+    # ------------------------------------------------------------------
+    def get_check_updates(self) -> bool:
+        return bool(self.settings.get("updates", {}).get("auto_check", True))
+
+    def set_check_updates(self, enabled: bool):
+        self.settings.setdefault("updates", {})["auto_check"] = bool(enabled)
+        self.save()
+
+    def defer_update(self, version: str):
+        updates = self.settings.setdefault("updates", {})
+        updates["deferred_version"] = str(version or "")
+        updates["deferred_at"] = datetime.now(timezone.utc).isoformat()
+
+    def clear_deferred_update(self):
+        updates = self.settings.setdefault("updates", {})
+        updates["deferred_version"] = ""
+        updates["deferred_at"] = ""
+
+    def deferred_update(self) -> tuple:
+        updates = self.settings.get("updates", {})
+        return (
+            str(updates.get("deferred_version") or ""),
+            str(updates.get("deferred_at") or ""),
+        )
 
     def get_view(self, key: str, default: Any = None) -> Any:
         return self.settings.get("view", {}).get(key, default)

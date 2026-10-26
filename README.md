@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml/badge.svg"></a>
   <a href="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml"><img alt="Windows build" src="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-2.3.3-e8552d">
+  <img alt="Version" src="https://img.shields.io/badge/version-2.4.0-e8552d">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
@@ -120,19 +120,41 @@ python main.py
 
 در ویندوز می‌توانید `run.bat` را اجرا کنید.
 
-### دریافت نسخه‌ی EXE
+### دریافت نسخه‌ها
 
-از بخش [Releases](https://github.com/AmirGFno/digital_library/releases) فایل
-`DigitalLibrary-2.3.3-windows-x64.zip` را دانلود کنید، از حالت فشرده خارج کنید
-و `DigitalLibrary.exe` را اجرا کنید. پایتون لازم نیست.
+هر نسخه سه فایل دارد و از بخش
+[Releases](https://github.com/AmirGFno/digital_library/releases) قابل دریافت است:
+
+| فایل | کاربرد |
+|---|---|
+| `DigitalLibrary-<version>-setup.zip` | نسخه‌ی نصبی. داخلش `DigitalLibrary-Setup.exe` است؛ نصب حرفه‌ای با میان‌بر منوی استارت، میان‌بر دسکتاپ و حذف‌کننده‌ی استاندارد. |
+| `DigitalLibrary-<version>-windows-x64.exe` | نسخه‌ی **قابل حمل (portable)**؛ یک فایل، بدون نصب. |
+| `DigitalLibrary-<version>-windows-x64-update.zip` | بستهٔ به‌روزرسانی نسخه‌ی نصبی؛ فقط فایل‌هایی که عوض شده‌اند. |
 
 > ویندوز ممکن است بار اول هشدار SmartScreen نشان دهد، چون فایل امضای دیجیتال
 > ندارد. با «More info → Run anyway» ادامه دهید.
 
-برنامه **قابل حمل (portable)** است: پوشه‌های `data`، `logs`، `thumbnails` و
-`custom_covers` کنار فایل EXE ساخته می‌شوند. برای انتقال کتابخانه کافی است
-پوشه‌ی برنامه را جابه‌جا کنید. اگر برنامه در مسیری بدون دسترسی نوشتن (مثلاً
-`Program Files`) اجرا شود، به‌طور خودکار از پوشه‌ی داده‌ی کاربر استفاده می‌کند.
+نسخه‌ی **portable**: پوشه‌های `data`، `logs`، `thumbnails` و `custom_covers` کنار
+فایل EXE ساخته می‌شوند. برای انتقال کتابخانه کافی است پوشه‌ی برنامه را جابه‌جا
+کنید.
+
+نسخه‌ی **نصبی**: برنامه در `Program Files` نصب می‌شود، اما داده‌های شما در
+`%LOCALAPPDATA%\DigitalLibrary` می‌ماند؛ بنابراین به‌روزرسانی یا حذف برنامه
+هیچ‌وقت به کتابخانه و تنظیمات دست نمی‌زند.
+
+### به‌روزرسانی خودکار
+
+نسخه‌ی نصبی هنگام اجرا (اگر اینترنت باشد) از گیت‌هاب می‌پرسد نسخه‌ی تازه‌ای آمده
+یا نه. اگر آمده باشد، صفحه‌ای نشان داده می‌شود با شمارهٔ نسخه، خلاصهٔ تغییرات و
+دو دکمه: «Download and install» و «Later». با تأیید کاربر، فقط بستهٔ کوچک آپدیت
+دانلود می‌شود (نه کل برنامه)، امضای SHA-256 آن بررسی می‌شود، برنامه بسته می‌شود،
+فایل‌های عوض‌شده جایگزین می‌شوند و نسخه‌ی تازه خودش باز می‌شود.
+
+- نسخه‌ی portable خودش را بازنویسی نمی‌کند؛ از منوی **Help → Check for updates…**
+  می‌توانید صفحهٔ دریافت را باز کنید.
+- اگر یک نسخه را «Later» بزنید، تا ۲۴ ساعت دوباره پیشنهاد نمی‌شود.
+- بررسی خودکار با گزینه‌ای در تنظیمات قابل خاموش‌کردن است (کلید `updates.auto_check`
+  در `data/settings.json`).
 
 ### نکته درباره‌ی CBR / RAR
 
@@ -151,13 +173,33 @@ build_windows.bat
 
 ```bat
 pip install -r requirements-dev.txt
+
+REM نسخه‌ی portable
 pyinstaller --noconfirm --clean DigitalLibrary.spec
+
+REM نسخه‌ی نصبی (پوشه‌ای، پایهٔ آپدیت درجا)
+pyinstaller --noconfirm --clean --distpath dist\installed DigitalLibraryInstalled.spec
 ```
 
-خروجی: `dist\DigitalLibrary.exe`
+خروجی‌ها: `dist\DigitalLibrary.exe` و `dist\installed\DigitalLibrary\`.
+
+ساختن فایل نصب (نیازمند NSIS):
+
+```bat
+makensis /DVERSION=2.4.0 /DSRCDIR=dist\installed\DigitalLibrary ^
+         /DOUTFILE=build\DigitalLibrary-2.4.0-Setup.exe installer\DigitalLibrary.nsi
+```
+
+ساختن بستهٔ آپدیت (فقط فایل‌های عوض‌شده):
+
+```bat
+python scripts\build_update_package.py --dist dist\installed\DigitalLibrary ^
+       --version 2.4.0 --previous <update-zip-نسخه-قبلی> ^
+       --output release\DigitalLibrary-2.4.0-windows-x64-update.zip
+```
 
 در گیت‌هاب، ورک‌فلوی **Build Windows executable** به‌صورت دستی یا با ساختن
-تگ `v*` اجرا می‌شود و فایل EXE را به‌عنوان Artifact/Release منتشر می‌کند.
+تگ `v*` اجرا می‌شود و هر سه فایل را به‌عنوان Artifact/Release منتشر می‌کند.
 
 ### آزمون‌ها
 
@@ -225,7 +267,12 @@ python scripts/smoke.py
 - Redesigned interface: live statistics hero, rounded cover cards with a hover
   action bar, floating selection bar, toasts and a shared widget library
 - Modern dark UI, saved layout, high-DPI friendly
-- Single-file Windows executable (no Python required) with a much smaller size
+- Windows releases come in three forms: a setup program (installs under
+  Program Files with shortcuts and an uninstaller), a single-file portable EXE,
+  and a small update package that only replaces the files that changed
+- The installed edition checks for updates at start: it shows the new version,
+  downloads it on request, verifies the SHA-256 checksum and restarts itself
+  with the update in place (never downloading the whole application again)
 
 ### Quick start
 
@@ -274,21 +321,31 @@ digital_library/
 │   └── logger.py
 ├── scripts/
 │   ├── smoke.py                # headless GUI test
-│   └── make_icon.py            # generates assets/icon.png + icon.ico
+│   ├── make_icon.py            # generates assets/icon.png + icon.ico
+│   └── build_update_package.py # diff-based update zip for installed copies
+├── installer/
+│   └── DigitalLibrary.nsi      # NSIS setup program
 ├── tests/                      # pytest test-suite
-├── DigitalLibrary.spec         # PyInstaller build definition
+├── DigitalLibrary.spec         # portable single-file build
+├── DigitalLibraryInstalled.spec# folder build used by the setup program
+├── build_config.py             # assets/hidden imports shared by both specs
 └── build_windows.bat
 ```
 
-### Building the executable
+### Building the Windows releases
 
 ```bat
 build_windows.bat
 ```
 
-The GitHub Actions workflow `Build Windows executable` builds and tests the
-application on `windows-latest`, then publishes the EXE as an artifact (and as a
-release when a `v*` tag is pushed).
+The GitHub Actions workflow `Build Windows executable` builds and tests both
+editions on `windows-latest`, packs the setup program with NSIS, computes the
+minimal update package against the previous release and publishes (on a `v*`
+tag) the setup ZIP, the portable EXE and the update ZIP.
+
+The installed edition keeps its data in `%LOCALAPPDATA%\DigitalLibrary`, so an
+in-place update can replace program files without touching the library. The
+portable edition keeps everything next to the EXE and never updates itself.
 
 ### License
 
