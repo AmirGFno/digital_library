@@ -131,6 +131,8 @@ class SelectCircle(QAbstractButton):
             painter.setBrush(QColor(theme.ACCENT))
             painter.drawEllipse(rect)
 
+            # The tick stays white: it sits on the accent fill, not on the
+            # window, so it must not follow the window colour.
             pen = QPen(QColor("#ffffff"), max(1.8, self.width() * 0.11))
             pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
@@ -226,7 +228,9 @@ class BookCard(QFrame):
 
         self.title_label = QLabel(self._elided_title())
         self.title_label.setObjectName("CardTitle")
-        self.title_label.setFixedHeight(19)
+        # The height follows the real font instead of a guessed 19 px, which
+        # cut the descenders off every title on a scaled Windows display.
+        self.title_label.setFixedHeight(theme.text_height(self.title_label, 2))
         self.title_label.setAlignment(
             Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
         )

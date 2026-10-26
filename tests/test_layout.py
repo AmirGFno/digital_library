@@ -355,19 +355,33 @@ def test_cards_never_hang_outside_the_grid(qt_app):
     window.close()
 
 
-def test_the_column_setting_is_only_an_upper_bound(qt_app):
+def test_the_grid_fits_itself_to_the_window(qt_app, sample, monkeypatch):
+    """There is no column setting: a wider window simply holds more covers."""
+    import ui.main_window as main_window
+
+    database, _book_id = sample
+    for index in range(2, 10):
+        database.add_book(str(database.db_path.parent / f"T {index:02d}.cbz"),
+                          title=f"T {index}", series_id=1, volume=str(index))
+    monkeypatch.setattr(main_window, "db", database)
+
     from ui.main_window import MainWindow
 
     window = MainWindow(run_startup=False)
-    window.columns_spin.setValue(6)
-    _show(qt_app, window, 900, 700)
-    window.flush_card_build()
-    qt_app.processEvents()
-    # The setting stays at 6 (that is what the user asked for) but only the
-    # number of columns that fit is drawn.
-    assert window.columns == 6
-    assert window.columns_that_fit() < 6
+
+    def columns_at(width):
+        _show(qt_app, window, width, 720)
+        window.flush_card_build()
+        qt_app.processEvents()
+        return window.columns_that_fit()
+
+    narrow, wide = columns_at(700), columns_at(1400)
+    assert 1 <= narrow < wide
+    # The layout follows the measurement, and nothing sticks out of the grid.
     assert window._layout_columns == window.columns_that_fit()
+    viewport = window.scroll_area.viewport().width()
+    for card in window.book_cards:
+        assert card.geometry().right() <= viewport
     window.close()
 
 
@@ -392,4 +406,88 @@ def test_the_selection_bar_shortens_its_labels_on_a_narrow_window(qt_app):
     if not window.book_cards:
         pytest.skip("the empty library has no cards to select")
     assert not overflowing(), overflowing()
+    window.close()
+
+
+def _clipped_labels(root, tolerance: int = 2):
+    """Visible labels and buttons whose text does not fit their own box.
+
+    The user saw a counter drawn on top of its caption and a number cut in
+    half. Both are the same bug: a widget was given less room than the font it
+    draws, so the text was clipped instead of laid out.
+    """
+    from PyQt6.QtWidgets import QAbstractButton, QLabel
+
+    problems = []
+    for child in root.findChildren((QLabel, QAbstractButton)):
+        if not child.isVisible() or child.text() == "":
+            continue
+        # An elided label shortens its own text on purpose.
+        if getattr(child, "elide", False) or type(child).__name__ == "ElidedLabel":
+            continue
+        hint = child.sizeHint()
+        if child.height() + tolerance < hint.height():
+            problems.append(f"{type(child).__name__} '{child.text()[:24]}' "
+                            f"{child.height()}px tall, needs {hint.height()}")
+        # Wrapping labels grow downwards; their width hint is a minimum.
+        if getattr(child, "wordWrap", lambda: False)():
+            continue
+        if child.width() + tolerance < hint.width():
+            problems.append(f"{type(child).__name__} '{child.text()[:24]}' "
+                            f"{child.width()}px wide, needs {hint.width()}")
+    return problems
+
+
+def test_no_text_is_cut_in_half(qt_app, sample, monkeypatch):
+    """Every visible piece of text fits the box that draws it."""
+    import ui.main_window as main_window
+
+    database, _book_id = sample
+    for index in range(2, 8):
+        database.add_book(str(database.db_path.parent / f"T {index:02d}.cbz"),
+                          title=f"T {index}", series_id=1, volume=str(index))
+    monkeypatch.setattr(main_window, "db", database)
+
+    from ui.main_window import MainWindow
+
+    for width, height in ((1440, 900), (1000, 700), (880, 620)):
+        window = MainWindow(run_startup=False)
+        window.resize(width, height)
+        window.show()
+        window.flush_card_build()
+        for _ in range(6):
+            qt_app.processEvents()
+        assert not _clipped_labels(window), (width, _clipped_labels(window))
+        window.close()
+
+
+def test_the_details_table_shares_the_window(qt_app, sample, monkeypatch):
+    """No sideways scrolling, and no column squeezed below its own header.
+
+    With fixed pixel widths the Title column was left 96 px wide on a 1280 px
+    window and Qt drew "Deep Fie…" in it. The table must divide the space it
+    is given instead of asking for more than it has.
+    """
+    import ui.main_window as main_window
+
+    database, _book_id = sample
+    for index in range(2, 8):
+        database.add_book(str(database.db_path.parent / f"T {index:02d}.cbz"),
+                          title=f"T {index}", series_id=1, volume=str(index))
+    monkeypatch.setattr(main_window, "db", database)
+
+    from ui.main_window import MainWindow
+
+    window = MainWindow(run_startup=False)
+    window._set_view_mode("details")
+    _show(qt_app, window, 1280, 800)
+
+    table = window.books_table
+    header = table.horizontalHeader()
+    viewport = table.viewport().width()
+    assert table.horizontalScrollBar().maximum() == 0
+    assert sum(header.sectionSize(i) for i in range(header.count())) <= viewport
+
+    title_width = header.sectionSize(0)
+    assert title_width >= 240, title_width
     window.close()
