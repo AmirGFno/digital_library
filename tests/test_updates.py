@@ -8,7 +8,15 @@ from PyQt6 import QtWidgets
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from config import APP_VERSION  # noqa: E402
 from utils import updater  # noqa: E402
+
+
+def next_version(version, step=1):
+    """2.4.2 + 1 -> 2.4.3, so the tests follow the shipped version."""
+    parts = [int(part) for part in str(version).split(".")]
+    parts[-1] += step
+    return ".".join(str(part) for part in parts)
 
 
 def step(version, from_version, size=2 * 1024 * 1024, notes=""):
@@ -25,19 +33,18 @@ def step(version, from_version, size=2 * 1024 * 1024, notes=""):
     )
 
 
-def chain_plan(count=2, first_from="2.4.0"):
+def chain_plan(count=2, first_from=APP_VERSION):
     steps = []
     current = first_from
-    parts = [int(part) for part in first_from.split(".")]
-    for index in range(count):
-        parts[-1] += 1
-        target = ".".join(str(part) for part in parts)
+    for index in range(1, count + 1):
+        target = next_version(first_from, index)
         steps.append(step(target, current))
         current = target
     return updater.UpdatePath(target=steps[-1].version, steps=steps)
 
 
-def full_plan(version="2.5.0"):
+def full_plan(version=None):
+    version = version or next_version(APP_VERSION, 30)
     package = updater.UpdateInfo(
         version=version,
         tag=f"v{version}",
@@ -51,7 +58,8 @@ def full_plan(version="2.5.0"):
     return updater.UpdatePath(target=version, steps=[], full_package=package)
 
 
-def empty_plan(version="2.5.0"):
+def empty_plan(version=None):
+    version = version or next_version(APP_VERSION, 30)
     return updater.UpdatePath(target=version, steps=[], missing_from="2.0.0")
 
 
@@ -68,11 +76,11 @@ def test_the_dialog_counts_the_waiting_updates(qt_app):
     assert dialog.pages.currentIndex() == 0
     assert dialog.download_button.text() == "Download and install"
     assert dialog.later_button.text() == "Later"
-    assert "2.4.3" in dialog.version_title.text()
+    assert plan.target in dialog.version_title.text()
     texts = " | ".join(label.text() for label in dialog.findChildren(QtWidgets.QLabel))
     assert "3 updates" in texts
     # the notes come from the newest release
-    assert "Notes for 2.4.3" in dialog.notes_browser.toPlainText()
+    assert f"Notes for {plan.target}" in dialog.notes_browser.toPlainText()
 
 
 def test_the_dialog_says_how_many_packages_and_how_big(qt_app):
@@ -162,7 +170,7 @@ def test_a_full_package_is_offered_like_any_other_update(qt_app):
     dialog = UpdateDialog(plan)
 
     assert dialog.download_button.text() == "Download and install"
-    assert "2.5.0" in dialog.version_title.text()
+    assert dialog.plan.target in dialog.version_title.text()
     assert dialog.plan.count == 1
 
 
@@ -172,7 +180,7 @@ def test_a_full_package_says_that_it_is_the_whole_program(qt_app):
     dialog = UpdateDialog(full_plan())
     texts = " | ".join(label.text() for label in dialog.findChildren(QtWidgets.QLabel))
 
-    assert "complete 2.5.0 program" in texts
+    assert f"complete {dialog.plan.target} program" in texts
     assert "complete program, one download" in texts
     assert "only replaces the files that changed" not in texts
 
@@ -290,7 +298,7 @@ def test_a_chain_reaches_the_dialog(window, monkeypatch):
     window._on_update_checked(plan, manual=True)
 
     assert shown and len(shown[0].plan.steps) == 3
-    assert shown[0].plan.target == "2.4.3"
+    assert shown[0].plan.target == plan.target
 
 
 def test_an_old_answer_never_opens_the_dialog(window, monkeypatch):
@@ -301,7 +309,7 @@ def test_an_old_answer_never_opens_the_dialog(window, monkeypatch):
     toasts = []
     monkeypatch.setattr(window, "_toast", lambda message, kind="info": toasts.append(message))
 
-    window._on_update_checked(updater.UpdatePath(target="2.4.0"), manual=True)
+    window._on_update_checked(updater.UpdatePath(target=APP_VERSION), manual=True)
 
     assert shown == []
     assert toasts and "newest version" in toasts[0]
@@ -316,7 +324,7 @@ def test_a_postponed_version_is_not_shown_again(window, monkeypatch):
     monkeypatch.setattr(
         main_window.settings,
         "deferred_update",
-        lambda: ("2.4.2", datetime.now(timezone.utc).isoformat()),
+        lambda: (chain_plan(2).target, datetime.now(timezone.utc).isoformat()),
     )
 
     window._on_update_checked(chain_plan(2), manual=False)
@@ -333,7 +341,7 @@ def test_a_manual_check_ignores_the_postponement(window, monkeypatch):
     monkeypatch.setattr(
         main_window.settings,
         "deferred_update",
-        lambda: ("2.4.2", datetime.now(timezone.utc).isoformat()),
+        lambda: (chain_plan(2).target, datetime.now(timezone.utc).isoformat()),
     )
 
     window._on_update_checked(chain_plan(2), manual=True)
@@ -346,7 +354,7 @@ def test_a_broken_chain_sends_the_user_to_the_setup_program(window, monkeypatch)
     monkeypatch.setattr(updater, "is_installed_copy", lambda: True)
     monkeypatch.setattr(window, "_offer_full_download", offered.append)
 
-    plan = empty_plan("2.5.0")
+    plan = empty_plan()
     window._on_update_checked(plan, manual=True)
 
     assert offered == [plan]
@@ -359,7 +367,7 @@ def test_the_portable_edition_gets_a_link_instead_of_an_update(window, monkeypat
 
     window._on_update_checked(chain_plan(2), manual=True)
 
-    assert offered == ["2.4.2"]
+    assert offered == [chain_plan(2).target]
 
 
 def test_an_offline_check_only_warns_when_the_user_asked(window, monkeypatch):
@@ -386,7 +394,7 @@ def test_closing_the_dialog_postpones_that_version(window, monkeypatch):
 
     window._on_update_checked(chain_plan(2), manual=False)
 
-    assert deferred == ["2.4.2"]
+    assert deferred == [chain_plan(2).target]
 
 
 def test_accepting_the_update_closes_the_app_for_the_helper(window, monkeypatch):
@@ -425,7 +433,7 @@ def test_the_offer_waits_while_another_dialog_is_open(window, monkeypatch):
     monkeypatch.setattr(window, "_busy_with_a_dialog", lambda: False)
     window._resume_pending_update()
 
-    assert shown and shown[0].plan.target == "2.4.2"
+    assert shown and shown[0].plan.target == chain_plan(2).target
     assert window._pending_update is None
 
 

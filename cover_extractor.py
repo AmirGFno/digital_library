@@ -6,7 +6,9 @@ import hashlib
 import zipfile
 import tarfile
 import io
-from pathlib import Path
+import shutil
+import tempfile
+from pathlib import Path, PurePosixPath
 from typing import List, Optional
 from PIL import Image, ImageDraw, ImageFont
 
@@ -15,7 +17,11 @@ from config import (
     SUPPORTED_EXTENSIONS
 )
 from utils.logger import logger
-from utils.helpers import get_file_extension, get_filename_without_extension
+from utils.helpers import (
+    get_file_extension,
+    get_filename_without_extension,
+    natural_sort_key,
+)
 
 import pdf_engine
 from utils import rar_tools
@@ -40,7 +46,13 @@ except ImportError:
 class CoverExtractor:
     """Extracts and caches cover images from various book formats."""
     
-    IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'}
+    IMAGE_EXTENSIONS = {
+        '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.tif', '.tiff'
+    }
+
+    # Bumped whenever the way the cover page is chosen changes. It is part of
+    # the cache key, so covers built by an older rule are rebuilt once.
+    COVER_ALGORITHM_VERSION = 2
     
     def __init__(self, cache_dir: Path = THUMBNAILS_DIR):
         self.cache_dir = cache_dir
@@ -67,9 +79,32 @@ class CoverExtractor:
         was replaced (a better scan of the same comic) gets a fresh cover instead
         of showing the old one forever.
         """
-        key = f"{filepath}|{fingerprint}" if fingerprint else filepath
+        key = f"v{self.COVER_ALGORITHM_VERSION}|{filepath}|{fingerprint}"
         file_hash = hashlib.md5(key.encode()).hexdigest()
         return self.cache_dir / f"{file_hash}.jpg"
+
+    @staticmethod
+    def _legacy_cache_names(filepath: str, fingerprint: str) -> List[str]:
+        """Cache file names this book could have before the ordering fix.
+
+        The key used to be ``path`` and later ``path|fingerprint``; both were
+        replaced by a versioned key, so those leftovers are removed once the
+        new cover exists instead of sitting in the thumbnails folder forever.
+        """
+        keys = [filepath]
+        if fingerprint:
+            keys.append(f"{filepath}|{fingerprint}")
+        return [f"{hashlib.md5(key.encode()).hexdigest()}.jpg" for key in keys]
+
+    def _drop_legacy_covers(self, filepath: str, fingerprint: str, keep: Path) -> None:
+        for name in self._legacy_cache_names(filepath, fingerprint):
+            for directory in (self.cache_dir, self._fallback_dir):
+                stale = directory / name
+                if stale != keep and stale.is_file():
+                    try:
+                        stale.unlink()
+                    except OSError:
+                        logger.debug(f"Could not remove stale cover {stale}")
 
     @staticmethod
     def _fingerprint(filepath: str) -> str:
@@ -121,6 +156,7 @@ class CoverExtractor:
                     quality=THUMBNAIL_QUALITY
                 )
                 logger.debug(f"Cover saved to cache: {cache_path}")
+                self._drop_legacy_covers(filepath, fingerprint, cache_path)
                 return str(cache_path)
             except Exception as e:
                 logger.error(f"Failed to save cover for {filepath}: {e}")
@@ -136,6 +172,7 @@ class CoverExtractor:
                 fallback_path = self._fallback_dir / cache_path.name
                 fallback.save(fallback_path, THUMBNAIL_FORMAT, quality=THUMBNAIL_QUALITY)
                 logger.debug("Fallback cover saved")
+                self._drop_legacy_covers(filepath, fingerprint, fallback_path)
                 return str(fallback_path)
             except Exception as e:
                 logger.error(f"Failed to save fallback cover: {e}")
@@ -158,7 +195,7 @@ class CoverExtractor:
                 return self._extract_rar_cover(filepath)
             elif ext in ('.7z', '.cb7'):
                 return self._extract_7z_cover(filepath)
-            elif ext in ['.tar', '.tar.gz', '.tgz']:
+            elif ext in ['.tar', '.tar.gz', '.tgz', '.cbt']:
                 return self._extract_tar_cover(filepath)
         except Exception as e:
             logger.error(f"Failed to extract cover from {filepath}: {e}")
@@ -180,34 +217,21 @@ class CoverExtractor:
         return None
     
     def _extract_zip_cover(self, filepath: str) -> Optional[Image.Image]:
-        """Extract the first image from a ZIP/CBZ archive."""
+        """Extract the first page of a ZIP/CBZ archive as the cover."""
         try:
             with zipfile.ZipFile(filepath, 'r') as zf:
-                # Get all image files
-                image_files = []
-                for f in zf.namelist():
-                    if Path(f).suffix.lower() in self.IMAGE_EXTENSIONS:
-                        if not f.startswith('__MACOSX'):
-                            image_files.append(f)
-                
-                # Sort to find cover
-                image_files.sort()
-                
-                if image_files:
-                    # Try to find cover by name
-                    cover_keywords = ['cover', '01', '001', 'first', '0001', 'page001']
-                    for keyword in cover_keywords:
-                        for img_file in image_files:
-                            if keyword.lower() in img_file.lower():
-                                with zf.open(img_file) as img_file_obj:
-                                    return Image.open(io.BytesIO(img_file_obj.read())).convert('RGB')
-                    
-                    # Otherwise use first image
-                    with zf.open(image_files[0]) as img_file_obj:
-                        return Image.open(io.BytesIO(img_file_obj.read())).convert('RGB')
+                names = [info.filename for info in zf.infolist() if not info.is_dir()]
+                for name in self._cover_candidates(names):
+                    try:
+                        with zf.open(name) as handle:
+                            return Image.open(io.BytesIO(handle.read())).convert('RGB')
+                    except Exception as exc:
+                        # A damaged page must not cost the whole cover.
+                        logger.debug(f"Skipping unreadable page {name}: {exc}")
+                        continue
         except Exception as e:
             logger.error(f"ZIP extraction error for {filepath}: {e}")
-        
+
         return None
     
     def _extract_rar_cover(self, filepath: str) -> Optional[Image.Image]:
@@ -242,8 +266,6 @@ class CoverExtractor:
                         info.filename
                         for info in archive.infolist()
                         if not info.isdir()
-                        and Path(info.filename).suffix.lower() in self.IMAGE_EXTENSIONS
-                        and not info.filename.startswith("__MACOSX")
                     ]
                     if not names:
                         return None
@@ -280,79 +302,109 @@ class CoverExtractor:
         return None
 
     @staticmethod
+    def _normalize_entry(name: str) -> str:
+        """Archive entry name with forward slashes and no "./" noise."""
+        normalized = str(name).replace("\\", "/").strip()
+        while normalized.startswith("./"):
+            normalized = normalized[2:]
+        return normalized.lstrip("/")
+
+    @staticmethod
+    def _is_page_name(name: str) -> bool:
+        """True for a real comic page, false for folders and archive clutter."""
+        normalized = CoverExtractor._normalize_entry(name)
+        if not normalized or normalized.endswith("/"):
+            return False
+        parts = [part for part in normalized.split("/") if part]
+        if any(part == "__MACOSX" for part in parts):
+            return False
+        filename = parts[-1]
+        if filename.startswith("."):
+            # .DS_Store, macOS resource forks (._page.jpg) and hidden files.
+            return False
+        if filename.lower() in {"thumbs.db", "desktop.ini"}:
+            return False
+        return Path(filename).suffix.lower() in CoverExtractor.IMAGE_EXTENSIONS
+
+    @staticmethod
+    def _page_sort_key(name: str) -> tuple:
+        """Reading order: 1.jpg, 2.jpg, 10.jpg - never plain alphabetical.
+
+        The whole relative path is compared naturally, so pages inside folders
+        keep their chapter order as well.
+        """
+        normalized = CoverExtractor._normalize_entry(name)
+        return (natural_sort_key(normalized), normalized.lower())
+
+    @staticmethod
     def _cover_candidates(names: List[str]) -> List[str]:
-        """Order archive entries so the most likely cover is read first."""
-        ordered = sorted(names, key=lambda value: value.lower())
-        priority: List[str] = []
-        for name in ordered:
-            lowered = Path(name).name.lower()
-            if "cover" in lowered:
-                priority.append(name)
-        if priority:
-            rest = [name for name in ordered if name not in priority]
-            return priority + rest
-        return ordered
+        """Order archive entries the way a comic reader opens them.
+
+        The first page of the comic is the cover. Only a page literally named
+        "cover" is moved in front of it, which is the convention readers such
+        as Komga and Kavita follow.
+        """
+        pages = [name for name in names if CoverExtractor._is_page_name(name)]
+        pages.sort(key=CoverExtractor._page_sort_key)
+        named_cover = [
+            name for name in pages
+            if Path(CoverExtractor._normalize_entry(name)).stem.strip().lower()
+            == "cover"
+        ]
+        if named_cover:
+            return named_cover + [name for name in pages if name not in named_cover]
+        return pages
 
     def _extract_7z_cover(self, filepath: str) -> Optional[Image.Image]:
-        """Extract the first image from a 7z archive."""
+        """Extract the first page of a 7z archive as the cover."""
         if not HAS_PY7ZR:
             return None
-        
+
         try:
             with py7zr.SevenZipFile(filepath, 'r') as sz:
-                all_files = sz.getnames()
-                image_files = sorted([
-                    f for f in all_files
-                    if Path(f).suffix.lower() in self.IMAGE_EXTENSIONS
-                ])
-                
-                if image_files:
-                    # Try to find cover by name
-                    cover_keywords = ['cover', '01', '001', 'first', '0001', 'page001']
-                    for keyword in cover_keywords:
-                        for img_file in image_files:
-                            if keyword.lower() in img_file.lower():
-                                sz.extract(targets=[img_file])
-                                extracted = sz.read([img_file])
-                                for name, data in extracted.items():
-                                    return Image.open(io.BytesIO(data.read())).convert('RGB')
-                    
-                    # Otherwise use first image
-                    sz.extract(targets=[image_files[0]])
-                    extracted = sz.read([image_files[0]])
-                    for name, data in extracted.items():
-                        return Image.open(io.BytesIO(data.read())).convert('RGB')
+                names = sz.getnames()
+            for name in self._cover_candidates(names):
+                folder = tempfile.mkdtemp(prefix="dl-7z-")
+                try:
+                    # One page at a time, unpacked in a scratch folder: py7zr
+                    # streams sequentially and its reading API differs between
+                    # releases, while ``extract`` is stable.
+                    with py7zr.SevenZipFile(filepath, 'r') as sz:
+                        sz.extract(path=folder, targets=[name])
+                    extracted = Path(
+                        folder, *PurePosixPath(name.replace("\\", "/")).parts
+                    )
+                    if not extracted.is_file():
+                        continue
+                    with Image.open(extracted) as image:
+                        return image.convert('RGB')
+                except Exception as exc:
+                    logger.debug(f"Skipping unreadable page {name}: {exc}")
+                    continue
+                finally:
+                    shutil.rmtree(folder, ignore_errors=True)
         except Exception as e:
             logger.error(f"7z extraction error for {filepath}: {e}")
-        
+
         return None
     
     def _extract_tar_cover(self, filepath: str) -> Optional[Image.Image]:
-        """Extract the first image from a tar archive."""
+        """Extract the first page of a tar archive as the cover."""
         try:
             with tarfile.open(filepath, 'r:*') as tf:
-                image_files = sorted([
-                    m for m in tf.getmembers()
-                    if m.isfile() and Path(m.name).suffix.lower() in self.IMAGE_EXTENSIONS
-                ], key=lambda x: x.name)
-                
-                if image_files:
-                    # Try to find cover by name
-                    cover_keywords = ['cover', '01', '001', 'first', '0001', 'page001']
-                    for keyword in cover_keywords:
-                        for img_file in image_files:
-                            if keyword.lower() in img_file.name.lower():
-                                f = tf.extractfile(img_file)
-                                if f:
-                                    return Image.open(io.BytesIO(f.read())).convert('RGB')
-                    
-                    # Otherwise use first image
-                    f = tf.extractfile(image_files[0])
-                    if f:
-                        return Image.open(io.BytesIO(f.read())).convert('RGB')
+                members = {m.name: m for m in tf.getmembers() if m.isfile()}
+                for name in self._cover_candidates(list(members)):
+                    try:
+                        handle = tf.extractfile(members[name])
+                        if handle is None:
+                            continue
+                        return Image.open(io.BytesIO(handle.read())).convert('RGB')
+                    except Exception as exc:
+                        logger.debug(f"Skipping unreadable page {name}: {exc}")
+                        continue
         except Exception as e:
             logger.error(f"TAR extraction error for {filepath}: {e}")
-        
+
         return None
     
     def _resize_cover(self, image: Image.Image) -> Image.Image:
@@ -427,14 +479,19 @@ class CoverExtractor:
             for directory in (self.cache_dir, self._fallback_dir):
                 if not directory.exists():
                     continue
+                fingerprint = self._fingerprint(filepath)
+                wanted = {
+                    self._get_cache_path(filepath).stem,
+                    self._get_cache_path(filepath, fingerprint).stem,
+                }
+                wanted.update(
+                    Path(name).stem
+                    for name in self._legacy_cache_names(filepath, fingerprint)
+                )
                 for cache_file in directory.glob("*"):
                     if not cache_file.is_file():
                         continue
-                    # Match both the plain and the fingerprinted cache key.
-                    if cache_file.stem in (
-                        self._get_cache_path(filepath).stem,
-                        self._get_cache_path(filepath, self._fingerprint(filepath)).stem,
-                    ):
+                    if cache_file.stem in wanted:
                         cache_file.unlink()
                         removed += 1
             if removed:
