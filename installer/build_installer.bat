@@ -27,7 +27,9 @@ if not exist "dist\installed\DigitalLibrary\DigitalLibrary.exe" (
 echo Building DigitalLibrary-%VERSION%-Setup.exe ...
 if not exist build\installer mkdir build\installer
 "%MAKENSIS%" /DVERSION=%VERSION% "/DSRCDIR=%CD%\dist\installed\DigitalLibrary" ^
-    "/DOUTFILE=%CD%\build\installer\DigitalLibrary-%VERSION%-Setup.exe" installer\DigitalLibrary.nsi
+    "/DAPP_ICON=%CD%\assets\icon.ico" ^
+    "/DOUTFILE=%CD%\build\installer\DigitalLibrary-%VERSION%-Setup.exe" ^
+    "%CD%\installer\DigitalLibrary.nsi"
 if errorlevel 1 exit /b 1
 
 echo.
