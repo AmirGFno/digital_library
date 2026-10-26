@@ -465,7 +465,9 @@ class EmptyState(QWidget):
     def __init__(self, title: str, subtitle: str, parent=None):
         super().__init__(parent)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(40, 60, 40, 60)
+        # Tight vertical margins: the placeholder may show at 1024x600, where
+        # every pixel of the welcome art competes with the toolbar.
+        layout.setContentsMargins(40, 18, 40, 18)
         layout.setSpacing(12)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -521,19 +523,19 @@ class EmptyState(QWidget):
     @staticmethod
     def _artwork() -> QPixmap:
         """Three neutral books and one accent book, in the current palette."""
-        pixmap = QPixmap(150, 96)
+        pixmap = QPixmap(128, 82)
         pixmap.fill(QColor(0, 0, 0, 0))
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         colors = [theme.BORDER_STRONG, theme.SURFACE_HOVER, theme.BORDER]
         for index, color in enumerate(colors):
-            x = 18 + index * 30
-            y = 12 + index * 6
+            x = 14 + index * 26
+            y = 10 + index * 5
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QColor(color))
-            painter.drawRoundedRect(x, y, 56, 74, 6, 6)
+            painter.drawRoundedRect(x, y, 48, 63, 6, 6)
         painter.setBrush(QColor(theme.ACCENT))
-        painter.drawRoundedRect(66, 20, 56, 74, 6, 6)
+        painter.drawRoundedRect(56, 17, 48, 63, 6, 6)
         painter.end()
         return pixmap
 

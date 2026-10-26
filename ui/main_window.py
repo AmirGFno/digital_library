@@ -102,6 +102,10 @@ from utils.reader_manager import SYSTEM_READER_ID, reader_manager
 from utils import updater
 from utils.settings import settings
 
+# The empty library placeholder may not force the window to be taller than
+# a 1366x768 laptop at 125 % scaling (a 614 px tall work area).
+EMPTY_STATE_HEIGHT = 260
+
 SORT_OPTIONS = [
     ("Series && volume", "series"),
     ("Title (A-Z)", "title"),
@@ -2022,7 +2026,7 @@ class MainWindow(QMainWindow):
             empty.add_requested.connect(self._add_book)
             empty.folder_requested.connect(self._bulk_import)
 
-        empty.setMinimumHeight(420)
+        empty.setMinimumHeight(EMPTY_STATE_HEIGHT)
         self.library_grid.grid_layout.addWidget(
             empty, 0, 0, 1, max(1, self.columns)
         )
@@ -2043,7 +2047,7 @@ class MainWindow(QMainWindow):
         else:
             detail_empty.add_requested.connect(self._add_book)
             detail_empty.folder_requested.connect(self._bulk_import)
-        detail_empty.setMinimumHeight(420)
+        detail_empty.setMinimumHeight(EMPTY_STATE_HEIGHT)
         self.empty_layout.addWidget(detail_empty)
 
     def _clear_filters(self):
