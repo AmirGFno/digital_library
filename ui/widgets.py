@@ -530,6 +530,54 @@ def elide(text: str, limit: int = 42) -> str:
     return text[: limit - 1].rstrip() + "…"
 
 
+def elide_to_width(text: str, label, width: int = 0) -> str:
+    """Cut ``text`` with an ellipsis so it fits in ``width`` pixels.
+
+    Qt clips a QLabel with no word wrap by cutting it mid-letter, which looks
+    broken next to the counters in the sidebar. The text is shortened by whole
+    characters instead and the full value goes into the tooltip.
+    """
+    text = str(text or "")
+    if not text:
+        return text
+    pixels = width or (label.width() if label is not None else 0)
+    if label is None or pixels <= 0:
+        return text
+    metrics = label.fontMetrics()
+    if metrics.horizontalAdvance(text) <= pixels:
+        return text
+    ellipsis = "…"
+    keep = text
+    while keep and metrics.horizontalAdvance(keep + ellipsis) > pixels:
+        keep = keep[:-1]
+    return (keep.rstrip() + ellipsis) if keep else ellipsis
+
+
+class ElidedLabel(QLabel):
+    """A label that always ends with “…” instead of a cut letter."""
+
+    def __init__(self, text: str = "", parent=None):
+        super().__init__(text, parent)
+        self._full_text = str(text or "")
+        self.setToolTip(self._full_text)
+        self.setMinimumWidth(40)
+
+    def setText(self, text: str):  # noqa: N802 - Qt API
+        self._full_text = str(text or "")
+        self.setToolTip(self._full_text)
+        self._refresh()
+
+    def full_text(self) -> str:
+        return self._full_text
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._refresh()
+
+    def _refresh(self):
+        super().setText(elide_to_width(self._full_text, self, self.width()))
+
+
 def workspace_badge(format_name: str) -> Tuple[str, str]:
     """Return (label, colour) for a file format badge."""
     value = format_name.upper().lstrip(".")

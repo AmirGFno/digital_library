@@ -27,7 +27,7 @@ from PyQt6.QtWidgets import (
 
 from database import db
 from ui import theme
-from ui.widgets import Divider, IconButton
+from ui.widgets import Divider, ElidedLabel, IconButton
 
 ROW_HEIGHT = 50
 
@@ -70,7 +70,9 @@ class SeriesRow(QWidget):
         text_box = QVBoxLayout()
         text_box.setSpacing(1)
         text_box.setContentsMargins(0, 0, 0, 0)
-        title = QLabel(name)
+        # A long series name is shortened with “…” instead of being cut in
+        # the middle of a letter (the full name is in the tooltip).
+        title = ElidedLabel(name)
         title.setStyleSheet(
             f"color: {theme.TEXT}; font-size: 12px; font-weight: 600;"
         )

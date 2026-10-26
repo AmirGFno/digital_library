@@ -47,7 +47,7 @@ from config import CARD_HEIGHT, CARD_WIDTH, COVER_HEIGHT
 from cover_extractor import cover_extractor
 from database import db
 from ui import theme
-from ui.widgets import elide
+from ui.widgets import elide, elide_to_width
 from utils.logger import logger
 from utils.reader_manager import SYSTEM_READER_ID, reader_manager
 
@@ -230,6 +230,7 @@ class BookCard(QFrame):
         self.title_label.setAlignment(
             Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
         )
+        self.title_label.setToolTip(self._display_title())
         layout.addWidget(self.title_label)
 
         status_row = QHBoxLayout()
@@ -335,8 +336,16 @@ class BookCard(QFrame):
         return str(title)
 
     def _elided_title(self) -> str:
-        """Short, single-line title that fits the card width."""
-        return elide(self._display_title(), 24)
+        """Short, single-line title that really fits the card width.
+
+        Cutting after a fixed number of characters left the last letter half
+        visible on cards with wide glyphs; the label's own font decides now.
+        """
+        label = getattr(self, "title_label", None)
+        width = label.width() if label is not None else 0
+        if width <= 0:
+            width = CARD_WIDTH - 18
+        return elide_to_width(self._display_title(), label or self, width)
 
     def _info_text(self) -> str:
         """One short line under the title: volume plus who made it."""
@@ -352,7 +361,19 @@ class BookCard(QFrame):
             parts.append(str(self.book_data["year"]))
         if not parts:
             parts.append(Path(self.book_data["filepath"]).suffix.upper().lstrip("."))
-        return "  ·  ".join(parts)
+        text = "  ·  ".join(parts)
+        label = getattr(self, "info_label", None)
+        width = label.width() if label is not None else 0
+        if width > 0:
+            text = elide_to_width(text, label, width)
+        return text
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "title_label"):
+            self.title_label.setText(self._elided_title())
+        if hasattr(self, "info_label"):
+            self.info_label.setText(self._info_text())
 
     def _repolish(self, *widgets):
         """Re-read the theme rules after a dynamic property changed."""

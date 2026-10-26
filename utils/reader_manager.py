@@ -652,29 +652,36 @@ class ReaderManager:
                 command = ["open", "-a", reader.executable, str(filepath)]
             elif reader.source == "system":
                 return self.open_system_default(filepath)
-            elif WINDOWS:
-                command = [reader.executable]
-                command.extend(self._format_arguments(reader, filepath))
-                if not any("{file}" in arg for arg in reader.arguments):
-                    command.append(str(filepath))
-                # No shell: avoids command injection and quoting bugs.
-                subprocess.Popen(command, close_fds=True)
-                logger.info(f"Opened {filepath} with {reader.name}")
-                return True, f"Opened with {reader.name}"
             else:
                 command = [reader.executable]
                 command.extend(self._format_arguments(reader, filepath))
                 if not any("{file}" in arg for arg in reader.arguments):
                     command.append(str(filepath))
-                subprocess.Popen(
-                    command,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    start_new_session=True,
-                    close_fds=True,
-                )
+                # No shell: avoids command injection and quoting bugs.
+                if WINDOWS:
+                    subprocess.Popen(command, close_fds=True)
+                else:
+                    subprocess.Popen(
+                        command,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        start_new_session=True,
+                        close_fds=True,
+                    )
                 logger.info(f"Opened {filepath} with {reader.name}")
                 return True, f"Opened with {reader.name}"
+        except FileNotFoundError:
+            logger.error(f"Reader is gone: {reader.executable}")
+            return False, f"{reader.name} was not found at {reader.executable}"
+        except OSError as exc:
+            # 13 = permission denied, 115 = still copying, 267 = bad directory.
+            if getattr(exc, "winerror", None) == 193:
+                logger.error(f"Not an executable: {reader.executable}")
+                return False, f"{reader.name} cannot be started (not an .exe)"
+            if getattr(exc, "winerror", None) == 1223:
+                return False, "The launch was cancelled"
+            logger.error(f"Failed to open {filepath} with {reader.name}: {exc}")
+            return False, str(exc)
         except Exception as exc:
             logger.error(f"Failed to open {filepath} with {reader.name}: {exc}")
             return False, str(exc)
