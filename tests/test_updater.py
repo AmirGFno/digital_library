@@ -265,18 +265,21 @@ def test_an_elevated_helper_restarts_the_app_as_the_normal_user(tmp_path):
     assert "Start-Process -FilePath $exe" in script  # fallback kept
 
 
-def test_the_install_folder_that_needs_admin_permission_is_detected(tmp_path):
-    writable = tmp_path / "Local AppData" / "Digital Library"
-    writable.mkdir(parents=True)
-    assert updater.needs_elevation(writable) is False
+def test_the_install_folder_that_needs_admin_permission_is_detected(tmp_path, monkeypatch):
+    folder = tmp_path / "Program Files" / "Digital Library"
+    folder.mkdir(parents=True)
 
-    locked = tmp_path / "Program Files" / "Digital Library"
-    locked.mkdir(parents=True)
-    locked.chmod(0o500)
-    try:
-        assert updater.needs_elevation(locked) is True
-    finally:
-        locked.chmod(0o700)
+    # A folder the user owns: the probe file can be written and removed.
+    assert updater.needs_elevation(folder) is False
+
+    # Program Files for a normal user: the write is refused by Windows. The
+    # permission itself is simulated, because chmod does not lock a folder on
+    # Windows and the CI runs this suite there as well.
+    def refuse(self, *args, **kwargs):
+        raise PermissionError("access denied")
+
+    monkeypatch.setattr(Path, "write_text", refuse)
+    assert updater.needs_elevation(folder) is True
 
 
 def test_paths_with_quotes_cannot_break_the_helper(tmp_path):
