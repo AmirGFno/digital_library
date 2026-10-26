@@ -2092,7 +2092,12 @@ class MainWindow(QMainWindow):
         book = db.get_book(book_id)
         if not book:
             return
-        dialog = SetCustomCoverDialog(book_id, book.get("title") or "Untitled", self)
+        dialog = SetCustomCoverDialog(
+            book_id,
+            book.get("title") or "Untitled",
+            self,
+            filepath=book.get("filepath") or "",
+        )
         if dialog.exec():
             self._refresh_card(book_id)
 

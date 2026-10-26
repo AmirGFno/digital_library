@@ -6,6 +6,7 @@ from pathlib import Path
 import os
 
 from PyQt6.QtWidgets import (
+    QWidget,
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QLineEdit, QPushButton, QComboBox, QFileDialog,
     QMessageBox, QListWidget, QListWidgetItem, QCheckBox,
@@ -13,13 +14,16 @@ from PyQt6.QtWidgets import (
     QFrame,
     QApplication
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QPixmap
+from PIL import Image
+import io
 
 from comic_metadata import read_metadata
 from config import ALL_EXTENSIONS
 from database import db
 from importer import scan_folder
+from ui import layout as layout_tools
 from utils.settings import settings
 
 
@@ -515,15 +519,22 @@ class BulkImportDialog(QDialog):
 
 
 class SetCustomCoverDialog(QDialog):
-    """Dialog for setting a custom cover image."""
-    
-    def __init__(self, book_id: int, book_title: str, parent=None):
+    """Choose the cover of one book.
+
+    Two sources are offered: an image file from disk, and - much more useful
+    for comics - any page inside the book itself. Automatic cover detection is
+    right for almost every file, but an archive that starts with an advertising
+    page needs a manual choice, and hunting for an image on disk is not one.
+    """
+
+    def __init__(self, book_id: int, book_title: str, parent=None,
+                 filepath: str = ""):
         super().__init__(parent)
         self.book_id = book_id
         self.setWindowTitle(f"Set Custom Cover - {book_title}")
-        self.setMinimumWidth(500)
-        self.setMinimumHeight(400)
+        self.filepath = str(filepath or "")
         self.selected_image = None
+        self._page_bytes: Optional[bytes] = None
         self._setup_ui()
     
     def _setup_ui(self):
@@ -537,6 +548,30 @@ class SetCustomCoverDialog(QDialog):
             accent=theme.GOLD,
         )
 
+        body_widget = QWidget()
+        body = QHBoxLayout(body_widget)
+        body.setContentsMargins(0, 0, 0, 0)
+        body.setSpacing(14)
+        layout.addWidget(body_widget, 1)
+
+        # Pages of the book itself -------------------------------------
+        pages_column = QVBoxLayout()
+        pages_column.setSpacing(6)
+        self.pages_caption = QLabel("PAGES IN THIS BOOK")
+        self.pages_caption.setStyleSheet(
+            f"color: {theme.TEXT_DIM}; font-size: 10px; font-weight: 700;"
+        )
+        pages_column.addWidget(self.pages_caption)
+        self.pages_list = QListWidget()
+        self.pages_list.setMinimumWidth(210)
+        self.pages_list.currentItemChanged.connect(self._on_page_selected)
+        pages_column.addWidget(self.pages_list, 1)
+        self.pages_hint = QLabel("")
+        self.pages_hint.setWordWrap(True)
+        self.pages_hint.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
+        pages_column.addWidget(self.pages_hint)
+        body.addLayout(pages_column, 1)
+
         self.preview_label = QLabel()
         self.preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.preview_label.setMinimumHeight(240)
@@ -546,7 +581,7 @@ class SetCustomCoverDialog(QDialog):
             f" border-radius: 14px; color: {theme.TEXT_DIM}; font-size: 12px; }}"
         )
         self.preview_label.setText("No image selected")
-        layout.addWidget(self.preview_label, 1)
+        body.addWidget(self.preview_label, 2)
 
         self.info_label = QLabel("")
         self.info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -555,6 +590,10 @@ class SetCustomCoverDialog(QDialog):
         )
         layout.addWidget(self.info_label)
 
+        buttons_widget = QWidget()
+        buttons_box = QVBoxLayout(buttons_widget)
+        buttons_box.setContentsMargins(0, 0, 0, 0)
+        buttons_box.setSpacing(10)
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(8)
         browse_btn = QPushButton("Browse image...")
@@ -565,12 +604,74 @@ class SetCustomCoverDialog(QDialog):
         btn_layout.addWidget(browse_btn)
         btn_layout.addWidget(clear_btn)
         btn_layout.addStretch()
-        layout.addLayout(btn_layout)
+        buttons_box.addLayout(btn_layout)
 
         actions = _dialog_actions(self, "Set as cover", self._set_cover)
         self.primary_button.setEnabled(False)
         self.set_btn = self.primary_button
-        layout.addLayout(actions)
+        buttons_box.addLayout(actions)
+        layout.addWidget(buttons_widget)
+
+        self._fill_pages()
+        # keep_first=1: the themed header of _dialog_shell stays in place.
+        layout_tools.finish_dialog(
+            self, QSize(860, 620), QSize(560, 360), keep_first=1, keep_last=1
+        )
+
+    # ------------------------------------------------------------------
+    # Pages of the book
+    # ------------------------------------------------------------------
+    def _fill_pages(self):
+        from cover_extractor import cover_extractor
+
+        pages = cover_extractor.list_pages(self.filepath) if self.filepath else []
+        self.pages_list.clear()
+        for index, name in enumerate(pages):
+            item = QListWidgetItem(f"{index + 1}.  {name}")
+            item.setData(Qt.ItemDataRole.UserRole, name)
+            item.setToolTip(name)
+            if index == 0:
+                item.setText(f"{index + 1}.  {name}   ← current cover")
+            self.pages_list.addItem(item)
+
+        if pages:
+            self.pages_hint.setText(
+                "Pick the page that should be the cover. The first page is "
+                "used automatically unless a custom cover is set."
+            )
+            self.pages_caption.setText(f"PAGES IN THIS BOOK ({len(pages)})")
+        else:
+            self.pages_hint.setText(
+                "This file cannot be browsed; choose an image file instead."
+            )
+            self.pages_list.setVisible(False)
+            self.pages_caption.setVisible(False)
+
+    def _on_page_selected(self, current=None, _previous=None):
+        if current is None:
+            return
+        name = current.data(Qt.ItemDataRole.UserRole)
+        from cover_extractor import cover_extractor
+
+        data = cover_extractor.read_page(self.filepath, name)
+        if not data:
+            self.pages_hint.setText(f"“{name}” could not be read.")
+            return
+        pixmap = QPixmap()
+        if not pixmap.loadFromData(data) or pixmap.isNull():
+            self.pages_hint.setText(f"“{name}” is not an image the app can show.")
+            return
+        self._page_bytes = data
+        self.selected_image = None
+        scaled = pixmap.scaled(
+            max(40, self.preview_label.width() - 20),
+            max(40, self.preview_label.height() - 20),
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        self.preview_label.setPixmap(scaled)
+        self.info_label.setText(f"{pixmap.width()} × {pixmap.height()}  ·  {name}")
+        self.set_btn.setEnabled(True)
 
     def _browse_image(self):
         """Browse for image file."""
@@ -617,14 +718,15 @@ class SetCustomCoverDialog(QDialog):
     def _clear_preview(self):
         """Clear image preview."""
         self.selected_image = None
+        self._page_bytes = None
         self.preview_label.clear()
         self.preview_label.setText("No image selected")
         self.info_label.clear()
         self.set_btn.setEnabled(False)
     
     def _set_cover(self):
-        """Set the selected image as custom cover."""
-        if not self.selected_image:
+        """Save the chosen page (or file) as this book's cover."""
+        if not self.selected_image and not self._page_bytes:
             return
         
         from config import CUSTOM_COVERS_DIR
@@ -632,12 +734,22 @@ class SetCustomCoverDialog(QDialog):
         
         try:
             # Create new filename
-            ext = Path(self.selected_image).suffix.lower()
-            new_filename = f"book_{self.book_id}_cover{ext}"
-            new_path = CUSTOM_COVERS_DIR / new_filename
-            
-            # Copy image
-            shutil.copy2(self.selected_image, new_path)
+            if self._page_bytes:
+                # A page taken out of the archive is always stored as JPEG so
+                # the cover folder never has to deal with exotic formats.
+                new_filename = f"book_{self.book_id}_cover.jpg"
+                new_path = CUSTOM_COVERS_DIR / new_filename
+                new_path.parent.mkdir(parents=True, exist_ok=True)
+                image = Image.open(io.BytesIO(self._page_bytes))
+                if image.mode not in ("RGB", "L"):
+                    image = image.convert("RGB")
+                image.save(new_path, "JPEG", quality=92)
+            else:
+                ext = Path(self.selected_image).suffix.lower()
+                new_filename = f"book_{self.book_id}_cover{ext}"
+                new_path = CUSTOM_COVERS_DIR / new_filename
+                # Copy image
+                shutil.copy2(self.selected_image, new_path)
             
             # Save to database
             if db.set_custom_cover(self.book_id, str(new_path)):

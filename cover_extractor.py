@@ -301,6 +301,72 @@ class CoverExtractor:
 
         return None
 
+    # ------------------------------------------------------------------
+    # Page browsing (used by the "pick a page as the cover" dialog)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _is_zip_like(filepath: str) -> bool:
+        return zipfile.is_zipfile(filepath)
+
+    def list_pages(self, filepath: str) -> List[str]:
+        """Every page inside the book, in reading order.
+
+        Empty list when the format cannot be listed (an image or PDF), so the
+        caller can fall back to picking a file from disk.
+        """
+        filepath = str(filepath)
+        try:
+            if self._is_zip_like(filepath):
+                with zipfile.ZipFile(filepath) as archive:
+                    names = [info.filename for info in archive.infolist() if not info.is_dir()]
+            elif Path(filepath).suffix.lower() in {".tar", ".tgz", ".cbt"}:
+                with tarfile.open(filepath, "r:*") as archive:
+                    names = [member.name for member in archive.getmembers() if member.isfile()]
+            elif Path(filepath).suffix.lower() in {".7z", ".cb7"} and HAS_PY7ZR:
+                with py7zr.SevenZipFile(filepath, "r") as archive:
+                    names = archive.getnames()
+            elif Path(filepath).suffix.lower() in {".rar", ".cbr"} and HAS_RARFILE:
+                if rar_tools.configure_rarfile() is None:
+                    return []
+                with rarfile.RarFile(filepath, "r") as archive:
+                    names = [info.filename for info in archive.infolist() if not info.isdir()]
+            else:
+                return []
+        except Exception as exc:
+            logger.warning(f"Cannot list the pages of {filepath}: {exc}")
+            return []
+
+        return self._cover_candidates(names)
+
+    def read_page(self, filepath: str, name: str) -> Optional[bytes]:
+        """The raw bytes of one page, or None when it cannot be read."""
+        filepath = str(filepath)
+        try:
+            if self._is_zip_like(filepath):
+                with zipfile.ZipFile(filepath) as archive:
+                    return archive.read(name)
+            if Path(filepath).suffix.lower() in {".tar", ".tgz", ".cbt"}:
+                with tarfile.open(filepath, "r:*") as archive:
+                    handle = archive.extractfile(name)
+                    return handle.read() if handle else None
+            if Path(filepath).suffix.lower() in {".7z", ".cb7"} and HAS_PY7ZR:
+                folder = tempfile.mkdtemp(prefix="dl-page-")
+                try:
+                    with py7zr.SevenZipFile(filepath, "r") as archive:
+                        archive.extract(path=folder, targets=[name])
+                    extracted = Path(folder, *PurePosixPath(name.replace("\\", "/")).parts)
+                    return extracted.read_bytes() if extracted.is_file() else None
+                finally:
+                    shutil.rmtree(folder, ignore_errors=True)
+            if Path(filepath).suffix.lower() in {".rar", ".cbr"} and HAS_RARFILE:
+                if rar_tools.configure_rarfile() is None:
+                    return None
+                with rarfile.RarFile(filepath, "r") as archive:
+                    return archive.read(name)
+        except Exception as exc:
+            logger.warning(f"Cannot read page {name} of {filepath}: {exc}")
+        return None
+
     @staticmethod
     def _normalize_entry(name: str) -> str:
         """Archive entry name with forward slashes and no "./" noise."""
