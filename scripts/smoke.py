@@ -180,18 +180,33 @@ def main() -> int:
     from utils import updater
 
     update_info = updater.UpdateInfo(
+        version="2.5.1",
+        tag="v2.5.1",
+        notes="Smoke notes",
+        page_url="https://example.test/releases",
+        asset_url="https://example.test/update.zip",
+        asset_name="DigitalLibrary-2.5.1-from-2.5.0-windows-x64-update.zip",
+        asset_size=2 * 1024 * 1024,
+        checksum_url="https://example.test/SHA256.txt",
+        from_version="2.5.0",
+    )
+    step_one = updater.UpdateInfo(
         version="2.5.0",
         tag="v2.5.0",
         notes="Smoke notes",
         page_url="https://example.test/releases",
-        asset_url="https://example.test/update.zip",
-        asset_name="DigitalLibrary-2.5.0-windows-x64-update.zip",
+        asset_url="https://example.test/update-2.5.0.zip",
+        asset_name="DigitalLibrary-2.5.0-from-2.4.0-windows-x64-update.zip",
         asset_size=2 * 1024 * 1024,
         checksum_url="https://example.test/SHA256.txt",
+        from_version="2.4.0",
+    )
+    update_plan = updater.UpdatePath(
+        target="2.5.1", steps=[step_one, update_info], missing_from=""
     )
     installed = []
     update_dialog = UpdateDialog(
-        update_info,
+        update_plan,
         parent=window,
         download=lambda report: (
             report(1024 * 1024, 2 * 1024 * 1024),

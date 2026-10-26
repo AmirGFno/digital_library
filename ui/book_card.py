@@ -209,33 +209,26 @@ class BookCard(QFrame):
         self.cover_frame = QFrame()
         self.cover_frame.setObjectName("CoverFrame")
         self.cover_frame.setFixedSize(COVER_WIDTH, COVER_HEIGHT)
-        self.cover_frame.setStyleSheet(
-            f"QFrame#CoverFrame {{ background-color: {theme.BG_ELEVATED};"
-            f" border-radius: {COVER_RADIUS}px; border: none; }}"
-        )
         cover_layout = QVBoxLayout(self.cover_frame)
         cover_layout.setContentsMargins(0, 0, 0, 0)
 
         self.cover_label = QLabel("")
+        self.cover_label.setObjectName("CardCover")
         self.cover_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.cover_label.setFixedSize(COVER_WIDTH, COVER_HEIGHT)
-        self.cover_label.setStyleSheet(
-            f"color: {theme.TEXT_DIM}; font-size: 11px; background: transparent;"
-        )
         cover_layout.addWidget(self.cover_label)
         layout.addWidget(self.cover_frame)
 
         self._build_badges()
-        self._build_quick_actions()
+        # The hover bar is created on the first hover: four buttons and a
+        # layout per card is real work when the grid holds thousands of cards.
+        self.quick_bar = None
 
         self.title_label = QLabel(self._elided_title())
+        self.title_label.setObjectName("CardTitle")
         self.title_label.setFixedHeight(19)
         self.title_label.setAlignment(
             Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
-        )
-        self.title_label.setStyleSheet(
-            f"color: {theme.TEXT}; font-size: 13px; font-weight: 600;"
-            " background: transparent;"
         )
         layout.addWidget(self.title_label)
 
@@ -244,25 +237,17 @@ class BookCard(QFrame):
         status_row.setSpacing(4)
 
         self.info_label = QLabel(self._info_text())
-        self.info_label.setStyleSheet(
-            f"color: {theme.TEXT_MUTED}; font-size: 11px; background: transparent;"
-        )
+        self.info_label.setObjectName("CardInfo")
         status_row.addWidget(self.info_label, 1)
 
         self.rating_label = QLabel("")
-        self.rating_label.setStyleSheet(
-            f"color: {theme.GOLD}; font-size: 10px; background: transparent;"
-        )
+        self.rating_label.setObjectName("CardRating")
         status_row.addWidget(self.rating_label)
 
         self.status_dot = QLabel("●")
-        self.status_dot.setStyleSheet(
-            f"color: {theme.TEXT_DIM}; font-size: 8px; background: transparent;"
-        )
+        self.status_dot.setObjectName("CardStatusDot")
         self.status_label = QLabel("")
-        self.status_label.setStyleSheet(
-            f"color: {theme.TEXT_DIM}; font-size: 10px; background: transparent;"
-        )
+        self.status_label.setObjectName("CardStatus")
         status_row.addWidget(self.status_dot)
         status_row.addWidget(self.status_label)
         layout.addLayout(status_row)
@@ -277,23 +262,17 @@ class BookCard(QFrame):
 
     def _build_badges(self):
         self.format_badge = QLabel("")
+        self.format_badge.setObjectName("CardFormatBadge")
         self.format_badge.setParent(self.cover_frame)
         self.format_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.format_badge.setStyleSheet(
-            "color: #ffffff; font-size: 9px; font-weight: 700;"
-            " background: rgba(10, 12, 16, 185); border-radius: 6px; padding: 2px 6px;"
-        )
         self.format_badge.move(9, 9)
         self.format_badge.adjustSize()
 
         self.favorite_badge = QLabel("★")
+        self.favorite_badge.setObjectName("CardFavoriteBadge")
         self.favorite_badge.setParent(self.cover_frame)
         self.favorite_badge.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.favorite_badge.setFixedSize(24, 24)
-        self.favorite_badge.setStyleSheet(
-            f"color: {theme.GOLD}; font-size: 13px;"
-            " background: rgba(10, 12, 16, 190); border-radius: 12px;"
-        )
         # The star moved to the bottom corner: the top-right corner belongs to
         # the selection circle now.
         self.favorite_badge.move(COVER_WIDTH - 33, COVER_HEIGHT - 33)
@@ -312,12 +291,12 @@ class BookCard(QFrame):
             )
 
     def _build_quick_actions(self):
+        if self.quick_bar is not None:
+            return
         self.quick_bar = QWidget(self.cover_frame)
+        self.quick_bar.setObjectName("CardQuickBar")
         self.quick_bar.setAttribute(
             Qt.WidgetAttribute.WA_StyledBackground, True
-        )
-        self.quick_bar.setStyleSheet(
-            "background: rgba(8, 10, 14, 225); border-radius: 10px;"
         )
         # Compact bar anchored to the bottom-left corner: most of the cover
         # stays clickable, so selecting books with Ctrl never hits a button.
@@ -331,15 +310,11 @@ class BookCard(QFrame):
 
         def button(text: str, tooltip: str, slot) -> QToolButton:
             widget = QToolButton()
+            widget.setObjectName("CardQuickButton")
             widget.setText(text)
             widget.setToolTip(tooltip)
             widget.setCursor(Qt.CursorShape.PointingHandCursor)
             widget.setFixedSize(28, 26)
-            widget.setStyleSheet(
-                "QToolButton { border: none; background: transparent;"
-                f" color: {theme.TEXT}; font-size: 13px; border-radius: 7px; }}"
-                f"QToolButton:hover {{ background: {theme.ACCENT}; color: #ffffff; }}"
-            )
             widget.clicked.connect(slot)
             return widget
 
@@ -379,51 +354,46 @@ class BookCard(QFrame):
             parts.append(Path(self.book_data["filepath"]).suffix.upper().lstrip("."))
         return "  ·  ".join(parts)
 
+    def _repolish(self, *widgets):
+        """Re-read the theme rules after a dynamic property changed."""
+        for widget in widgets:
+            style = widget.style()
+            style.unpolish(widget)
+            style.polish(widget)
+
     def _refresh_state(self):
         favorite = bool(self.book_data.get("favorite"))
         is_read = bool(self.book_data.get("is_read"))
         rating = int(self.book_data.get("rating") or 0)
+        suffix = Path(self.book_data["filepath"]).suffix.upper().lstrip(".") or "FILE"
+
+        state = (favorite, is_read, rating, suffix)
+        if getattr(self, "_drawn_state", None) == state:
+            # Nothing on the card changes; skip the property churn entirely.
+            self._sync_select_circle()
+            return
+        self._drawn_state = state
 
         self.favorite_badge.setVisible(favorite)
         self._sync_select_circle()
 
-        self.status_dot.setStyleSheet(
-            f"color: {theme.GREEN if is_read else theme.TEXT_DIM};"
-            " font-size: 9px; background: transparent;"
-        )
         self.status_label.setText("Read" if is_read else "Unread")
-        self.status_label.setStyleSheet(
-            f"color: {theme.GREEN if is_read else theme.TEXT_DIM};"
-            " font-size: 10px; background: transparent;"
-        )
         self.rating_label.setText(("★" * rating) if rating else "")
-
-        self.title_label.setStyleSheet(
-            "color: %s; font-size: 13px; font-weight: 600; background: transparent;"
-            % (theme.TEXT_MUTED if is_read else theme.TEXT)
-        )
-
-        suffix = Path(self.book_data["filepath"]).suffix.upper().lstrip(".") or "FILE"
-        color = {
-            "CBZ": theme.BLUE,
-            "CBR": theme.ACCENT,
-            "CB7": theme.VIOLET,
-            "CBT": theme.GOLD,
-            "PDF": "#f87171",
-        }.get(suffix, theme.TEXT_MUTED)
         self.format_badge.setText(suffix)
-        self.format_badge.setStyleSheet(
-            "color: %s; font-size: 9px; font-weight: 700;"
-            " background: rgba(10, 12, 16, 200); border-radius: 6px;"
-            " padding: 2px 6px;" % color
-        )
         self.format_badge.adjustSize()
 
         self.setProperty("isRead", is_read)
         self.setProperty("favorite", favorite)
         self.setProperty("selected", self._selected)
+        self.format_badge.setProperty("format", suffix.lower())
         self.style().unpolish(self)
         self.style().polish(self)
+        self._repolish(
+            self.title_label,
+            self.status_label,
+            self.status_dot,
+            self.format_badge,
+        )
 
     # ------------------------------------------------------------------
     # Cover
@@ -527,6 +497,7 @@ class BookCard(QFrame):
 
     def _show_quick_actions(self):
         if self._hovered and self.isVisible() and not self._selection_mode:
+            self._build_quick_actions()
             self.quick_bar.setVisible(True)
 
     def leaveEvent(self, event):
@@ -534,7 +505,8 @@ class BookCard(QFrame):
         self._sync_select_circle()
         if hasattr(self, "_hover_timer"):
             self._hover_timer.stop()
-        self.quick_bar.setVisible(False)
+        if self.quick_bar is not None:
+            self.quick_bar.setVisible(False)
         if self._cover_pixmap is not None:
             self._apply_cover(self._cover_pixmap)
         if self._shadow is not None:

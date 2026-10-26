@@ -156,13 +156,25 @@ jobs:
               }
             }
 
+            # One small package per version: it upgrades from the previous
+            # release, and the app chains several of them when an install is
+            # more than one version behind.
+            $fromVersion = ""
+            if ($previousZip) { $fromVersion = $previous.tagName.TrimStart("v") }
+            if ($fromVersion) {
+              $updateName = "DigitalLibrary-$version-from-$fromVersion-windows-x64-update.zip"
+            } else {
+              $updateName = "DigitalLibrary-$version-windows-x64-update.zip"
+            }
+            Write-Host "update package: $updateName (from '$fromVersion')"
             $buildArgs = @(
               "scripts\build_update_package.py",
               "--dist", "dist\installed\DigitalLibrary",
               "--version", $version,
-              "--output", "release\DigitalLibrary-$version-windows-x64-update.zip"
+              "--output", "release\$updateName"
             )
             if ($previousZip) { $buildArgs += @("--previous", $previousZip) }
+            if ($fromVersion) { $buildArgs += @("--from-version", $fromVersion) }
             python @buildArgs
             if ($LASTEXITCODE -ne 0) {
               Write-Host "::error title=Update package::the update package could not be built"
@@ -211,14 +223,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          VERSION="$(basename release/DigitalLibrary-*-windows-x64-update.zip | sed -E 's/^DigitalLibrary-([0-9]+\.[0-9]+\.[0-9]+)-windows-x64-update\.zip$/\1/')"
+          VERSION="$(basename release/DigitalLibrary-*-windows-x64-update.zip | sed -E 's/^DigitalLibrary-([0-9]+\.[0-9]+\.[0-9]+)(-from-[0-9.]+)?-windows-x64-update\.zip$/\1/')"
           TAG="v${VERSION}"
           cat > notes.md <<'EOF'
           Digital Library for Windows x64. Three downloads:
 
-          - **Setup (ZIP)** - recommended. It contains DigitalLibrary-Setup.exe. The wizard installs the app under Program Files, adds Start Menu and desktop shortcuts and registers a normal uninstaller. The installed app updates itself in place.
+          - **Setup (ZIP)** - recommended. Unzip it and run DigitalLibrary-<version>-Setup.exe. The wizard installs the app under Program Files, adds Start Menu and desktop shortcuts, registers a normal uninstaller and lets the app update itself in place.
           - **Portable (EXE)** - one file, nothing to install. Put it anywhere and run it; the library data stays next to it.
-          - **Update (ZIP)** - only for an installed copy. It contains just the files that changed. Installed copies find it by themselves: open the app and accept the update.
+          - **Update (ZIP)** - only for an installed copy, and the only file the app downloads by itself. Each release publishes one small package that upgrades from the previous release (`-from-<version>`); an install that is several versions behind downloads those small packages one after another, packs them together and installs them in one go.
 
           The executable is not code-signed, so Windows SmartScreen may show a warning the first time (More info -> Run anyway).
 
@@ -230,7 +242,7 @@ jobs:
 
           - **فایل فشردهٔ Setup** - پیشنهادی. برنامه نصب حرفه‌ای داخلش است، در Program Files نصب می‌شود، میان‌بر می‌سازد و حذف‌کنندهٔ استاندارد دارد. نسخهٔ نصبی خودش را در جا آپدیت می‌کند.
           - **نسخهٔ Portable** - یک فایل اجرایی، بدون نصب.
-          - **فایل آپدیت** - فقط برای نسخهٔ نصبی و فقط شامل فایل‌هایی که عوض شده‌اند. برنامه خودش پیدایش می‌کند.
+          - **فایل آپدیت** - فقط برای نسخهٔ نصبی، و تنها فایلی که برنامه خودش دانلود می‌کند. هر نسخه یک بستهٔ کوچک دارد که از نسخهٔ قبلی به این نسخه می‌رسد؛ اگر چند نسخه عقب باشید، برنامه همان بسته‌های کوچک را یکی‌یکی می‌گیرد، کنار هم می‌چیند و در یک مرحله نصب می‌کند.
 
           کد فایل‌ها در SHA256.txt آمده است.
           EOF

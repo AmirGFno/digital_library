@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml/badge.svg"></a>
   <a href="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml"><img alt="Windows build" src="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-2.4.0-e8552d">
+  <img alt="Version" src="https://img.shields.io/badge/version-2.4.1-e8552d">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
@@ -129,7 +129,7 @@ python main.py
 |---|---|
 | `DigitalLibrary-<version>-setup.zip` | نسخه‌ی نصبی. داخلش `DigitalLibrary-Setup.exe` است؛ نصب حرفه‌ای با میان‌بر منوی استارت، میان‌بر دسکتاپ و حذف‌کننده‌ی استاندارد. |
 | `DigitalLibrary-<version>-windows-x64.exe` | نسخه‌ی **قابل حمل (portable)**؛ یک فایل، بدون نصب. |
-| `DigitalLibrary-<version>-windows-x64-update.zip` | بستهٔ به‌روزرسانی نسخه‌ی نصبی؛ فقط فایل‌هایی که عوض شده‌اند. |
+| `DigitalLibrary-<version>-from-<previous>-windows-x64-update.zip` | بستهٔ به‌روزرسانی نسخه‌ی نصبی؛ فقط تغییرات همین نسخه نسبت به نسخهٔ قبل. حجمش چند مگابایت است، نه چند ده مگابایت. |
 
 > ویندوز ممکن است بار اول هشدار SmartScreen نشان دهد، چون فایل امضای دیجیتال
 > ندارد. با «More info → Run anyway» ادامه دهید.
@@ -144,11 +144,19 @@ python main.py
 
 ### به‌روزرسانی خودکار
 
-نسخه‌ی نصبی هنگام اجرا (اگر اینترنت باشد) از گیت‌هاب می‌پرسد نسخه‌ی تازه‌ای آمده
-یا نه. اگر آمده باشد، صفحه‌ای نشان داده می‌شود با شمارهٔ نسخه، خلاصهٔ تغییرات و
-دو دکمه: «Download and install» و «Later». با تأیید کاربر، فقط بستهٔ کوچک آپدیت
-دانلود می‌شود (نه کل برنامه)، امضای SHA-256 آن بررسی می‌شود، برنامه بسته می‌شود،
-فایل‌های عوض‌شده جایگزین می‌شوند و نسخه‌ی تازه خودش باز می‌شود.
+نسخه‌ی نصبی هنگام اجرا (اگر اینترنت باشد) فهرست نسخه‌های گیت‌هاب را می‌گیرد و
+نسخهٔ نصب‌شده را با آخرین نسخه مقایسه می‌کند. اگر مثلاً ۲.۴.۱ نصب باشد و ۲.۴.۴
+منتشر شده باشد، برنامه می‌فهمد سه آپدیت در راه است، **هر سه بستهٔ کوچک** را دانلود
+می‌کند، آن‌ها را به ترتیب روی هم می‌چیند و به یک بستهٔ واحد تبدیل می‌کند و همان یک
+بار نصب می‌کند. بعد صفحه‌ای نشان داده می‌شود با شمارهٔ نسخه، تعداد بسته‌ها، خلاصهٔ
+تغییرات و دو دکمه: «Download and install» و «Later». امضای SHA-256 هر بسته بررسی
+می‌شود، برنامه بسته می‌شود، فایل‌های عوض‌شده جایگزین می‌شوند و نسخه‌ی تازه خودش
+باز می‌شود.
+
+- هر نسخه فقط یک بستهٔ کوچک منتشر می‌کند: `-from-<نسخهٔ قبلی>`. کل حجم دانلود
+  برای پریدن از چند نسخه، جمع همان بسته‌های کوچک است، نه چند برابر کل برنامه.
+- اگر زنجیره جایی قطع باشد (نسخه‌ای بستهٔ آپدیت نداشته باشد)، برنامه به‌جای
+  نصب ناقص، صفحهٔ دریافت نسخهٔ تازه را باز می‌کند تا یک‌بار نصب کامل انجام شود.
 
 - نسخه‌ی portable خودش را بازنویسی نمی‌کند؛ از منوی **Help → Check for updates…**
   می‌توانید صفحهٔ دریافت را باز کنید.
@@ -186,17 +194,21 @@ pyinstaller --noconfirm --clean --distpath dist\installed DigitalLibraryInstalle
 ساختن فایل نصب (نیازمند NSIS):
 
 ```bat
-makensis /DVERSION=2.4.0 /DSRCDIR=dist\installed\DigitalLibrary ^
-         /DOUTFILE=build\DigitalLibrary-2.4.0-Setup.exe installer\DigitalLibrary.nsi
+makensis /DVERSION=2.4.1 /DSRCDIR=dist\installed\DigitalLibrary ^
+         /DOUTFILE=build\DigitalLibrary-2.4.1-Setup.exe installer\DigitalLibrary.nsi
 ```
 
 ساختن بستهٔ آپدیت (فقط فایل‌های عوض‌شده):
 
 ```bat
 python scripts\build_update_package.py --dist dist\installed\DigitalLibrary ^
-       --version 2.4.0 --previous <update-zip-نسخه-قبلی> ^
-       --output release\DigitalLibrary-2.4.0-windows-x64-update.zip
+       --version 2.4.1 --previous <update-zip-نسخه-قبلی> --from-version 2.4.0 ^
+       --output release\DigitalLibrary-2.4.1-from-2.4.0-windows-x64-update.zip
 ```
+
+`--from-version` همان نسخه‌ای است که این بسته از آن ارتقا می‌دهد؛ برنامه با همین
+قاعده زنجیرهٔ آپدیت‌ها را می‌چیند. اگر بستهٔ نسخهٔ قبلی موجود نباشد، بستهٔ کامل
+(بدون `-from-`) ساخته می‌شود که روی هر نسخهٔ قدیمی‌تری نصب می‌شود.
 
 در گیت‌هاب، ورک‌فلوی **Build Windows executable** به‌صورت دستی یا با ساختن
 تگ `v*` اجرا می‌شود و هر سه فایل را به‌عنوان Artifact/Release منتشر می‌کند.
@@ -269,10 +281,11 @@ python scripts/smoke.py
 - Modern dark UI, saved layout, high-DPI friendly
 - Windows releases come in three forms: a setup program (installs under
   Program Files with shortcuts and an uninstaller), a single-file portable EXE,
-  and a small update package that only replaces the files that changed
-- The installed edition checks for updates at start: it shows the new version,
-  downloads it on request, verifies the SHA-256 checksum and restarts itself
-  with the update in place (never downloading the whole application again)
+  and a small update package that carries only that release's changes
+- The installed edition checks for updates at start: it compares its version
+  with the newest release, sees how many updates are waiting, downloads every
+  per-release package, chains them into one package and installs it in a single
+  restart (it never downloads the whole application again)
 
 ### Quick start
 
@@ -339,9 +352,10 @@ build_windows.bat
 ```
 
 The GitHub Actions workflow `Build Windows executable` builds and tests both
-editions on `windows-latest`, packs the setup program with NSIS, computes the
-minimal update package against the previous release and publishes (on a `v*`
-tag) the setup ZIP, the portable EXE and the update ZIP.
+editions on `windows-latest`, packs the setup program with NSIS and publishes
+(on a `v*` tag) the setup ZIP, the portable EXE and the update ZIP. The update
+ZIP is diffed against the previous release's package, so every release ships
+one small `-from-<previous>` file that the app can chain with older ones.
 
 The installed edition keeps its data in `%LOCALAPPDATA%\DigitalLibrary`, so an
 in-place update can replace program files without touching the library. The

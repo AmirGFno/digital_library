@@ -1,9 +1,10 @@
 """
 update_dialog.py - the "a new version is ready" screen.
 
-The window is opened with an :class:`UpdateInfo` that the update check already
-fetched. Pressing the main button downloads the small patch package, verifies
-its checksum and then hands it to the PowerShell helper that swaps the files and
+The window is opened with an :class:`UpdatePath` - every small per-version
+package between the installed release and the newest one. Pressing the main
+button downloads all of them, merges them into a single archive, verifies the
+checksums and hands the result to the PowerShell helper that swaps the files and
 restarts the app. Both the download and the installer call are injected, so the
 tests can exercise the whole flow without a network or a Windows machine.
 """
@@ -33,17 +34,29 @@ from utils.logger import logger
 
 
 class UpdateCheckWorker(QThread):
-    """Ask GitHub for the latest release without blocking the window."""
+    """Ask GitHub which releases exist and what it takes to reach the newest."""
 
     checked = pyqtSignal(object)
     failed = pyqtSignal(str)
 
+    def __init__(self, current_version: str = APP_VERSION, parent=None):
+        super().__init__(parent)
+        self.current_version = current_version
+
     def run(self):  # noqa: D401 - Qt entry point
         try:
-            self.checked.emit(updater.fetch_latest_release())
+            releases = updater.fetch_releases()
         except Exception as exc:  # UpdateError or any network problem
             logger.info("Update check failed: %s", exc)
             self.failed.emit(str(exc))
+            return
+        try:
+            plan = updater.plan_update_chain(self.current_version, releases)
+        except Exception as exc:  # a broken plan must never break the window
+            logger.warning("Could not plan the update: %s", exc)
+            self.failed.emit(str(exc))
+            return
+        self.checked.emit(plan)
 
 
 class UpdateDownloadWorker(QThread):
@@ -68,18 +81,24 @@ class UpdateDownloadWorker(QThread):
 
 
 class UpdateDialog(QDialog):
-    """Offer the new version, then download and install it in place."""
+    """Offer the new version, then download and install it in place.
+
+    *plan* says how many packages stand between the installed version and the
+    newest release; they are downloaded one by one, merged into a single
+    archive and installed in one go.
+    """
 
     def __init__(
         self,
-        info: updater.UpdateInfo,
+        plan: updater.UpdatePath,
         parent: Optional[QWidget] = None,
         *,
         download: Optional[Callable[[Callable[[int, int], None]], Path]] = None,
         install: Optional[Callable[[Path], None]] = None,
     ):
         super().__init__(parent)
-        self.info = info
+        self.plan = plan
+        self.info = self._target_info(plan)
         self.applying = False
         self._downloading = False
         self._thread: Optional[UpdateDownloadWorker] = None
@@ -125,8 +144,23 @@ class UpdateDialog(QDialog):
         self.version_title = title
         layout.addWidget(title)
 
-        can_install = self.info.can_install_in_place
-        if can_install:
+        can_install = bool(self.plan.steps) or self.plan.full_package is not None
+        if can_install and len(self.plan.steps) > 1:
+            subtitle_text = (
+                f"You are running {APP_VERSION}. {len(self.plan.steps)} updates are "
+                f"waiting ({self.plan.versions_text}). They are downloaded one by one, "
+                "packed together and installed in one go, so only the changed files "
+                "travel over the network and your library and settings stay where "
+                "they are."
+            )
+        elif can_install and self.plan.full_package is not None:
+            subtitle_text = (
+                f"You are running {APP_VERSION}. The small per-version packages do "
+                f"not reach this install, so this update takes the complete "
+                f"{self.info.version} program once. Your library, readers and "
+                "settings stay exactly where they are."
+            )
+        elif can_install:
             subtitle_text = (
                 f"You are running {APP_VERSION}. The new version only replaces the "
                 "files that changed, so the download stays small and your library, "
@@ -143,7 +177,7 @@ class UpdateDialog(QDialog):
         layout.addWidget(subtitle)
 
         self.notes_browser = None
-        notes = updater.release_notes_summary(self.info.notes)
+        notes = updater.release_notes_summary(self.plan.latest_notes or self.info.notes)
         if notes:
             browser = QTextBrowser()
             self.notes_browser = browser
@@ -160,8 +194,13 @@ class UpdateDialog(QDialog):
             layout.addWidget(browser)
 
         details = []
-        if self.info.size_text:
-            details.append(f"download size {self.info.size_text}")
+        if self.plan.steps:
+            packages = len(self.plan.steps)
+            details.append(f"{packages} package{'s' if packages > 1 else ''}")
+        elif can_install:
+            details.append("complete program, one download")
+        if self.plan.size_text:
+            details.append(f"download size {self.plan.size_text}")
         details.append("SHA-256 checked before installing")
         if can_install:
             details.append("the app restarts by itself when the files are in place")
@@ -197,6 +236,8 @@ class UpdateDialog(QDialog):
         layout.setSpacing(12)
 
         title = QLabel(f"Downloading {self.info.version}…")
+        if self.plan.steps and len(self.plan.steps) > 1:
+            title.setText(f"Downloading {len(self.plan.steps)} updates…")
         title.setObjectName("TitleLabel")
         layout.addWidget(title)
 
@@ -258,12 +299,26 @@ class UpdateDialog(QDialog):
         layout.addLayout(buttons)
         return page
 
+    @staticmethod
+    def _target_info(plan: updater.UpdatePath) -> updater.UpdateInfo:
+        if plan.steps:
+            return plan.steps[-1]
+        if plan.full_package is not None:
+            return plan.full_package
+        # No package to install: the dialog only offers the download page.
+        return updater.UpdateInfo(
+            version=plan.target or "",
+            tag=f"v{plan.target}" if plan.target else "",
+            notes="",
+            page_url=updater.RELEASE_PAGE,
+        )
+
     # ------------------------------------------------------------------
     # Actions
     # ------------------------------------------------------------------
     def _default_download(self, progress) -> Path:
         updater.cleanup_downloads()
-        return updater.download_update(self.info, progress=progress)
+        return updater.download_and_merge(self.plan, progress=progress)
 
     def _default_install(self, archive: Path) -> None:
         updater.install_update(archive)
@@ -272,7 +327,7 @@ class UpdateDialog(QDialog):
         QDesktopServices.openUrl(QUrl(url or updater.RELEASE_PAGE))
 
     def _on_primary_clicked(self):
-        if not self.info.can_install_in_place:
+        if not self.plan.steps and self.plan.full_package is None:
             self._open_page(self.info.page_url)
             self.accept()
             return

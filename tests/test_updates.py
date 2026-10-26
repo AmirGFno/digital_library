@@ -4,69 +4,118 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
+from PyQt6 import QtWidgets
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from utils import updater  # noqa: E402
 
 
-def make_info(version="2.5.0", installable=True):
+def step(version, from_version, size=2 * 1024 * 1024, notes=""):
     return updater.UpdateInfo(
         version=version,
         tag=f"v{version}",
-        notes="First line of the notes\nSecond line",
+        notes=notes or f"Notes for {version}\nsecond line",
         page_url=f"https://example.test/releases/{version}",
-        asset_url="https://example.test/update.zip" if installable else "",
-        asset_name=(
-            f"DigitalLibrary-{version}-windows-x64-update.zip" if installable else ""
-        ),
-        asset_size=2 * 1024 * 1024 if installable else 0,
-        checksum_url="https://example.test/SHA256.txt" if installable else "",
+        asset_url=f"https://example.test/{version}.zip",
+        asset_name=f"DigitalLibrary-{version}-from-{from_version}-windows-x64-update.zip",
+        asset_size=size,
+        checksum_url="https://example.test/SHA256.txt",
+        from_version=from_version,
     )
+
+
+def chain_plan(count=2, first_from="2.4.0"):
+    steps = []
+    current = first_from
+    parts = [int(part) for part in first_from.split(".")]
+    for index in range(count):
+        parts[-1] += 1
+        target = ".".join(str(part) for part in parts)
+        steps.append(step(target, current))
+        current = target
+    return updater.UpdatePath(target=steps[-1].version, steps=steps)
+
+
+def full_plan(version="2.5.0"):
+    package = updater.UpdateInfo(
+        version=version,
+        tag=f"v{version}",
+        notes="Everything at once",
+        page_url=f"https://example.test/releases/{version}",
+        asset_url="https://example.test/full.zip",
+        asset_name=f"DigitalLibrary-{version}-windows-x64-update.zip",
+        asset_size=50 * 1024 * 1024,
+        checksum_url="https://example.test/SHA256.txt",
+    )
+    return updater.UpdatePath(target=version, steps=[], full_package=package)
+
+
+def empty_plan(version="2.5.0"):
+    return updater.UpdatePath(target=version, steps=[], missing_from="2.0.0")
 
 
 # ----------------------------------------------------------------------
 # The dialog
 # ----------------------------------------------------------------------
-def test_the_dialog_shows_the_new_version_and_its_notes(qt_app):
+def test_the_dialog_counts_the_waiting_updates(qt_app):
     from ui.update_dialog import UpdateDialog
 
-    dialog = UpdateDialog(make_info())
+    plan = chain_plan(3)
+    dialog = UpdateDialog(plan)
 
     assert dialog.pages.count() == 3
     assert dialog.pages.currentIndex() == 0
     assert dialog.download_button.text() == "Download and install"
     assert dialog.later_button.text() == "Later"
-    assert "First line of the notes" in dialog.notes_browser.toPlainText()
-    assert "2.5.0" in dialog.version_title.text()
+    assert "2.4.3" in dialog.version_title.text()
+    texts = " | ".join(label.text() for label in dialog.findChildren(QtWidgets.QLabel))
+    assert "3 updates" in texts
+    # the notes come from the newest release
+    assert "Notes for 2.4.3" in dialog.notes_browser.toPlainText()
 
 
-def test_confirming_downloads_and_installs_in_place(qt_app):
+def test_the_dialog_says_how_many_packages_and_how_big(qt_app):
     from ui.update_dialog import UpdateDialog
 
-    progress = []
+    dialog = UpdateDialog(chain_plan(3))
+
+    labels = [
+        label.text()
+        for label in dialog.findChildren(type(dialog.error_label))
+    ]
+    joined = " | ".join(labels)
+    assert "3 packages" in joined
+    assert "6.0 MB" in joined  # 3 × 2 MB
+
+
+def test_confirming_downloads_all_steps_and_installs_once(qt_app):
+    from ui.update_dialog import UpdateDialog
+
+    downloaded = []
     installed = []
 
     def download(report):
-        report(512 * 1024, 2 * 1024 * 1024)
-        report(2 * 1024 * 1024, 2 * 1024 * 1024)
-        return Path("/tmp/DigitalLibrary-update.zip")
+        downloaded.append(True)
+        report(1 * 1024 * 1024, 4 * 1024 * 1024)
+        report(4 * 1024 * 1024, 4 * 1024 * 1024)
+        return Path("/tmp/merged-update.zip")
 
     dialog = UpdateDialog(
-        make_info(), download=download, install=lambda path: installed.append(path)
+        chain_plan(2), download=download, install=lambda path: installed.append(path)
     )
     dialog.start_download(inline=True)
 
-    assert installed == [Path("/tmp/DigitalLibrary-update.zip")]
+    assert downloaded == [True]
+    assert installed == [Path("/tmp/merged-update.zip")]
     assert dialog.applying is True
     assert dialog.result() == dialog.DialogCode.Accepted
-    assert progress == []  # the dialog's own bar was fed through the callback
 
 
-def test_the_progress_bar_follows_the_download(qt_app):
+def test_the_progress_bar_follows_the_whole_chain(qt_app):
     from ui.update_dialog import UpdateDialog
 
-    dialog = UpdateDialog(make_info())
+    dialog = UpdateDialog(chain_plan(2))
     dialog._on_progress(1024 * 1024, 4 * 1024 * 1024)
     assert dialog.progress_bar.value() == 25
     dialog._on_progress(2 * 1024 * 1024, 0)  # unknown size -> busy bar
@@ -79,7 +128,7 @@ def test_a_failed_download_keeps_the_current_version_installed(qt_app):
     def broken(report):
         raise updater.UpdateError("no internet")
 
-    dialog = UpdateDialog(make_info(), download=broken)
+    dialog = UpdateDialog(chain_plan(2), download=broken)
     dialog.start_download(inline=True)
 
     assert dialog.pages.currentIndex() == 2
@@ -95,8 +144,8 @@ def test_a_failed_install_is_reported_and_the_app_keeps_running(qt_app):
         raise updater.UpdateError("the files are locked")
 
     dialog = UpdateDialog(
-        make_info(),
-        download=lambda report: Path("/tmp/update.zip"),
+        chain_plan(2),
+        download=lambda report: Path("/tmp/merged.zip"),
         install=broken_install,
     )
     dialog.start_download(inline=True)
@@ -106,24 +155,46 @@ def test_a_failed_install_is_reported_and_the_app_keeps_running(qt_app):
     assert dialog.applying is False
 
 
-def test_a_release_without_a_package_opens_the_download_page(qt_app):
+def test_a_full_package_is_offered_like_any_other_update(qt_app):
+    from ui.update_dialog import UpdateDialog
+
+    plan = full_plan()
+    dialog = UpdateDialog(plan)
+
+    assert dialog.download_button.text() == "Download and install"
+    assert "2.5.0" in dialog.version_title.text()
+    assert dialog.plan.count == 1
+
+
+def test_a_full_package_says_that_it_is_the_whole_program(qt_app):
+    from ui.update_dialog import UpdateDialog
+
+    dialog = UpdateDialog(full_plan())
+    texts = " | ".join(label.text() for label in dialog.findChildren(QtWidgets.QLabel))
+
+    assert "complete 2.5.0 program" in texts
+    assert "complete program, one download" in texts
+    assert "only replaces the files that changed" not in texts
+
+
+def test_a_plan_without_a_package_opens_the_download_page(qt_app):
     from ui.update_dialog import UpdateDialog
 
     opened = []
-    dialog = UpdateDialog(make_info(installable=False))
+    dialog = UpdateDialog(empty_plan())
     dialog._open_page = opened.append
 
     assert dialog.download_button.text() == "Open download page"
     dialog.download_button.click()
 
-    assert opened == ["https://example.test/releases/2.5.0"]
+    assert opened == ["https://github.com/AmirGFno/digital_library/releases/latest"]
     assert dialog.applying is False
 
 
 def test_the_window_cannot_be_closed_mid_download(qt_app):
     from ui.update_dialog import UpdateDialog
 
-    dialog = UpdateDialog(make_info())
+    dialog = UpdateDialog(chain_plan(2))
     rejected = []
     dialog.rejected.connect(lambda: rejected.append(True))
     dialog._downloading = True
@@ -205,22 +276,21 @@ def test_the_installed_copy_asks_once_at_start(window, monkeypatch):
     assert called == [False]
 
 
-def test_a_newer_version_reaches_the_dialog(window, monkeypatch):
+def test_a_chain_reaches_the_dialog(window, monkeypatch):
     import ui.main_window as main_window
 
     shown = []
     monkeypatch.setattr(updater, "is_installed_copy", lambda: True)
     monkeypatch.setattr(main_window.settings, "deferred_update", lambda: ("", ""))
+    monkeypatch.setattr(
+        main_window.UpdateDialog, "exec", lambda dialog: shown.append(dialog)
+    )
 
-    def fake_exec(dialog):
-        shown.append(dialog)
-        return 0
+    plan = chain_plan(3)
+    window._on_update_checked(plan, manual=True)
 
-    monkeypatch.setattr(main_window.UpdateDialog, "exec", fake_exec)
-
-    window._on_update_checked(make_info("2.5.0"), manual=True)
-
-    assert shown and shown[0].info.version == "2.5.0"
+    assert shown and len(shown[0].plan.steps) == 3
+    assert shown[0].plan.target == "2.4.3"
 
 
 def test_an_old_answer_never_opens_the_dialog(window, monkeypatch):
@@ -231,7 +301,7 @@ def test_an_old_answer_never_opens_the_dialog(window, monkeypatch):
     toasts = []
     monkeypatch.setattr(window, "_toast", lambda message, kind="info": toasts.append(message))
 
-    window._on_update_checked(make_info("2.4.0"), manual=True)
+    window._on_update_checked(updater.UpdatePath(target="2.4.0"), manual=True)
 
     assert shown == []
     assert toasts and "newest version" in toasts[0]
@@ -246,10 +316,10 @@ def test_a_postponed_version_is_not_shown_again(window, monkeypatch):
     monkeypatch.setattr(
         main_window.settings,
         "deferred_update",
-        lambda: ("2.5.0", datetime.now(timezone.utc).isoformat()),
+        lambda: ("2.4.2", datetime.now(timezone.utc).isoformat()),
     )
 
-    window._on_update_checked(make_info("2.5.0"), manual=False)
+    window._on_update_checked(chain_plan(2), manual=False)
 
     assert shown == []
 
@@ -263,12 +333,23 @@ def test_a_manual_check_ignores_the_postponement(window, monkeypatch):
     monkeypatch.setattr(
         main_window.settings,
         "deferred_update",
-        lambda: ("2.5.0", datetime.now(timezone.utc).isoformat()),
+        lambda: ("2.4.2", datetime.now(timezone.utc).isoformat()),
     )
 
-    window._on_update_checked(make_info("2.5.0"), manual=True)
+    window._on_update_checked(chain_plan(2), manual=True)
 
-    assert shown and shown[0].info.version == "2.5.0"
+    assert shown
+
+
+def test_a_broken_chain_sends_the_user_to_the_setup_program(window, monkeypatch):
+    offered = []
+    monkeypatch.setattr(updater, "is_installed_copy", lambda: True)
+    monkeypatch.setattr(window, "_offer_full_download", offered.append)
+
+    plan = empty_plan("2.5.0")
+    window._on_update_checked(plan, manual=True)
+
+    assert offered == [plan]
 
 
 def test_the_portable_edition_gets_a_link_instead_of_an_update(window, monkeypatch):
@@ -276,9 +357,9 @@ def test_the_portable_edition_gets_a_link_instead_of_an_update(window, monkeypat
     monkeypatch.setattr(updater, "is_installed_copy", lambda: False)
     monkeypatch.setattr(window, "_offer_portable_download", offered.append)
 
-    window._on_update_checked(make_info("2.5.0"), manual=True)
+    window._on_update_checked(chain_plan(2), manual=True)
 
-    assert offered and offered[0].version == "2.5.0"
+    assert offered == ["2.4.2"]
 
 
 def test_an_offline_check_only_warns_when_the_user_asked(window, monkeypatch):
@@ -303,9 +384,9 @@ def test_closing_the_dialog_postpones_that_version(window, monkeypatch):
     monkeypatch.setattr(main_window.settings, "defer_update", deferred.append)
     monkeypatch.setattr(main_window.UpdateDialog, "exec", lambda dialog: 0)
 
-    window._on_update_checked(make_info("2.5.0"), manual=False)
+    window._on_update_checked(chain_plan(2), manual=False)
 
-    assert deferred == ["2.5.0"]
+    assert deferred == ["2.4.2"]
 
 
 def test_accepting_the_update_closes_the_app_for_the_helper(window, monkeypatch):
@@ -322,7 +403,7 @@ def test_accepting_the_update_closes_the_app_for_the_helper(window, monkeypatch)
 
     monkeypatch.setattr(main_window.UpdateDialog, "exec", fake_exec)
 
-    window._on_update_checked(make_info("2.5.0"), manual=False)
+    window._on_update_checked(chain_plan(2), manual=False)
 
     assert quit_called == [True]
 
@@ -336,37 +417,93 @@ def test_the_offer_waits_while_another_dialog_is_open(window, monkeypatch):
     monkeypatch.setattr(main_window.UpdateDialog, "exec", lambda dialog: shown.append(dialog))
     monkeypatch.setattr(window, "_busy_with_a_dialog", lambda: True)
 
-    window._on_update_checked(make_info("2.5.0"), manual=False)
+    window._on_update_checked(chain_plan(2), manual=False)
 
     assert shown == []
     assert window._pending_update is not None
 
-    # Once the other dialog is gone the offer appears by itself.
     monkeypatch.setattr(window, "_busy_with_a_dialog", lambda: False)
     window._resume_pending_update()
 
-    assert shown and shown[0].info.version == "2.5.0"
+    assert shown and shown[0].plan.target == "2.4.2"
     assert window._pending_update is None
 
 
-def test_the_background_check_clears_its_thread(window, monkeypatch):
+def test_the_background_check_plans_the_whole_chain(window, monkeypatch):
     from PyQt6.QtTest import QTest
 
-    monkeypatch.setattr(updater, "is_installed_copy", lambda: True)
-    monkeypatch.setattr(updater, "fetch_latest_release", lambda: make_info("2.4.0"))
+    from config import APP_VERSION
+
+    current = [int(part) for part in APP_VERSION.split(".")]
+    second = list(current)
+    second[-1] += 1
+    third = list(second)
+    third[-1] += 1
+    second_version = ".".join(str(part) for part in second)
+    third_version = ".".join(str(part) for part in third)
+
+    def payload(version, from_version):
+        return {
+            "tag_name": f"v{version}",
+            "html_url": f"https://example.test/v{version}",
+            "body": "notes",
+            "assets": [
+                {
+                    "name": (
+                        f"DigitalLibrary-{version}-from-{from_version}"
+                        "-windows-x64-update.zip"
+                    ),
+                    "browser_download_url": f"https://example.test/{version}.zip",
+                    "size": 10,
+                }
+            ],
+        }
+
+    payloads = [
+        payload(third_version, second_version),
+        payload(second_version, APP_VERSION),
+    ]
+    real_fetch = updater.fetch_releases
+    opener = _opener(payloads, updater.RELEASES_API)
+    monkeypatch.setattr(updater, "fetch_releases", lambda: real_fetch(opener=opener))
     seen = []
     monkeypatch.setattr(
-        window, "_on_update_checked", lambda info, manual: seen.append((info, manual))
+        window, "_on_update_checked", lambda plan, manual: seen.append((plan, manual))
     )
 
     window._check_for_updates(manual=True)
-    assert window._update_thread is not None
-    for _ in range(50):
+    for _ in range(100):
         QTest.qWait(20)
         if seen:
             break
 
-    assert seen and seen[0][1] is True
+    plan, manual = seen[0]
+    assert manual is True
+    assert plan.target == third_version
+    assert [step.version for step in plan.steps] == [second_version, third_version]
+    assert plan.steps[0].from_version == APP_VERSION
+
+
+def _opener(payload, url):
+    import io
+    import json
+
+    class Response:
+        headers = {}
+
+        def read(self, *args):
+            return json.dumps(payload).encode()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def opener(request, timeout=10):
+        return Response()
+
+    return opener
 
 
 def test_the_help_menu_offers_a_manual_check(window):
