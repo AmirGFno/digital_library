@@ -216,9 +216,9 @@ jobs:
           cat > notes.md <<'EOF'
           Digital Library for Windows x64. Three downloads:
 
-          - **Setup (ZIP)** - recommended. It contains DigitalLibrary-Setup.exe. The wizard installs the app under Program Files, adds Start Menu and desktop shortcuts and registers a normal uninstaller. The installed app updates itself in place.
+          - **Setup (ZIP)** - recommended. Unzip it and run DigitalLibrary-<version>-Setup.exe. The wizard installs the app under Program Files, adds Start Menu and desktop shortcuts, registers a normal uninstaller and lets the app update itself in place.
           - **Portable (EXE)** - one file, nothing to install. Put it anywhere and run it; the library data stays next to it.
-          - **Update (ZIP)** - only for an installed copy. It contains just the files that changed. Installed copies find it by themselves: open the app and accept the update.
+          - **Update (ZIP)** - only for an installed copy. Installed copies find it by themselves: open the app and accept the update. It contains just the files that changed; the very first release that ships this format contains every file, because there is nothing to compare against yet.
 
           The executable is not code-signed, so Windows SmartScreen may show a warning the first time (More info -> Run anyway).
 
@@ -230,7 +230,7 @@ jobs:
 
           - **فایل فشردهٔ Setup** - پیشنهادی. برنامه نصب حرفه‌ای داخلش است، در Program Files نصب می‌شود، میان‌بر می‌سازد و حذف‌کنندهٔ استاندارد دارد. نسخهٔ نصبی خودش را در جا آپدیت می‌کند.
           - **نسخهٔ Portable** - یک فایل اجرایی، بدون نصب.
-          - **فایل آپدیت** - فقط برای نسخهٔ نصبی و فقط شامل فایل‌هایی که عوض شده‌اند. برنامه خودش پیدایش می‌کند.
+          - **فایل آپدیت** - فقط برای نسخهٔ نصبی. برنامه خودش پیدایش می‌کند و فایل‌ها را در جا جایگزین می‌کند.
 
           کد فایل‌ها در SHA256.txt آمده است.
           EOF
