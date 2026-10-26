@@ -1,4 +1,5 @@
 """CBR / RAR cover extraction and tool discovery."""
+import hashlib
 import io
 import os
 import zipfile
@@ -134,3 +135,264 @@ def test_replaced_file_gets_a_new_cover(tmp_path):
     second = extractor.get_cover(str(comic))
     assert second != first
     assert Image.open(second).size == (200, 280)
+
+
+# ------------------------------------------------- first page is the cover
+def _page_bytes(color) -> bytes:
+    return _png_bytes(color, size=(60, 80))
+
+
+def _cover_pixel(cover_path) -> tuple:
+    image = Image.open(cover_path).convert("RGB")
+    return image.getpixel((image.width // 2, image.height // 2))
+
+
+def _assert_page_color(cover_path, expected, tolerance=8) -> None:
+    """The cover cache is a JPEG, so compare the colour with some slack."""
+    pixel = _cover_pixel(cover_path)
+    assert all(
+        abs(got - want) <= tolerance for got, want in zip(pixel, expected)
+    ), f"{pixel} is not close to {expected}"
+
+
+def _comic_with_pages(path: Path, pages) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path, "w") as archive:
+        for name, color in pages:
+            archive.writestr(name, _page_bytes(color))
+    return path
+
+
+def test_the_first_page_of_the_comic_is_the_cover(tmp_path):
+    """A real CBZ: 000.jpg is page one, 001.jpg is the second page.
+
+    Reported case: the archive also carries 000c.jpg and pages named
+    "Ben 10 004-001.jpg"; the old keyword search ("01") skipped page one and
+    showed page two as the cover.
+    """
+    from cover_extractor import CoverExtractor
+
+    comic = _comic_with_pages(
+        tmp_path / "Ben 10 004.cbz",
+        [
+            ("000c.jpg", (10, 10, 10)),
+            ("001.jpg", (240, 30, 30)),
+            ("000.jpg", (30, 30, 240)),
+            ("Ben 10 004-001.jpg", (30, 240, 30)),
+            ("Ben 10 004-002.jpg", (240, 240, 30)),
+        ],
+    )
+
+    cover = CoverExtractor(cache_dir=tmp_path / "cache").get_cover(str(comic))
+
+    _assert_page_color(cover, (30, 30, 240))  # the blue 000.jpg
+
+
+def test_pages_are_put_in_reading_order_not_alphabetical(tmp_path):
+    """1.jpg < 2.jpg < 10.jpg, the way every comic reader orders pages."""
+    from cover_extractor import CoverExtractor
+
+    extractor = CoverExtractor(cache_dir=tmp_path / "cache")
+    ordered = extractor._cover_candidates(
+        ["10.jpg", "2.jpg", "1.jpg", "11.jpg"]
+    )
+
+    assert ordered == ["1.jpg", "2.jpg", "10.jpg", "11.jpg"]
+
+
+def test_numbered_pages_come_before_lettered_pages(tmp_path):
+    from cover_extractor import CoverExtractor
+
+    extractor = CoverExtractor(cache_dir=tmp_path / "cache")
+    ordered = extractor._cover_candidates(
+        ["Ben 10 004-001.jpg", "000.jpg", "001.jpg"]
+    )
+
+    assert ordered[0] == "000.jpg"
+
+
+def test_mac_metadata_and_thumbs_are_never_the_cover(tmp_path):
+    from cover_extractor import CoverExtractor
+
+    extractor = CoverExtractor(cache_dir=tmp_path / "cache")
+    ordered = extractor._cover_candidates(
+        [
+            "__MACOSX/._000.jpg",
+            ".hidden.jpg",
+            "Thumbs.db",
+            "000.jpg",
+        ]
+    )
+
+    assert ordered == ["000.jpg"]
+
+
+def test_a_page_named_cover_still_wins(tmp_path):
+    """Comic readers honour a page literally named "cover"."""
+    from cover_extractor import CoverExtractor
+
+    extractor = CoverExtractor(cache_dir=tmp_path / "cache")
+    ordered = extractor._cover_candidates(["001.jpg", "cover.jpg", "002.jpg"])
+
+    assert ordered[0] == "cover.jpg"
+
+
+def test_an_unreadable_first_page_falls_back_to_the_next(tmp_path):
+    from cover_extractor import CoverExtractor
+
+    comic = tmp_path / "Damaged 001.cbz"
+    with zipfile.ZipFile(comic, "w") as archive:
+        archive.writestr("000.jpg", b"not really a jpeg")
+        archive.writestr("001.jpg", _page_bytes((90, 200, 90)))
+
+    cover = CoverExtractor(cache_dir=tmp_path / "cache").get_cover(str(comic))
+
+    _assert_page_color(cover, (90, 200, 90))
+
+
+def test_covers_from_the_old_algorithm_are_rebuilt(tmp_path):
+    """Cached covers made before the fix must not survive the new order."""
+    from cover_extractor import CoverExtractor
+
+    comic = _comic_with_pages(
+        tmp_path / "Cached 001.cbz",
+        [("000.jpg", (30, 30, 240)), ("001.jpg", (240, 30, 30))],
+    )
+    extractor = CoverExtractor(cache_dir=tmp_path / "cache")
+    old_key = hashlib.md5(
+        f"{comic}|{CoverExtractor._fingerprint(str(comic))}".encode()
+    ).hexdigest()
+    (tmp_path / "cache").mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (200, 280), (240, 30, 30)).save(
+        tmp_path / "cache" / f"{old_key}.jpg"
+    )
+
+    cover = extractor.get_cover(str(comic))
+
+    assert cover != str(tmp_path / "cache" / f"{old_key}.jpg")
+    _assert_page_color(cover, (30, 30, 240))
+    # The stale thumbnail is not left behind in the user's cache.
+    assert not (tmp_path / "cache" / f"{old_key}.jpg").exists()
+
+
+def test_the_reported_archive_uses_page_000(tmp_path):
+    """Exact entry list from the reported Ben 10 zip (WinRAR listing)."""
+    from cover_extractor import CoverExtractor
+
+    names = [
+        "000c.jpg", "001.jpg", "000.jpg",
+        "Ben 10 004-001.jpg", "Ben 10 004-002.jpg", "Ben 10 004-004.jpg",
+        "Ben 10 004-003.jpg", "Ben 10 004-005.jpg", "Ben 10 004-006.jpg",
+        "Ben 10 004-007.jpg", "Ben 10 004-008.jpg", "Ben 10 004-009.jpg",
+        "Ben 10 004-010.jpg", "Ben 10 004-011.jpg", "Ben 10 004-012.jpg",
+    ]
+
+    ordered = CoverExtractor._cover_candidates(names)
+
+    assert ordered[0] == "000.jpg"
+    assert ordered[1] == "000c.jpg"
+    assert ordered[2] == "001.jpg"
+    # the numbered pages keep their reading order, 009 before 010
+    tail = [name for name in ordered if name.startswith("Ben")]
+    assert tail.index("Ben 10 004-009.jpg") < tail.index("Ben 10 004-010.jpg")
+
+
+def test_pages_inside_a_folder_are_ordered_by_their_name(tmp_path):
+    from cover_extractor import CoverExtractor
+
+    ordered = CoverExtractor._cover_candidates(
+        ["Comic/10.jpg", "Comic/2.jpg", "Comic/1.jpg"]
+    )
+
+    assert ordered == ["Comic/1.jpg", "Comic/2.jpg", "Comic/10.jpg"]
+
+
+def test_tar_archives_use_the_same_page_order(tmp_path):
+    import tarfile
+
+    from cover_extractor import CoverExtractor
+
+    archive = tmp_path / "Comic.tar"
+    pages = [("10.jpg", (200, 200, 200)), ("2.jpg", (240, 30, 30)), ("1.jpg", (30, 30, 240))]
+    with tarfile.open(archive, "w") as handle:
+        for name, color in pages:
+            data = io.BytesIO()
+            Image.new("RGB", (60, 80), color).save(data, "PNG")
+            payload = data.getvalue()
+            info = tarfile.TarInfo(name)
+            info.size = len(payload)
+            handle.addfile(info, io.BytesIO(payload))
+
+    cover = CoverExtractor(cache_dir=tmp_path / "cache").get_cover(str(archive))
+
+    _assert_page_color(cover, (30, 30, 240))
+
+
+def test_7z_archives_use_the_same_page_order(tmp_path):
+    import pytest
+
+    py7zr = pytest.importorskip("py7zr")
+    from cover_extractor import CoverExtractor
+
+    source = tmp_path / "pages"
+    source.mkdir()
+    for name, color in (("10.jpg", (200, 200, 200)), ("2.jpg", (240, 30, 30)), ("1.jpg", (30, 30, 240))):
+        Image.new("RGB", (60, 80), color).save(source / name)
+
+    archive = tmp_path / "Comic.7z"
+    with py7zr.SevenZipFile(archive, "w") as handle:
+        handle.writeall(str(source), arcname="")
+
+    cover = CoverExtractor(cache_dir=tmp_path / "cache").get_cover(str(archive))
+
+    _assert_page_color(cover, (30, 30, 240))
+
+
+def test_cbt_archives_are_read_like_tar(tmp_path):
+    import tarfile
+
+    from cover_extractor import CoverExtractor
+
+    archive = tmp_path / "Comic.cbt"
+    with tarfile.open(archive, "w") as handle:
+        for name, color in (("000.jpg", (30, 30, 240)), ("001.jpg", (240, 30, 30))):
+            data = io.BytesIO()
+            Image.new("RGB", (60, 80), color).save(data, "PNG")
+            payload = data.getvalue()
+            info = tarfile.TarInfo(name)
+            info.size = len(payload)
+            handle.addfile(info, io.BytesIO(payload))
+
+    cover = CoverExtractor(cache_dir=tmp_path / "cache").get_cover(str(archive))
+
+    _assert_page_color(cover, (30, 30, 240))
+
+
+def test_tiff_pages_count_as_pages(tmp_path):
+    from cover_extractor import CoverExtractor
+
+    comic = tmp_path / "Scan 001.cbz"
+    with zipfile.ZipFile(comic, "w") as archive:
+        first = io.BytesIO()
+        Image.new("RGB", (60, 80), (30, 30, 240)).save(first, "TIFF")
+        archive.writestr("001.tif", first.getvalue())
+        archive.writestr("002.jpg", _page_bytes((240, 30, 30)))
+
+    cover = CoverExtractor(cache_dir=tmp_path / "cache").get_cover(str(comic))
+
+    _assert_page_color(cover, (30, 30, 240))
+
+
+def test_scan_folders_and_hidden_files_do_not_confuse_the_order(tmp_path):
+    from cover_extractor import CoverExtractor
+
+    comic = tmp_path / "Scanned 001.cbz"
+    with zipfile.ZipFile(comic, "w") as archive:
+        archive.writestr("__MACOSX/._000.jpg", b"junk")
+        archive.writestr("Comic/.DS_Store", b"junk")
+        archive.writestr("Comic/001.jpg", _page_bytes((240, 30, 30)))
+        archive.writestr("Comic/000.jpg", _page_bytes((30, 30, 240)))
+
+    cover = CoverExtractor(cache_dir=tmp_path / "cache").get_cover(str(comic))
+
+    _assert_page_color(cover, (30, 30, 240))

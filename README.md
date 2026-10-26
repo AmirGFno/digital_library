@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml/badge.svg"></a>
   <a href="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml"><img alt="Windows build" src="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-2.4.1-e8552d">
+  <img alt="Version" src="https://img.shields.io/badge/version-2.4.2-e8552d">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
@@ -31,7 +31,9 @@
 - پشتیبانی از **CBZ، CBR، CB7، CBT، ZIP، RAR، 7z، TAR، PDF و تصویر**
 - خواندن خودکار **ComicInfo.xml** (سری، جلد، نویسنده، ناشر، سال، خلاصه، تعداد صفحه)
 - ساخت خودکار سری از روی اطلاعات کمیک و شمارش خوانده‌نشده‌ها
-- استخراج کاور از اولین صفحه‌ی PDF یا اولین تصویر آرشیو، همراه با کش
+- استخراج کاور از **اولین صفحه‌ی کمیک** (PDF یا آرشیو)، با همان ترتیب خواندنِ
+  خواننده‌های کمیک: `1.jpg` بعد `2.jpg` بعد `10.jpg`، حتی وقتی نام صفحه‌ها
+  `000.jpg` و `001.jpg` است؛ همراه با کش و کاور سفارشی
 - کاور سفارشی برای هر کتاب
 - برچسب **علاقه‌مندی**، امتیاز پنج‌ستاره و تاریخچه‌ی مطالعه
 - جستجو در عنوان، سری، نویسنده و ناشر
@@ -255,7 +257,9 @@ python scripts/smoke.py
 - Automatic **ComicInfo.xml** import (series, volume, writer, publisher, year,
   summary, page count)
 - Auto-created series, unread counters and reading history
-- Cover extraction with cache and custom covers
+- Cover extraction from the **first page of the comic**, in the same reading
+  order comic readers use (`1.jpg`, `2.jpg`, `10.jpg`), with a cache and custom
+  covers
 - Favorites, five-star ratings, read/started filters
 - Full-text search over title, series, writer and publisher
 - Six sort orders, drag &amp; drop import, metadata editor and statistics
