@@ -538,3 +538,44 @@ def test_the_automatic_check_can_be_switched_off_from_the_menu(window, monkeypat
 
     assert saved == [False, True]
     assert len(toasts) == 2
+
+
+def test_the_dialog_says_when_windows_will_ask_for_permission(qt_app, monkeypatch):
+    from ui.update_dialog import UpdateDialog
+
+    monkeypatch.setattr(updater, "needs_elevation", lambda: True)
+    dialog = UpdateDialog(chain_plan(2))
+    texts = " | ".join(label.text() for label in dialog.findChildren(QtWidgets.QLabel))
+
+    assert "administrator permission" in texts
+
+
+def test_no_permission_note_when_the_folder_belongs_to_the_user(qt_app, monkeypatch):
+    from ui.update_dialog import UpdateDialog
+
+    monkeypatch.setattr(updater, "needs_elevation", lambda: False)
+    dialog = UpdateDialog(chain_plan(2))
+    texts = " | ".join(label.text() for label in dialog.findChildren(QtWidgets.QLabel))
+
+    assert "administrator permission" not in texts
+
+
+def test_a_failed_update_offers_the_setup_program(qt_app):
+    from ui.update_dialog import UpdateDialog
+
+    def refuse(path):
+        raise updater.UpdateError("administrator permission was refused")
+
+    dialog = UpdateDialog(
+        chain_plan(2),
+        download=lambda report: Path("/tmp/merged.zip"),
+        install=refuse,
+    )
+    dialog.start_download(inline=True)
+
+    assert dialog.pages.currentIndex() == 2
+    assert "administrator permission" in dialog.error_label.text()
+    opened = []
+    dialog._open_page = opened.append
+    dialog.page_button.click()
+    assert opened == [updater.RELEASE_PAGE]

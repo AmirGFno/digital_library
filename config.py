@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 APP_NAME = "Digital Library"
-APP_VERSION = "2.4.2"
+APP_VERSION = "2.4.3"
 
 # The setup installer drops this marker next to the executable. It is what
 # tells the app apart from the portable single-file build: only an installed

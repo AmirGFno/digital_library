@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml/badge.svg"></a>
   <a href="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml"><img alt="Windows build" src="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-2.4.2-e8552d">
+  <img alt="Version" src="https://img.shields.io/badge/version-2.4.3-e8552d">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
@@ -163,6 +163,9 @@ python main.py
 - نسخه‌ی portable خودش را بازنویسی نمی‌کند؛ از منوی **Help → Check for updates…**
   می‌توانید صفحهٔ دریافت را باز کنید.
 - اگر یک نسخه را «Later» بزنید، تا ۲۴ ساعت دوباره پیشنهاد نمی‌شود.
+- چون نسخهٔ نصبی در `Program Files` قرار می‌گیرد، ویندوز هنگام نصب به‌روزرسانی
+  یک‌بار اجازهٔ مدیر می‌خواهد؛ اگر آن را رد کنید هیچ فایلی عوض نمی‌شود، برنامه
+  باز می‌ماند و پیام روشن نشان می‌دهد.
 - بررسی خودکار با گزینه‌ای در تنظیمات قابل خاموش‌کردن است (کلید `updates.auto_check`
   در `data/settings.json`).
 
@@ -290,6 +293,8 @@ python scripts/smoke.py
   with the newest release, sees how many updates are waiting, downloads every
   per-release package, chains them into one package and installs it in a single
   restart (it never downloads the whole application again)
+- The update asks Windows for administrator permission (the app lives under
+  Program Files); a refusal changes nothing, keeps the app open and says why
 
 ### Quick start
 

@@ -204,6 +204,10 @@ class UpdateDialog(QDialog):
         details.append("SHA-256 checked before installing")
         if can_install:
             details.append("the app restarts by itself when the files are in place")
+            if updater.needs_elevation():
+                # The setup program installs under Program Files, so Windows
+                # asks for administrator permission right after the download.
+                details.append("Windows asks for administrator permission")
         hint = QLabel("  ·  ".join(details))
         hint.setObjectName("MutedLabel")
         hint.setWordWrap(True)
@@ -287,6 +291,14 @@ class UpdateDialog(QDialog):
         layout.addStretch(1)
 
         buttons = QHBoxLayout()
+        self.page_button = QPushButton("Download the setup program")
+        self.page_button.setObjectName("GhostButton")
+        # A refused administrator prompt, a locked file or a full disk: the
+        # setup program installs the same version without the in-place step.
+        self.page_button.clicked.connect(
+            lambda: self._open_page(updater.RELEASE_PAGE)
+        )
+        buttons.addWidget(self.page_button)
         buttons.addStretch(1)
         self.close_button = QPushButton("Close")
         self.close_button.setObjectName("GhostButton")
