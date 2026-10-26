@@ -26,6 +26,25 @@ def test_the_three_downloads_are_named_in_the_workflow():
     assert "scripts\\build_update_package.py" in workflow
 
 
+def test_every_release_publishes_a_delta_for_the_previous_one():
+    workflow = read(".github/workflows/build-windows.yml")
+
+    # The package name records the version it upgrades from, which is what lets
+    # the app chain several small packages without downloading them first.
+    assert "-from-$fromVersion-windows-x64-update.zip" in workflow
+    assert '"--from-version", $fromVersion' in workflow
+    assert 'gh release download $previous.tagName' in workflow
+    assert "*-update.zip" in workflow
+
+
+def test_the_packager_names_and_records_the_previous_version():
+    source = read("scripts/build_update_package.py")
+
+    assert '"from_version"' in source
+    assert "-from-{from_version}-windows-x64-update.zip" in source
+    assert "--from-version" in source
+
+
 def test_the_installed_build_is_a_folder_with_the_updater_inside():
     spec = read("DigitalLibraryInstalled.spec")
     assert "COLLECT(" in spec

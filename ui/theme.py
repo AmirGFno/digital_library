@@ -619,6 +619,92 @@ QFrame#BookCard[favorite="true"] {{
 QFrame#BookCard[favorite="true"]:hover {{
     border: 1px solid {GOLD};
 }}
+
+/* Card children. They used to carry their own stylesheets, which meant a
+   hundred style recomputations per screenful of cards; the rules live here
+   now and the card only toggles dynamic properties. */
+QLabel#CardCover {{
+    color: {TEXT_DIM};
+    font-size: 11px;
+    background: transparent;
+}}
+QLabel#CardTitle {{
+    color: {TEXT};
+    font-size: 13px;
+    font-weight: 600;
+    background: transparent;
+}}
+QFrame#BookCard[isRead="true"] QLabel#CardTitle {{
+    color: {TEXT_MUTED};
+}}
+QLabel#CardInfo {{
+    color: {TEXT_MUTED};
+    font-size: 11px;
+    background: transparent;
+}}
+QLabel#CardRating {{
+    color: {GOLD};
+    font-size: 10px;
+    background: transparent;
+}}
+QLabel#CardStatusDot {{
+    color: {TEXT_DIM};
+    font-size: 9px;
+    background: transparent;
+}}
+QLabel#CardStatus {{
+    color: {TEXT_DIM};
+    font-size: 10px;
+    background: transparent;
+}}
+QFrame#BookCard[isRead="true"] QLabel#CardStatusDot,
+QFrame#BookCard[isRead="true"] QLabel#CardStatus {{
+    color: {GREEN};
+}}
+QLabel#CardFormatBadge {{
+    color: #ffffff;
+    font-size: 9px;
+    font-weight: 700;
+    background: rgba(10, 12, 16, 200);
+    border-radius: 6px;
+    padding: 2px 6px;
+}}
+QLabel#CardFormatBadge[format="cbz"] {{
+    color: {BLUE};
+}}
+QLabel#CardFormatBadge[format="cbr"] {{
+    color: {ACCENT};
+}}
+QLabel#CardFormatBadge[format="cb7"] {{
+    color: {VIOLET};
+}}
+QLabel#CardFormatBadge[format="cbt"] {{
+    color: {GOLD};
+}}
+QLabel#CardFormatBadge[format="pdf"] {{
+    color: #f87171;
+}}
+QLabel#CardFavoriteBadge {{
+    color: {GOLD};
+    font-size: 13px;
+    background: rgba(10, 12, 16, 190);
+    border-radius: 12px;
+}}
+QWidget#CardQuickBar {{
+    background: rgba(8, 10, 14, 225);
+    border-radius: 10px;
+}}
+QToolButton#CardQuickButton {{
+    border: none;
+    background: transparent;
+    color: {TEXT};
+    font-size: 13px;
+    border-radius: 7px;
+}}
+QToolButton#CardQuickButton:hover {{
+    background: {ACCENT};
+    color: #ffffff;
+}}
 """
 
 

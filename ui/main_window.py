@@ -119,6 +119,59 @@ class SyncOutcome:
     new_folders: List[str]
 
 
+class MaintenanceWorker(QThread):
+    """Reconcile the library with the disk without freezing the window.
+
+    Both halves of this work walk the filesystem (moved files, vanished files,
+    folders that appeared), so it must never run on the UI thread: on a library
+    on a slow or network drive that was the reason the window took seconds to
+    answer the first click.
+    """
+
+    finished_ok = pyqtSignal(object)
+    failed = pyqtSignal(str)
+
+    def __init__(self, root: str, want_folders: bool, parent=None):
+        super().__init__(parent)
+        self.root = root
+        self.want_folders = want_folders
+
+    def run(self):  # noqa: D401 - Qt entry point
+        outcome = {
+            "relinked": 0,
+            "removed": 0,
+            "pruned_series": 0,
+            "folders": [],
+        }
+        try:
+            outcome["relinked"] = db.relink_moved_books(self.root)
+            db.relink_series_folders(self.root)
+            missing = db.get_missing_books(library_root=self.root)
+            if missing:
+                outcome["removed"] = db.remove_missing_books(
+                    missing, library_root=self.root
+                )
+            outcome["pruned_series"] = db.prune_empty_series(library_root=self.root)
+
+            if self.want_folders:
+                known = [
+                    series.get("folder")
+                    for series in db.get_all_series()
+                    if series.get("folder")
+                ]
+                outcome["folders"] = find_unmanaged_folders(
+                    self.root,
+                    known_folders=known,
+                    ignored_folders=settings.get_answered_folders(),
+                    known_files=set(db.get_library_index()[0]),
+                )
+        except Exception as exc:
+            logger.warning("Library maintenance failed: %s", exc)
+            self.failed.emit(str(exc))
+            return
+        self.finished_ok.emit(outcome)
+
+
 class SyncWorker(QThread):
     """Import new files from the library folder without freezing the UI."""
 
@@ -189,12 +242,18 @@ class MainWindow(QMainWindow):
         self._update_dialog: Optional[UpdateDialog] = None
         self._pending_update = None
         self._update_retries = 0
+        # Rebuilt grids fill in batches so the window is usable immediately,
+        # even with thousands of books in the library.
+        self._card_queue: List[Dict] = []
+        self._card_queue_index = 0
+        self._card_build_generation = 0
+        self._maintenance_worker: Optional[MaintenanceWorker] = None
 
         # Throttles the "did a file disappear?" check when the window is focused.
         self._prune_timer = QTimer(self)
         self._prune_timer.setSingleShot(True)
         self._prune_timer.setInterval(800)
-        self._prune_timer.timeout.connect(self._prune_missing_files)
+        self._prune_timer.timeout.connect(self._start_maintenance)
 
         self.setAcceptDrops(True)
         self._setup_ui()
@@ -744,9 +803,52 @@ class MainWindow(QMainWindow):
         else:
             # Automatic sync is off, but a file that disappeared from the disk
             # must still leave the library, and a folder that just appeared has
-            # to be offered as a series.
-            self._prune_missing_files()
-            self._check_new_folders()
+            # to be offered as a series. Both walk the disk, so they run in a
+            # worker and never freeze the window.
+            self._start_maintenance()
+
+    def _start_maintenance(self, silent: bool = True):
+        """Reconcile the library with the disk in the background."""
+        if self._maintenance_worker is not None:
+            return
+        root = settings.get_library_root()
+        if not root or not Path(root).is_dir():
+            return
+        worker = MaintenanceWorker(root, settings.get_ask_new_folders(), self)
+        self._maintenance_worker = worker
+        worker.finished_ok.connect(
+            lambda outcome: self._on_maintenance_finished(outcome, silent)
+        )
+        worker.failed.connect(self._on_maintenance_failed)
+        worker.finished.connect(worker.deleteLater)
+        worker.start()
+
+    def _on_maintenance_failed(self, message: str):
+        self._maintenance_worker = None
+        logger.info("Library maintenance skipped: %s", message)
+
+    def _on_maintenance_finished(self, outcome: Dict, silent: bool):
+        self._maintenance_worker = None
+        if not isinstance(outcome, dict):
+            return
+        relinked = outcome.get("relinked") or 0
+        removed = outcome.get("removed") or 0
+        pruned = outcome.get("pruned_series") or 0
+        if relinked or removed or pruned:
+            self.refresh_books()
+            self.series_panel.refresh_series()
+            if not silent:
+                parts = []
+                if relinked:
+                    parts.append(f"{relinked} moved file(s) followed")
+                if removed:
+                    parts.append(f"{removed} missing book(s) removed")
+                if pruned:
+                    parts.append(f"{pruned} empty series removed")
+                self._toast("  ·  ".join(parts), "warning" if removed else "info")
+        folders = outcome.get("folders") or []
+        if folders:
+            self._ask_about_folders(folders)
 
     def _prune_missing_files(self, silent: bool = True) -> int:
         """Keep the library in step with the disk after files move or vanish.
@@ -801,6 +903,8 @@ class MainWindow(QMainWindow):
             self._watch_timer.stop()
         if self._sync_worker and self._sync_worker.isRunning():
             self._sync_worker.wait(3000)
+        if self._maintenance_worker and self._maintenance_worker.isRunning():
+            self._maintenance_worker.wait(3000)
         # Let running cover loaders finish so they never touch deleted widgets.
         BookCard.thread_pool.clear()
         BookCard.thread_pool.waitForDone(3000)
@@ -821,8 +925,7 @@ class MainWindow(QMainWindow):
             # files that were deleted or moved while the app was closed are
             # reconciled right away.
             if settings.has_library_root():
-                QTimer.singleShot(300, self._prune_missing_files)
-            QTimer.singleShot(400, self._check_new_folders)
+                QTimer.singleShot(300, self._start_maintenance)
 
     def _show_welcome(self):
         dialog = WelcomeDialog(self)
@@ -1088,6 +1191,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     def refresh_books(self):
         """Reload the grid using the current filters and sort order."""
+        self._cancel_card_build()
         for card in self.book_cards:
             card.setParent(None)
             card.deleteLater()
@@ -1101,19 +1205,103 @@ class MainWindow(QMainWindow):
         self.selected_ids &= valid_ids
 
         self.library_grid.set_centered(not books)
+        self._update_page_header(len(books))
+        self.scroll_area.verticalScrollBar().setValue(0)
+
         if not books:
             self._show_empty_state()
-        else:
-            for index, book in enumerate(books):
-                card = self._create_card(book)
-                row, column = divmod(index, self.columns)
-                self.library_grid.add_card(card, row, column)
-                self.book_cards.append(card)
+            self._update_card_selection()
+            self._update_statusbar()
+            return
 
-        self._update_page_header(len(books))
+        self._queue_cards(books)
+
+    # ------------------------------------------------------------------
+    # Grid filling
+    # ------------------------------------------------------------------
+    def _card_batch_size(self, first: bool = True) -> int:
+        """How many cards to build before letting the window breathe again.
+
+        The first batch is one screenful, so the window paints a real grid
+        straight away. The following batches are deliberately larger: adding
+        widgets in bigger chunks costs less in total, and by then the user is
+        already looking at a usable window.
+        """
+        columns = max(2, int(self.columns or 4))
+        if first:
+            return max(24, 4 * columns)
+        return max(180, 10 * columns)
+
+    def _queue_cards(self, books: List[Dict]):
+        self._card_build_generation += 1
+        self._card_queue = list(books)
+        self._card_queue_index = 0
+        self._build_cards_batch(self._card_build_generation)
+
+    def _cancel_card_build(self):
+        self._card_build_generation += 1
+        self._card_queue = []
+        self._card_queue_index = 0
+
+    def flush_card_build(self):
+        """Build every queued card right now (used by tests and by shutdown)."""
+        if not self._card_queue:
+            return
+        generation = self._card_build_generation
+        while self._card_queue and generation == self._card_build_generation:
+            if self._card_queue_index >= len(self._card_queue):
+                break
+            self._build_cards_batch(generation, limit=len(self._card_queue))
+
+    def _build_cards_batch(self, generation: int, limit: Optional[int] = None):
+        if generation != self._card_build_generation or not self._card_queue:
+            return
+        queue = self._card_queue
+        start = self._card_queue_index
+        if start >= len(queue):
+            return
+        size = limit or self._card_batch_size(first=start == 0)
+        stop = min(len(queue), start + size)
+
+        # One layout pass per batch instead of one per card.
+        layout = self.library_grid.grid_layout
+        self.library_grid.setUpdatesEnabled(False)
+        layout.setEnabled(False)
+        try:
+            for index in range(start, stop):
+                book = queue[index]
+                card = self._create_card(book)
+                row, column = divmod(index, max(1, int(self.columns or 4)))
+                self.library_grid.add_card(card, row, column)
+                card.set_selection_mode(self._selection_mode)
+                card.set_selected(book["id"] in self.selected_ids)
+                card.set_multi_selected(
+                    card.is_selected
+                    and (self._selection_mode or len(self.selected_ids) > 1)
+                )
+                self.book_cards.append(card)
+        finally:
+            layout.setEnabled(True)
+            self.library_grid.setUpdatesEnabled(True)
+        self._card_queue_index = stop
+
+        remaining = len(self.book_cards) < len(self.books)
+        if stop < len(queue):
+            if remaining and self.statusbar is not None:
+                self.statusbar.showMessage(
+                    f"Showing {len(self.book_cards)} of {len(queue)} books…"
+                )
+            # One frame later: the grid that is already built gets painted
+            # first, so the window never looks frozen while it fills.
+            QTimer.singleShot(16, lambda: self._build_cards_batch(generation))
+            return
+
+        self._card_queue = []
+        self._card_queue_index = 0
         self._update_card_selection()
         self._update_statusbar()
-        self.scroll_area.verticalScrollBar().setValue(0)
+        if self.statusbar is not None:
+            self.statusbar.clearMessage()
 
     def _update_page_header(self, shown: int):
         """Keep the title of the grid in sync with the selected shelf."""
@@ -2005,8 +2193,8 @@ class MainWindow(QMainWindow):
         if manual:
             self.statusbar.showMessage("Checking for updates…", 4000)
 
-        worker = UpdateCheckWorker(self)
-        worker.checked.connect(lambda info: self._on_update_checked(info, manual))
+        worker = UpdateCheckWorker(APP_VERSION, self)
+        worker.checked.connect(lambda plan: self._on_update_checked(plan, manual))
         worker.failed.connect(lambda message: self._on_update_failed(message, manual))
         worker.finished.connect(worker.deleteLater)
         self._update_thread = worker
@@ -2021,9 +2209,10 @@ class MainWindow(QMainWindow):
                 "warning",
             )
 
-    def _on_update_checked(self, info, manual: bool):
+    def _on_update_checked(self, plan, manual: bool):
         self._update_thread = None
-        if info is None or not updater.is_newer(info.version):
+        target = getattr(plan, "target", "") if plan is not None else ""
+        if not target or not updater.is_newer(target):
             if manual:
                 self._toast(f"You are running the newest version ({APP_VERSION}).", "success")
             return
@@ -2031,12 +2220,21 @@ class MainWindow(QMainWindow):
         if not updater.is_installed_copy():
             # A portable copy must never rewrite itself; point at the page.
             if manual:
-                self._offer_portable_download(info)
+                self._offer_portable_download(target)
+            return
+
+        if plan.is_empty:
+            # The remaining releases do not chain onto this version (an old
+            # install, or a release whose package was withdrawn).
+            if manual or not updater.was_deferred_recently(
+                target, *settings.deferred_update()
+            ):
+                self._offer_full_download(plan)
             return
 
         deferred_version, deferred_at = settings.deferred_update()
         if not manual and updater.was_deferred_recently(
-            info.version, deferred_version, deferred_at
+            target, deferred_version, deferred_at
         ):
             return
 
@@ -2046,11 +2244,11 @@ class MainWindow(QMainWindow):
             # moment instead.
             if self._update_retries < 20:
                 self._update_retries += 1
-                self._pending_update = info
+                self._pending_update = plan
                 QTimer.singleShot(8000, self._resume_pending_update)
             return
 
-        self._show_update_dialog(info)
+        self._show_update_dialog(plan)
 
     def _busy_with_a_dialog(self) -> bool:
         app = QApplication.instance()
@@ -2058,8 +2256,8 @@ class MainWindow(QMainWindow):
 
     def _resume_pending_update(self):
         """Show a deferred update offer once the window is free again."""
-        info = self._pending_update
-        if info is None or self._update_dialog is not None:
+        plan = self._pending_update
+        if plan is None or self._update_dialog is not None:
             return
         if self._busy_with_a_dialog():
             if self._update_retries < 20:
@@ -2068,13 +2266,13 @@ class MainWindow(QMainWindow):
             return
         self._pending_update = None
         self._update_retries = 0
-        self._show_update_dialog(info)
+        self._show_update_dialog(plan)
 
-    def _offer_portable_download(self, info):
+    def _offer_portable_download(self, version: str):
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Information)
         box.setWindowTitle(f"{APP_NAME} - update available")
-        box.setText(f"Digital Library {info.version} is available.")
+        box.setText(f"Digital Library {version} is available.")
         box.setInformativeText(
             "This is the portable edition, so it cannot update itself. Download "
             "the new file from the releases page and replace the old one; your "
@@ -2086,22 +2284,43 @@ class MainWindow(QMainWindow):
         box.addButton(QMessageBox.StandardButton.Close)
         box.exec()
         if box.clickedButton() is open_button:
-            QDesktopServices.openUrl(QUrl(info.page_url or updater.RELEASE_PAGE))
+            QDesktopServices.openUrl(QUrl(updater.RELEASE_PAGE))
 
-    def _show_update_dialog(self, info):
-        dialog = UpdateDialog(info, self)
+    def _offer_full_download(self, plan):
+        """No chain reaches this version: send the user to the setup program."""
+        version = plan.target
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setWindowTitle(f"{APP_NAME} - update available")
+        box.setText(f"Digital Library {version} is available.")
+        box.setInformativeText(
+            f"The small in-place update needs to start from a nearby version, and "
+            f"there is no package from {APP_VERSION} to {version}. Download the "
+            "setup program once: it installs over the current version and keeps "
+            "your library and settings."
+        )
+        open_button = box.addButton(
+            "Open download page", QMessageBox.ButtonRole.AcceptRole
+        )
+        box.addButton(QMessageBox.StandardButton.Close)
+        box.exec()
+        if box.clickedButton() is open_button:
+            QDesktopServices.openUrl(QUrl(updater.RELEASE_PAGE))
+
+    def _show_update_dialog(self, plan):
+        dialog = UpdateDialog(plan, self)
         self._update_dialog = dialog
         accepted = dialog.exec()
         self._update_dialog = None
         if dialog.applying:
             # The PowerShell helper waits for this process to exit, swaps the
             # files and starts the new version.
-            logger.info("Installing update %s in place", info.version)
+            logger.info("Installing update %s in place", plan.target)
             self.statusbar.showMessage("Installing the update…")
             self._quit_for_update()
             return
         if not accepted:
-            settings.defer_update(info.version)
+            settings.defer_update(plan.target)
 
     def _quit_for_update(self):
         """Close cleanly so the helper finds no file in use, then exit."""

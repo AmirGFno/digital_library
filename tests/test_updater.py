@@ -111,7 +111,7 @@ def test_the_newest_release_points_at_the_update_package():
     assert info.asset_name.endswith("-update.zip")
     assert info.checksum_url == "https://example.test/SHA256.txt"
     assert "New things" in info.notes
-    assert info.size_text == "0.0 MB"  # 4321 bytes rounds down
+    assert info.size_text == "4 KB"  # small packages are shown in KB
     assert updater.is_newer(info.version)
 
 
@@ -406,3 +406,318 @@ def test_a_postponed_version_is_not_offered_again_for_a_day():
 def test_release_notes_are_trimmed_for_the_dialog():
     notes = updater.release_notes_summary("x" * 5000, limit=100)
     assert len(notes) <= 120
+
+
+# ======================================================================
+# Chained per-version updates
+# ======================================================================
+def release_json(version, from_version="", size=2_000_000, body="", draft=False):
+    """A GitHub release payload carrying one update package."""
+    name = (
+        f"DigitalLibrary-{version}-from-{from_version}-windows-x64-update.zip"
+        if from_version
+        else f"DigitalLibrary-{version}-windows-x64-update.zip"
+    )
+    return {
+        "tag_name": f"v{version}",
+        "html_url": f"https://example.test/releases/v{version}",
+        "body": body or f"Notes for {version}",
+        "published_at": "2026-10-26T10:00:00Z",
+        "draft": draft,
+        "prerelease": False,
+        "assets": [
+            {
+                "name": name,
+                "browser_download_url": f"https://example.test/{name}",
+                "size": size,
+            },
+            {
+                "name": "SHA256.txt",
+                "browser_download_url": f"https://example.test/SHA256-{version}.txt",
+                "size": 90,
+            },
+        ],
+    }
+
+
+def releases_of(*payloads):
+    return [updater.parse_release(payload) for payload in payloads]
+
+
+def test_the_package_name_says_which_version_it_upgrades_from():
+    assert updater.from_version_of(
+        "DigitalLibrary-2.4.3-from-2.4.2-windows-x64-update.zip"
+    ) == "2.4.2"
+    assert updater.from_version_of(
+        "DigitalLibrary-2.4.0-windows-x64-update.zip"
+    ) == ""
+    info = updater.parse_release(release_json("2.4.3", "2.4.2"))
+    assert info.is_delta and info.from_version == "2.4.2"
+    assert info.steps_text == "2.4.2 → 2.4.3"
+
+
+def test_drafts_and_prereleases_are_ignored():
+    assert updater.parse_release(release_json("2.5.0", draft=True)) is None
+    assert updater.parse_release({"tag_name": ""}) is None
+
+
+def test_three_releases_behind_means_three_packages():
+    plan = updater.plan_update_chain(
+        "2.4.0", releases_of(release_json("2.4.1", "2.4.0"),
+                             release_json("2.4.2", "2.4.1"),
+                             release_json("2.4.3", "2.4.2"))
+    )
+
+    assert [step.version for step in plan.steps] == ["2.4.1", "2.4.2", "2.4.3"]
+    assert plan.target == "2.4.3"
+    assert plan.versions_text == "2.4.0 → 2.4.1 → 2.4.2 → 2.4.3"
+    assert plan.count == 3
+    assert plan.total_size == 6_000_000
+    assert plan.size_text == "5.7 MB"
+    assert "Notes for 2.4.3" in plan.latest_notes
+    assert not plan.is_empty
+
+
+def test_one_release_behind_means_one_package():
+    plan = updater.plan_update_chain(
+        "2.4.2", releases_of(release_json("2.4.1", "2.4.0"), release_json("2.4.3", "2.4.2"))
+    )
+    assert [step.version for step in plan.steps] == ["2.4.3"]
+
+
+def test_an_up_to_date_install_has_nothing_to_do():
+    plan = updater.plan_update_chain(
+        "2.4.3", releases_of(release_json("2.4.3", "2.4.2"))
+    )
+    assert plan.is_empty
+    assert plan.steps == []
+    assert plan.target == "2.4.3"
+
+
+def test_a_gap_in_the_chain_falls_back_to_a_full_package():
+    plan = updater.plan_update_chain(
+        "2.2.0",
+        releases_of(
+            release_json("2.4.0"),                 # full package (no from-)
+            release_json("2.4.3", ""),
+            release_json("2.4.1", "2.4.0"),
+        ),
+    )
+    assert plan.steps == []
+    assert plan.full_package is not None
+    assert plan.full_package.version == "2.4.3"
+    assert plan.missing_from == "2.2.0"
+    assert plan.count == 1
+
+
+def test_a_gap_without_a_full_package_is_reported_not_guessed():
+    plan = updater.plan_update_chain(
+        "2.2.0", releases_of(release_json("2.4.1", "2.4.0"), release_json("2.4.2", "2.4.1"))
+    )
+    assert plan.is_empty
+    assert plan.target == "2.4.2"
+    assert plan.missing_from == "2.2.0"
+
+
+def test_a_loop_between_releases_cannot_hang_the_check():
+    weird = [
+        updater.UpdateInfo(
+            version="2.5.0", tag="v2.5.0", notes="", page_url="",
+            asset_url="https://example.test/a.zip", asset_name="a.zip",
+            from_version="2.6.0",
+        ),
+        updater.UpdateInfo(
+            version="2.6.0", tag="v2.6.0", notes="", page_url="",
+            asset_url="https://example.test/b.zip", asset_name="b.zip",
+            from_version="2.5.0",
+        ),
+    ]
+    plan = updater.plan_update_chain("2.4.0", weird)
+    assert plan.is_empty  # no way to reach it, no crash and no endless loop
+
+
+def test_the_release_list_is_sorted_newest_first():
+    payload = [release_json("2.4.1", "2.4.0"), release_json("2.4.3", "2.4.2"),
+               release_json("2.4.2", "2.4.1")]
+    releases = updater.fetch_releases(
+        opener=fake_opener({updater.RELEASES_API: payload})
+    )
+    assert [release.version for release in releases] == ["2.4.3", "2.4.2", "2.4.1"]
+
+
+# ----------------------------------------------------------------------
+# Downloading and merging a chain
+# ----------------------------------------------------------------------
+def _three_builds(tmp_path):
+    """Build v1, then the two delta packages that lead to v3."""
+    step1 = tmp_path / "dist-2.4.0"
+    (step1 / "_internal").mkdir(parents=True)
+    (step1 / "DigitalLibrary.exe").write_bytes(b"exe-1")
+    (step1 / "_internal" / "same.dll").write_bytes(b"same")
+    (step1 / "_internal" / "old.dll").write_bytes(b"old")
+    first = tmp_path / "first.zip"
+    packager.build_package(step1, "2.4.0", first)
+
+    step2 = tmp_path / "dist-2.4.1"
+    (step2 / "_internal").mkdir(parents=True)
+    (step2 / "DigitalLibrary.exe").write_bytes(b"exe-2")
+    (step2 / "_internal" / "same.dll").write_bytes(b"same")
+    (step2 / "_internal" / "new1.dll").write_bytes(b"new-1")
+    second = tmp_path / "second.zip"
+    packager.build_package(
+        step2, "2.4.1", second, previous=first, from_version="2.4.0"
+    )
+
+    step3 = tmp_path / "dist-2.4.2"
+    (step3 / "_internal").mkdir(parents=True)
+    (step3 / "DigitalLibrary.exe").write_bytes(b"exe-3")
+    (step3 / "_internal" / "same.dll").write_bytes(b"same")
+    (step3 / "_internal" / "new1.dll").write_bytes(b"new-1")
+    (step3 / "_internal" / "new2.dll").write_bytes(b"new-2")
+    third = tmp_path / "third.zip"
+    packager.build_package(
+        step3, "2.4.2", third, previous=second, from_version="2.4.1"
+    )
+    return step1, step2, step3, (first, second, third)
+
+
+def test_each_package_only_carries_its_own_changes(tmp_path):
+    _, _, _, (first, second, third) = _three_builds(tmp_path)
+
+    second_names = set(zipfile.ZipFile(second).namelist())
+    third_names = set(zipfile.ZipFile(third).namelist())
+
+    assert second_names == {
+        "DigitalLibrary.exe",
+        "_internal/new1.dll",
+        "install_info.json",
+        "update.json",
+    }
+    assert third_names == {
+        "DigitalLibrary.exe",
+        "_internal/new2.dll",
+        "install_info.json",
+        "update.json",
+    }
+    assert zipfile.ZipFile(third).read("update.json").decode().find("2.4.1") > 0
+    assert len(zipfile.ZipFile(first).namelist()) == 5  # full payload
+
+
+def test_two_small_packages_are_much_smaller_than_a_full_one(tmp_path):
+    _, _, _, (first, second, third) = _three_builds(tmp_path)
+    assert second.stat().st_size + third.stat().st_size < first.stat().st_size * 2
+
+
+def test_the_chain_is_downloaded_with_one_progress_bar(tmp_path):
+    _, _, _, (first, second, third) = _three_builds(tmp_path)
+    routes = {}
+    releases = []
+    for version, package, from_version in (
+        ("2.4.1", second, "2.4.0"),
+        ("2.4.2", third, "2.4.1"),
+    ):
+        payload = release_json(version, from_version, size=package.stat().st_size)
+        asset = payload["assets"][0]
+        routes[asset["browser_download_url"]] = package.read_bytes()
+        digest = hashlib.sha256(package.read_bytes()).hexdigest()
+        routes[payload["assets"][1]["browser_download_url"]] = (
+            f"{digest}  {asset['name']}\n"
+        ).encode()
+        releases.append(payload)
+
+    plan = updater.plan_update_chain("2.4.0", releases_of(*releases))
+    seen = []
+
+    merged = updater.download_and_merge(
+        plan,
+        tmp_path / "downloads",
+        progress=lambda done, total: seen.append((done, total)),
+        opener=fake_opener(routes),
+    )
+
+    assert merged.is_file()
+    assert seen and seen[-1][0] == plan.total_size == seen[-1][1]
+    # both packages ended up in the one archive
+    names = set(zipfile.ZipFile(merged).namelist())
+    assert {"DigitalLibrary.exe", "_internal/new1.dll", "_internal/new2.dll"} <= names
+
+
+def test_merging_applies_the_steps_in_order(tmp_path):
+    _, _, final_build, (first, second, third) = _three_builds(tmp_path)
+    plan = updater.UpdatePath(
+        target="2.4.2",
+        steps=[
+            updater.parse_release(release_json("2.4.1", "2.4.0")),
+            updater.parse_release(release_json("2.4.2", "2.4.1")),
+        ],
+    )
+
+    merged = tmp_path / "merged.zip"
+    summary = updater.merge_deltas([second, third], merged, version=plan.target)
+
+    assert summary["packages"] == 2
+    assert zipfile.ZipFile(merged).read("DigitalLibrary.exe") == b"exe-3"
+    manifest = updater.read_update_manifest(merged)
+    assert manifest["version"] == "2.4.2"
+    assert "_internal/old.dll" in manifest["removed"]
+    assert "_internal/old.dll" not in zipfile.ZipFile(merged).namelist()
+
+
+def test_installing_the_merged_archive_reproduces_the_newest_build(tmp_path):
+    step1, _, final_build, (_, second, third) = _three_builds(tmp_path)
+
+    # The installed copy still has the files of 2.4.0.
+    installed = tmp_path / "installed"
+    (installed / "_internal").mkdir(parents=True)
+    (installed / "DigitalLibrary.exe").write_bytes(b"exe-1")
+    (installed / "_internal" / "same.dll").write_bytes(b"same")
+    (installed / "_internal" / "old.dll").write_bytes(b"old")
+
+    merged = tmp_path / "merged.zip"
+    updater.merge_deltas([second, third], merged, version="2.4.2")
+
+    manifest = updater.read_update_manifest(merged)
+    with zipfile.ZipFile(merged) as bundle:
+        bundle.extractall(installed)
+    for name in manifest["removed"]:
+        (installed / name).unlink(missing_ok=True)
+    # The generated helper also removes the package's own manifest.
+    (installed / "update.json").unlink(missing_ok=True)
+
+    expected = packager.tree_manifest(final_build)
+    actual = packager.tree_manifest(installed)
+    # The install marker is generated per release, everything else must match.
+    expected.pop("install_info.json", None)
+    actual.pop("install_info.json", None)
+    assert actual == expected
+
+
+def test_a_damaged_package_in_the_chain_stops_the_update(tmp_path):
+    _, _, _, (_, second, _) = _three_builds(tmp_path)
+    payload = release_json("2.4.1", "2.4.0", size=second.stat().st_size)
+    asset = payload["assets"][0]
+    routes = {
+        asset["browser_download_url"]: second.read_bytes() + b"garbage",
+        payload["assets"][1]["browser_download_url"]: (
+            f"{'0' * 64}  {asset['name']}\n"
+        ).encode(),
+    }
+    plan = updater.plan_update_chain("2.4.0", releases_of(payload))
+
+    with pytest.raises(updater.UpdateError):
+        updater.download_and_merge(
+            plan, tmp_path / "downloads", opener=fake_opener(routes)
+        )
+
+    assert not list((tmp_path / "downloads").glob("*.zip")) or not list(
+        (tmp_path / "downloads").glob("merged-update.zip")
+    )
+
+
+def test_the_packager_refuses_a_gap_between_versions(tmp_path):
+    with pytest.raises(SystemExit):
+        packager.build_package(
+            Path(__file__).resolve().parent / "no-such-build",
+            "2.4.1",
+            tmp_path / "x.zip",
+        )

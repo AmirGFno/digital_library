@@ -2,11 +2,24 @@
 updater.py - find, download and apply updates for the installed edition.
 
 The installed build puts an ``install_info.json`` marker next to its executable.
-That marker tells the app it may update itself in place: it asks GitHub for the
-newest release, downloads the small ``*-update.zip`` that holds only the files
-which changed, verifies the published SHA-256 checksum and hands the archive to
-a short PowerShell helper. The helper waits for the app to exit, replaces the
-files (and removes the ones that disappeared) and starts the new version.
+That marker tells the app it may update itself in place.
+
+Every release publishes a small ``*-update.zip`` that only carries the files
+that changed since the previous release, and says in its file name which
+version it upgrades from::
+
+    DigitalLibrary-2.4.3-from-2.4.2-windows-x64-update.zip
+
+So an install on 2.4.0 that asks for updates finds three packages (2.4.0→2.4.1,
+2.4.1→2.4.2, 2.4.2→2.4.3), downloads those three small files instead of one big
+one, verifies every published SHA-256, merges them into a single archive and
+hands that to a short PowerShell helper. The helper waits for the app to exit,
+replaces the files (and removes the ones that disappeared) and starts the new
+version.
+
+A release whose update package has no ``from-`` part is a full package: it can
+be applied on any version and is used when a gap in the chain leaves no other
+way to reach the newest release.
 
 A portable copy has no marker: it never rewrites itself and only points the
 user at the release page.
@@ -36,11 +49,16 @@ from config import APP_VERSION
 from utils.logger import logger
 
 REPOSITORY = "AmirGFno/digital_library"
-RELEASES_API = f"https://api.github.com/repos/{REPOSITORY}/releases/latest"
+RELEASES_API = (
+    f"https://api.github.com/repos/{REPOSITORY}/releases?per_page=40"
+)
 RELEASE_PAGE = f"https://github.com/{REPOSITORY}/releases/latest"
 INSTALL_MARKER = config.INSTALL_MARKER
 UPDATE_ASSET_SUFFIX = "-update.zip"
 CHECKSUM_ASSET_NAME = "SHA256.txt"
+UPDATE_MANIFEST_NAME = "update.json"
+# DigitalLibrary-2.4.3-from-2.4.2-windows-x64-update.zip
+_DELTA_NAME_RE = re.compile(r"-from-v?(\d+(?:\.\d+){0,3})-windows-x64-update\.zip$", re.I)
 REQUEST_TIMEOUT = 10
 CHUNK_SIZE = 128 * 1024
 MAX_DOWNLOAD_BYTES = 400 * 1024 * 1024
@@ -135,17 +153,40 @@ class UpdateInfo:
     asset_size: int = 0
     checksum_url: str = ""
     published: str = ""
+    # Version this package upgrades from; empty for a full package.
+    from_version: str = ""
+    manifest_from: str = ""
 
     @property
     def can_install_in_place(self) -> bool:
         return bool(self.asset_url)
 
     @property
+    def is_delta(self) -> bool:
+        return bool(self.from_version)
+
+    @property
     def size_text(self) -> str:
-        if self.asset_size <= 0:
-            return ""
-        megabytes = self.asset_size / (1024 * 1024)
-        return f"{megabytes:.1f} MB"
+        return size_text(self.asset_size)
+
+    @property
+    def steps_text(self) -> str:
+        if self.from_version:
+            return f"{self.from_version} → {self.version}"
+        return self.version
+
+
+def size_text(size: int) -> str:
+    """``1234567`` -> ``1.2 MB`` (kilobytes for tiny packages)."""
+    try:
+        size = int(size)
+    except (TypeError, ValueError):
+        return ""
+    if size <= 0:
+        return ""
+    if size < 1024 * 1024:
+        return f"{size / 1024:.0f} KB"
+    return f"{size / (1024 * 1024):.1f} MB"
 
 
 @dataclass
@@ -254,6 +295,153 @@ def download_update(
     return archive
 
 
+def download_chain(
+    path_spec: UpdatePath,
+    destination_dir: Optional[Path] = None,
+    progress: Optional[ProgressCallback] = None,
+    opener=None,
+) -> List[Path]:
+    """Download every package the plan needs, as one progress stream."""
+    packages = list(path_spec.steps)
+    if not packages and path_spec.full_package is not None:
+        packages = [path_spec.full_package]
+    if not packages:
+        raise UpdateError("There is nothing to download for this update.")
+
+    total = sum(int(package.asset_size or 0) for package in packages)
+    downloaded_before = 0
+    archives: List[Path] = []
+    for index, package in enumerate(packages, start=1):
+        def report(done: int, size: int, base: int = downloaded_before, step=index):
+            if progress is None:
+                return
+            if total > 0:
+                progress(min(base + done, total), total)
+            else:
+                progress(done, size or 0)
+
+        logger.info(
+            "Updating %s (%s/%s)", package.steps_text, index, len(packages)
+        )
+        archive = download_update(
+            package, destination_dir, progress=report, opener=opener
+        )
+        archives.append(archive)
+        downloaded_before += int(package.asset_size or 0)
+    return archives
+
+
+def merge_deltas(
+    packages: Sequence[Path], output: Path, version: str = ""
+) -> Dict:
+    """Combine step packages into one archive that can be extracted once.
+
+    Later packages win, so applying the merged archive gives exactly the same
+    files as applying the packages one after another. The files that have to
+    disappear when the last package is applied are collected as well.
+    """
+    packages = [Path(package) for package in packages]
+    if not packages:
+        raise UpdateError("There is no package to merge.")
+
+    entries: Dict[str, tuple] = {}
+    removed = set()
+    last_manifest: Dict = {}
+    for package in packages:
+        manifest = read_update_manifest(package)
+        try:
+            with zipfile.ZipFile(package) as bundle:
+                names = [
+                    name
+                    for name in bundle.namelist()
+                    if not name.endswith("/") and name != UPDATE_MANIFEST_NAME
+                ]
+        except (OSError, zipfile.BadZipFile) as exc:
+            raise UpdateError(f"The downloaded package is unreadable: {exc}") from exc
+
+        for name in names:
+            entries[name] = (package, name)
+            removed.discard(name)
+        for name in manifest.get("removed") or []:
+            relative = str(name).replace("\\", "/").strip("/")
+            if relative:
+                removed.add(relative)
+                entries.pop(relative, None)
+        if manifest:
+            last_manifest = manifest
+
+    if not entries:
+        raise UpdateError("The downloaded packages are empty.")
+
+    removed -= set(entries)
+    output = Path(output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = output.with_suffix(output.suffix + ".part")
+    try:
+        with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as target:
+            for name in sorted(entries):
+                package, inner = entries[name]
+                with zipfile.ZipFile(package) as bundle, bundle.open(inner) as source:
+                    info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
+                    info.compress_type = zipfile.ZIP_DEFLATED
+                    info.external_attr = 0o644 << 16
+                    with target.open(info, "w") as destination:
+                        while True:
+                            chunk = source.read(CHUNK_SIZE)
+                            if not chunk:
+                                break
+                            destination.write(chunk)
+            manifest_out = {
+                "version": version or str(last_manifest.get("version") or ""),
+                "from_version": str(
+                    (last_manifest.get("from_version") if len(packages) == 1 else "")
+                    or ""
+                ),
+                "files": last_manifest.get("files") or {},
+                "removed": sorted(removed),
+                "merged_packages": len(packages),
+                "merged_versions": [package.name for package in packages],
+            }
+            target.writestr(
+                UPDATE_MANIFEST_NAME,
+                json.dumps(manifest_out, indent=1, sort_keys=True) + "\n",
+            )
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
+    os.replace(temporary, output)
+    logger.info(
+        "Merged %s package(s) into %s (%s removed)",
+        len(packages),
+        output,
+        len(removed),
+    )
+    return {
+        "archive": str(output),
+        "files": len(entries),
+        "removed": sorted(removed),
+        "packages": len(packages),
+    }
+
+
+def download_and_merge(
+    path_spec: UpdatePath,
+    destination_dir: Optional[Path] = None,
+    progress: Optional[ProgressCallback] = None,
+    opener=None,
+) -> Path:
+    """The whole download half of an update: fetch every step, merge, return one zip."""
+    folder = Path(destination_dir) if destination_dir else download_folder()
+    archives = download_chain(path_spec, folder, progress=progress, opener=opener)
+    merged = folder / "merged-update.zip"
+    merge_deltas(archives, merged, version=path_spec.target)
+    if len(archives) > 1:
+        for archive in archives:
+            # The merged archive holds everything the steps carried.
+            Path(archive).unlink(missing_ok=True)
+    return merged
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with open(path, "rb") as handle:
@@ -281,16 +469,18 @@ def parse_checksum_text(text: str) -> Dict[str, str]:
     return checksums
 
 
-def fetch_latest_release(opener=None, timeout: int = REQUEST_TIMEOUT) -> UpdateInfo:
-    """Ask GitHub for the newest published release (raises UpdateError)."""
-    try:
-        with _open(RELEASES_API, opener, timeout=timeout) as response:
-            payload = json.loads(response.read().decode("utf-8", "replace"))
-    except (urllib.error.URLError, OSError, ValueError) as exc:
-        raise UpdateError(f"Could not reach the update server: {exc}") from exc
+def from_version_of(asset_name: str) -> str:
+    """``...-from-2.4.2-windows-x64-update.zip`` -> ``2.4.2`` (else ``""``)."""
+    match = _DELTA_NAME_RE.search(str(asset_name or ""))
+    return normalize_version(match.group(1)) if match else ""
 
+
+def parse_release(payload: Dict) -> Optional[UpdateInfo]:
+    """Turn one GitHub release payload into an :class:`UpdateInfo`."""
     if not isinstance(payload, dict) or not payload.get("tag_name"):
-        raise UpdateError("The update server returned an unexpected answer.")
+        return None
+    if payload.get("draft") or payload.get("prerelease"):
+        return None
 
     assets = [
         _Asset.from_json(item)
@@ -303,18 +493,152 @@ def fetch_latest_release(opener=None, timeout: int = REQUEST_TIMEOUT) -> UpdateI
     checksum_asset = next(
         (item for item in assets if item.name == CHECKSUM_ASSET_NAME), None
     )
-    body = str(payload.get("body") or "")
     return UpdateInfo(
         version=normalize_version(payload.get("tag_name")),
         tag=str(payload.get("tag_name")),
-        notes=body[:6000],
+        notes=str(payload.get("body") or "")[:6000],
         page_url=str(payload.get("html_url") or RELEASE_PAGE),
         asset_url=update_asset.url if update_asset else "",
         asset_name=update_asset.name if update_asset else "",
         asset_size=update_asset.size if update_asset else 0,
         checksum_url=checksum_asset.url if checksum_asset else "",
         published=str(payload.get("published_at") or ""),
+        from_version=from_version_of(update_asset.name) if update_asset else "",
     )
+
+
+def fetch_releases(opener=None, timeout: int = REQUEST_TIMEOUT) -> List[UpdateInfo]:
+    """Every published release that carries something to download."""
+    try:
+        with _open(RELEASES_API, opener, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8", "replace"))
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        raise UpdateError(f"Could not reach the update server: {exc}") from exc
+
+    if isinstance(payload, dict):
+        # An error object from the API rather than a list of releases.
+        payload = [payload]
+    if not isinstance(payload, list):
+        raise UpdateError("The update server returned an unexpected answer.")
+
+    releases = []
+    for item in payload:
+        info = parse_release(item)
+        if info is not None and info.version:
+            releases.append(info)
+    if not releases:
+        raise UpdateError("No published release was found.")
+    releases.sort(key=lambda release: parse_version(release.version), reverse=True)
+    return releases
+
+
+def fetch_latest_release(opener=None, timeout: int = REQUEST_TIMEOUT) -> UpdateInfo:
+    """The newest published release."""
+    return fetch_releases(opener, timeout)[0]
+
+
+@dataclass
+class UpdatePath:
+    """How to get from the installed version to the newest one."""
+
+    target: str = ""
+    steps: List[UpdateInfo] = None
+    full_package: Optional[UpdateInfo] = None
+    missing_from: str = ""
+
+    def __post_init__(self):
+        if self.steps is None:
+            self.steps = []
+
+    @property
+    def is_empty(self) -> bool:
+        return not self.steps and self.full_package is None
+
+    @property
+    def latest_notes(self) -> str:
+        if self.steps:
+            return self.steps[-1].notes
+        if self.full_package is not None:
+            return self.full_package.notes
+        return ""
+
+    @property
+    def total_size(self) -> int:
+        packages = self.steps or ([self.full_package] if self.full_package else [])
+        return sum(int(package.asset_size or 0) for package in packages)
+
+    @property
+    def size_text(self) -> str:
+        return size_text(self.total_size)
+
+    @property
+    def versions_text(self) -> str:
+        """``2.4.0 → 2.4.1 → 2.4.2`` for the dialog."""
+        chain = [step.version for step in self.steps]
+        if self.full_package is not None and not chain:
+            return self.full_package.version
+        if chain:
+            chain.insert(0, self.steps[0].from_version or "")
+        return " → ".join(part for part in chain if part)
+
+    @property
+    def count(self) -> int:
+        return len(self.steps) or (1 if self.full_package else 0)
+
+
+def plan_update_chain(
+    current_version: str, releases: Sequence[UpdateInfo]
+) -> UpdatePath:
+    """Pick the shortest chain of packages that reaches the newest release.
+
+    Every release names the version it upgrades from, so the chain can be built
+    from the release list alone - without downloading a single package first.
+    """
+    published = [release for release in releases if release.version]
+    if not published:
+        return UpdatePath()
+
+    latest = published[0]
+    for release in published[1:]:
+        if parse_version(release.version) > parse_version(latest.version):
+            latest = release
+    target = normalize_version(latest.version)
+    if not is_newer(target, current_version):
+        return UpdatePath(target=target)
+
+    usable = [release for release in published if release.can_install_in_place]
+    by_from = {}
+    for release in usable:
+        if release.from_version:
+            key = normalize_version(release.from_version)
+            known = by_from.get(key)
+            if known is None or parse_version(release.version) > parse_version(known.version):
+                by_from[key] = release
+    full_packages = [release for release in usable if not release.from_version]
+
+    steps: List[UpdateInfo] = []
+    version = normalize_version(current_version)
+    seen = set()
+    while is_newer(target, version):
+        step = by_from.get(version)
+        if step is None or step.version in seen:
+            best_full = next(
+                (
+                    package
+                    for package in full_packages
+                    if normalize_version(package.version) == target
+                ),
+                None,
+            )
+            return UpdatePath(
+                target=target, steps=[], full_package=best_full, missing_from=version
+            )
+        seen.add(step.version)
+        steps.append(step)
+        version = normalize_version(step.version)
+        if len(steps) > 100:  # a cycle would otherwise loop forever
+            break
+    return UpdatePath(target=target, steps=steps)
 
 
 # ----------------------------------------------------------------------
@@ -333,7 +657,10 @@ def build_apply_script(
     removed: Sequence[str] = (),
 ) -> str:
     """PowerShell helper that swaps the files once the app has exited."""
-    removed_lines = "\n".join(f"    {_ps_quote(item)}" for item in removed) or ""
+    # The package carries its own manifest; it must not stay in the install
+    # folder after it has been applied.
+    files_to_remove = list(dict.fromkeys([*removed, UPDATE_MANIFEST_NAME]))
+    removed_lines = "\n".join(f"    {_ps_quote(item)}" for item in files_to_remove) or ""
     return f"""# Digital Library in-place update helper.
 $ErrorActionPreference = 'SilentlyContinue'
 $log = Join-Path $env:TEMP 'DigitalLibrary-update.log'

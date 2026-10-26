@@ -5,12 +5,17 @@ The installed build is a normal folder, so an update only has to ship the files
 whose bytes actually changed. This script compares the freshly built folder with
 the manifest of the previous release's update package and writes
 
-    DigitalLibrary-<version>-windows-x64-update.zip
+    DigitalLibrary-<version>-from-<previous>-windows-x64-update.zip
 
 containing the changed files, an ``install_info.json`` marker with the new
-version and ``update.json`` with the full file manifest plus the files that must
-be removed. The first release that ships this format has no previous manifest,
-so it simply contains every file (still installed in place, never uninstalled).
+version and ``update.json`` with the full file manifest, the version it upgrades
+from and the files that must be removed.
+
+The app chains these per-version packages: an install three releases behind
+downloads the three small files instead of one big one.
+
+A release without a previous manifest gets a package that holds every file
+(named without the ``from-`` part); it can be applied on any older version.
 """
 from __future__ import annotations
 
@@ -64,22 +69,34 @@ def manifest_from_payload(payload: object) -> Dict[str, str]:
     }
 
 
-def previous_manifest(archive: Optional[Path]) -> Dict[str, str]:
-    """Manifest of an older update package, or an empty map."""
+def read_manifest(archive: Optional[Path]) -> Dict:
+    """The ``update.json`` payload of a package (empty dict when missing)."""
     if not archive:
         return {}
     archive = Path(archive)
     if not archive.is_file():
-        raise SystemExit(f"previous update package not found: {archive}")
+        raise SystemExit(f"update package not found: {archive}")
     with zipfile.ZipFile(archive) as bundle:
         if MANIFEST_NAME not in bundle.namelist():
             return {}
         payload = json.loads(bundle.read(MANIFEST_NAME).decode("utf-8"))
-    files = manifest_from_payload(payload)
+    return payload if isinstance(payload, dict) else {}
+
+
+def previous_manifest(archive: Optional[Path]) -> Dict[str, str]:
+    """Manifest of an older update package, or an empty map."""
+    files = manifest_from_payload(read_manifest(archive))
     # These two names are generated, never compared as program files.
     files.pop(INSTALL_MARKER, None)
     files.pop(MANIFEST_NAME, None)
     return files
+
+
+def package_name(version: str, from_version: str = "") -> str:
+    """File name of the update package published with a release."""
+    if from_version:
+        return f"DigitalLibrary-{version}-from-{from_version}-windows-x64-update.zip"
+    return f"DigitalLibrary-{version}-windows-x64-update.zip"
 
 
 def plan_update(
@@ -119,6 +136,7 @@ def build_package(
     version: str,
     output: Path,
     previous: Optional[Path] = None,
+    from_version: str = "",
 ) -> dict:
     """Write the update package and return a summary dictionary."""
     dist = Path(dist)
@@ -132,6 +150,12 @@ def build_package(
     previous_files = previous_manifest(previous)
     changed, removed = plan_update(current, previous_files)
     files_total = len(current)
+    if previous_files and from_version:
+        recorded = str((read_manifest(previous) or {}).get("version") or "")
+        if recorded and recorded != str(from_version):
+            raise SystemExit(
+                f"the previous package is {recorded}, not {from_version}"
+            )
 
     marker = marker_payload(version)
     current[INSTALL_MARKER] = hashlib.sha256(marker).hexdigest()
@@ -141,6 +165,7 @@ def build_package(
 
     manifest = {
         "version": str(version),
+        "from_version": str(from_version) if previous_files else "",
         "files": current,
         "removed": removed,
         "created": changed,
@@ -161,6 +186,7 @@ def build_package(
 
     return {
         "version": str(version),
+        "from_version": str(from_version) if previous_files else "",
         "output": str(output),
         "size": output.stat().st_size,
         "files_total": files_total,
@@ -180,6 +206,11 @@ def main(argv: Optional[list] = None) -> int:
         default="",
         help="update package of the previous release (optional)",
     )
+    parser.add_argument(
+        "--from-version",
+        default="",
+        help="version this package upgrades from (recorded in update.json)",
+    )
     parser.add_argument("--json", action="store_true", help="print a JSON summary")
     args = parser.parse_args(argv)
 
@@ -188,6 +219,7 @@ def main(argv: Optional[list] = None) -> int:
         args.version,
         Path(args.output),
         Path(args.previous) if args.previous else None,
+        from_version=args.from_version,
     )
     if args.json:
         print(json.dumps(summary, indent=2))
