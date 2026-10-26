@@ -203,7 +203,14 @@ def test_main_window_shrinks_to_the_screen(qt_app, screen):
     assert window.minimumHeight() <= SMALL[1]
     _show(qt_app, window, SMALL[0] - layout.MARGIN, SMALL[1] - layout.MARGIN)
     assert window.width() <= SMALL[0]
-    assert not layout.oversized_widgets(window)
+    # Name the offender: a bare "assert not []" tells nobody which control
+    # overflowed, and the font differs between Windows and Linux.
+    offenders = [
+        f"{type(widget).__name__}#{widget.objectName() or '-'}"
+        f" {widget.geometry().getRect()} in {window.width()}x{window.height()}"
+        for widget in layout.oversized_widgets(window)
+    ]
+    assert not offenders, offenders
     window.close()
 
 
