@@ -242,3 +242,26 @@ def test_the_details_list_survives_a_sort_click(window, qt_app):
         qt_app.processEvents()
     assert window.books_table.book_count() == 3
     assert set(window.books_table.selected_ids()) == ids_before
+
+
+def test_repeated_theme_changes_keep_one_live_style(qt_app):
+    """Switching modes must not leave Qt pointing at a freed style object."""
+    from PyQt6.QtWidgets import QMenuBar
+
+    from ui import theme
+
+    for index in range(12):
+        theme.apply_theme(qt_app, "light" if index % 2 == 0 else "dark")
+        # A widget that asks the style for hints would read freed memory if
+        # the proxy or its base had been collected.
+        bar = QMenuBar()
+        bar.addMenu("&File")
+        bar.show()
+        qt_app.processEvents()
+        assert bar.sizeHint().height() > 0
+        bar.close()
+
+    assert theme._STYLE is not None, "the style and its base must stay alive"
+    proxy, base = theme._STYLE
+    assert base is not None and proxy is not None
+    assert proxy.styleHint(proxy.StyleHint.SH_UnderlineShortcut) == 0

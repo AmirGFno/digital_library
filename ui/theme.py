@@ -995,6 +995,24 @@ def _run_restylers() -> None:
     _restylers[:] = alive
 
 
+# The proxy style and its base stay alive for the whole process. Letting the
+# base be collected while Qt still points at it is a dangling pointer, and
+# replacing the application style on every repaint is an easy way to crash.
+_STYLE: "tuple[QProxyStyle, QStyle] | None" = None
+
+
+def _install_style(app) -> None:
+    global _STYLE
+    if _STYLE is not None:
+        return
+    base = QStyleFactory.create("Fusion")
+    if base is None:
+        base = app.style()
+    proxy = _WindowsStyle(base)
+    _STYLE = (proxy, base)
+    app.setStyle(proxy)
+
+
 def apply_theme(app, mode: str | None = None):
     """Apply the palette to the whole application.
 
@@ -1009,8 +1027,7 @@ def apply_theme(app, mode: str | None = None):
         except Exception:
             mode = "system"
     set_mode(mode)
-    base = QStyleFactory.create("Fusion")
-    app.setStyle(_WindowsStyle(base) if base is not None else _WindowsStyle())
+    _install_style(app)
     app.setPalette(build_palette())
     app.setStyleSheet(build_stylesheet() + card_stylesheet())
     _run_restylers()

@@ -471,10 +471,10 @@ class EmptyState(QWidget):
         layout.setSpacing(12)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        art = QLabel()
-        art.setPixmap(self._artwork())
-        art.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(art)
+        self.art_label = QLabel()
+        self.art_label.setPixmap(self._artwork())
+        self.art_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.art_label)
 
         self.heading = QLabel(title)
         self.heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -485,10 +485,6 @@ class EmptyState(QWidget):
         self.description.setWordWrap(True)
         layout.addWidget(self.description)
 
-        self.art_label = QLabel()
-        self.art_label.setPixmap(self._artwork())
-        self.art_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.insertWidget(0, self.art_label)
         self.restyle()
         theme.register_restyle(self)
 
