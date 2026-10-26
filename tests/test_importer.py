@@ -17,11 +17,11 @@ COMIC_INFO = """<?xml version="1.0"?>
 """
 
 
-def make_cbz(path: Path, comic_info: str = COMIC_INFO) -> str:
+def make_cbz(path: Path, comic_info: str = COMIC_INFO, tag: bytes = b"") -> str:
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr("ComicInfo.xml", comic_info)
-        archive.writestr("001.jpg", b"image")
-        archive.writestr("002.jpg", b"image")
+        archive.writestr("001.jpg", b"image" + tag)
+        archive.writestr("002.jpg", b"image" + tag)
     return str(path)
 
 
@@ -93,8 +93,10 @@ def test_import_folder_scans_recursively(temp_db, tmp_path):
     importer = LibraryImporter(database=temp_db)
     nested = tmp_path / "publisher" / "series"
     nested.mkdir(parents=True)
-    make_cbz(nested / "one.cbz")
-    make_cbz(tmp_path / "two.cbz")
+    # Different payloads: two byte-identical comics are deliberately counted
+    # as one book by the fingerprint check.
+    make_cbz(nested / "one.cbz", tag=b"one")
+    make_cbz(tmp_path / "two.cbz", tag=b"two")
     (tmp_path / "ignore.txt").write_text("x", encoding="utf-8")
 
     result = importer.import_folder(str(tmp_path), recursive=True)

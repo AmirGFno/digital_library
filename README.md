@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml/badge.svg"></a>
   <a href="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml"><img alt="Windows build" src="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-2.2.2-e8552d">
+  <img alt="Version" src="https://img.shields.io/badge/version-2.3.3-e8552d">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
@@ -50,13 +50,46 @@
   نمی‌شود و افزودن دوباره‌ی یک پوشه فقط فایل‌های تازه را وارد می‌کند
 - **شماره‌ی جلد هوشمند**: عدد ۱ تا ۳ رقمی نام فایل شماره‌ی جلد می‌شود، تکراری
   هرگز ساخته نمی‌شود و در صورت نبود الگو، ترتیب تاریخی فایل‌ها ملاک است
-- **انتخاب چندگانه** با `Ctrl`/`Shift` و کشیدن کادر، همراه با منوی کلیک راست
-  گروهی (باز کردن، خوانده/نخوانده، علاقه‌مندی، تغییر سری و حذف)
+- **انتخاب چندگانه**: با بردن موس روی کاور، یک دایره‌ی کوچک در گوشه‌ی کتاب ظاهر
+  می‌شود؛ با کلیک روی آن، دایره پر می‌شود و تیک سفید می‌گیرد و بقیه‌ی کتاب‌ها هم
+  دایره‌ی خالی خودشان را نشان می‌دهند تا یکی‌یکی انتخاب شوند. همین کار از منوی
+  کلیک راست (گزینه‌ی «Select several books…») هم شروع می‌شود. تا وقتی این حالت
+  روشن است، کلیک راست فقط منوی گروهی را نشان می‌دهد و منوی خود کارت نمی‌آید.
+  کلیک ساده هم هرگز حالت انتخاب چندگانه را روشن نمی‌کند.
 - **پاک‌سازی نام**: حذف آیدی کانال تلگرام، نشانی سایت و عبارت‌های تبلیغاتی از
   نام کمیک، با پیش‌نمایش قبل از ذخیره
+- **پرسش درباره‌ی پوشه‌های تازه**: هر پوشه‌ای که داخل پوشه‌ی کتابخانه ظاهر شود،
+  یک‌بار پرسیده می‌شود که «به‌عنوان سری اضافه شود؟» و پاسخش ذخیره می‌شود
+- **بازگردانی سری حذف‌شده**: حذف سری کتاب‌ها را پاک نمی‌کند و هر سری حذف‌شده را
+  می‌توان از «Deleted series» یا `Ctrl+Shift+Z` دقیقاً به حالت قبل برگرداند
+- **هم‌گام‌سازی با دیسک**: فایلی که از روی دیسک پاک شود، خودکار از کتابخانه هم
+  حذف می‌شود (هیچ فایلی روی دیسک پاک نمی‌شود)
+- **کاور CBR**: کاور فایل‌های RAR/CBR با WinRAR، 7-Zip، `unar` یا `bsdtar`
+  خوانده می‌شود و وضعیت این ابزار در تنظیمات خواننده نمایش داده می‌شود
+- **دیزاین تازه**: نوار بالای صفحه با آمار زنده، کارت‌های کتاب با کاور گرد و
+  منوی شناور، نوار انتخاب زیر شبکه، پیام‌های Toast و کتابخانه‌ی ویجت اختصاصی
 - رابط تیره‌ی مدرن، ذخیره‌ی چیدمان پنجره و پشتیبانی از DPI بالا
 - نسخه‌ی **EXE تک‌فایل** بدون نیاز به نصب پایتون و با حجم بسیار کمتر (موتور PDF
   سبک جایگزین شد)
+
+### چه چیزی در نسخه‌های ۲.۳.۱ تا ۲.۳.۳ درست شد
+
+- **انتخاب چندگانه**: نوار انتخاب دیگر روی کارت‌ها نمی‌افتد و دکمه‌های میان‌بر کارت
+  با تأخیر کوتاه ظاهر می‌شوند، پس کلیک ساده، `Ctrl` و `Shift` همیشه کار می‌کنند
+- **فایل جابه‌جاشده**: رکورد کتاب با اثر انگشت محتوا به مسیر تازه وصل می‌شود و
+  وضعیت خوانده‌شدن، امتیاز و کاور حفظ می‌شوند؛ فایل حذف‌شده هم از کتابخانه برداشته
+  می‌شود (هیچ فایلی روی دیسک پاک نمی‌شود)
+- **سری خالی**: سری‌ای که پوشه و همه‌ی کتاب‌هایش رفته باشد از فهرست کنار می‌رود و
+  در «Deleted series» برای بازگردانی می‌ماند
+- **آیکون برنامه**: آیکون چندسایزی در پنجره، نوار وظیفه و فایل اجرایی؛ در نسخه‌ی
+  بسته‌بندی‌شده دیگر شناسه‌ی دستی ویندوز تنظیم نمی‌شود تا نوار وظیفه آیکون خود
+  برنامه را از فایل اجرایی بردارد
+- **پرسش پوشه‌ها**: پوشه‌ای که یک‌بار پاسخ گرفته دیگر دوباره پرسیده نمی‌شود
+- `Ctrl+A` و `Delete` هنگام تایپ در کادر جستجو دیگر روی شبکه اثر نمی‌گذارند
+- **پیام خطای «Toast»**: پیام‌های پایین صفحه دیگر پس از محو شدن، مرجع مرده
+  باقی نمی‌گذارند؛ پیش‌تر نمایش پیام دوم باعث خطا و پنجره‌ی «unexpected error»
+  می‌شد. حالا حداکثر سه پیام هم‌زمان نمایش داده می‌شود و هر خطای تکراری فقط
+  یک‌بار گزارش می‌شود
 
 ### خواننده‌های پشتیبانی‌شده
 
@@ -90,7 +123,7 @@ python main.py
 ### دریافت نسخه‌ی EXE
 
 از بخش [Releases](https://github.com/AmirGFno/digital_library/releases) فایل
-`DigitalLibrary-2.2.2-windows-x64.zip` را دانلود کنید، از حالت فشرده خارج کنید
+`DigitalLibrary-2.3.3-windows-x64.zip` را دانلود کنید، از حالت فشرده خارج کنید
 و `DigitalLibrary.exe` را اجرا کنید. پایتون لازم نیست.
 
 > ویندوز ممکن است بار اول هشدار SmartScreen نشان دهد، چون فایل امضای دیجیتال
@@ -148,6 +181,8 @@ python scripts/smoke.py
 | `Ctrl+D` | نمایش علاقه‌مندی‌ها |
 | `Ctrl+,` | تنظیمات خواننده |
 | `Ctrl+I` | آمار کتابخانه |
+| `Ctrl+R` | هم‌گام‌سازی پوشه‌ی کتابخانه |
+| `Ctrl+Shift+Z` | بازگردانی سری حذف‌شده |
 | `Ctrl++` / `Ctrl+-` | کم و زیاد کردن ستون‌ها |
 | `F5` | تازه‌سازی |
 | دوبار کلیک | باز کردن کتاب |
@@ -181,6 +216,14 @@ python scripts/smoke.py
 - Multi-selection with Ctrl/Shift/rubber band and a group right-click menu
 - Cleans channel IDs, site links and advertising text out of comic names, with a
   preview before saving
+- Asks once per new folder inside the library whether it should become a series
+- Deleted series are restorable; deleting one never loses its books
+- Files removed from the disk leave the library automatically (nothing on disk is
+  ever deleted by the cleanup)
+- CBR covers read through WinRAR, 7-Zip, `unar` or `bsdtar`, with the detected
+  tool shown in the reader settings
+- Redesigned interface: live statistics hero, rounded cover cards with a hover
+  action bar, floating selection bar, toasts and a shared widget library
 - Modern dark UI, saved layout, high-DPI friendly
 - Single-file Windows executable (no Python required) with a much smaller size
 
@@ -216,12 +259,18 @@ digital_library/
 │   ├── name_preview_dialog.py  # cleaned titles shown before saving
 │   ├── library_grid.py         # grid with rubber-band selection
 │   ├── welcome_dialog.py       # first-run library folder
-│   └── theme.py                # global dark stylesheet
+│   ├── new_folder_dialog.py    # "should this folder become a series?"
+│   ├── restore_dialog.py       # bring back a deleted series
+│   ├── stats_dialog.py         # library dashboard
+│   ├── widgets.py              # shared widgets (chips, cards, toasts…)
+│   └── theme.py                # palette, stylesheet and helpers
 ├── utils/
 │   ├── reader_manager.py       # reader detection (incl. registry) and launching
 │   ├── settings.py             # atomic JSON settings
 │   ├── text_cleaner.py         # removes ads/links from comic names
 │   ├── helpers.py
+│   ├── folder_watch.py         # finds folders that are not series yet
+│   ├── rar_tools.py            # RAR/CBR extraction backend
 │   └── logger.py
 ├── scripts/
 │   ├── smoke.py                # headless GUI test

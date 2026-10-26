@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -41,6 +42,7 @@ from PyQt6.QtWidgets import (
 )
 
 from importer import FolderPlan, build_folder_plan_with_db, importer
+from ui import theme
 from importer import ImportResult
 from utils.logger import logger
 from utils.settings import settings
@@ -77,6 +79,7 @@ class FolderImportDialog(QDialog):
         title = QLabel("Import a folder")
         title.setObjectName("TitleLabel")
         layout.addWidget(title)
+        layout.addSpacing(2)
 
         subtitle = QLabel(
             "Each subfolder can become a series. Volume numbers are taken from the "
@@ -98,8 +101,21 @@ class FolderImportDialog(QDialog):
         layout.addLayout(folder_row)
 
         # Options --------------------------------------------------------
-        options = QHBoxLayout()
-        options.addWidget(QLabel("Structure:"))
+        options_card = QFrame()
+        options_card.setObjectName("Chip")
+        options_card.setStyleSheet(
+            f"QFrame#Chip {{ background-color: {theme.SURFACE};"
+            f" border: 1px solid {theme.BORDER}; border-radius: 14px; }}"
+        )
+        options = QVBoxLayout(options_card)
+        options.setContentsMargins(14, 10, 14, 10)
+        options.setSpacing(8)
+
+        structure_row = QHBoxLayout()
+        structure_row.setSpacing(12)
+        structure_label = QLabel("Structure")
+        structure_label.setObjectName("SectionLabel")
+        structure_row.addWidget(structure_label)
 
         self.mode_single = QRadioButton("One series per folder")
         self.mode_subfolders = QRadioButton("One series per subfolder")
@@ -110,20 +126,26 @@ class FolderImportDialog(QDialog):
 
         for button in (self.mode_single, self.mode_subfolders, self.mode_none):
             button.toggled.connect(self._on_mode_changed)
-            options.addWidget(button)
+            structure_row.addWidget(button)
+        structure_row.addStretch()
+        options.addLayout(structure_row)
+
+        extras_row = QHBoxLayout()
+        extras_row.setSpacing(16)
 
         self.clean_check = QCheckBox("Clean names")
         self.clean_check.setToolTip(
             "Remove site addresses, channel IDs and advertising words from titles"
         )
         self.clean_check.setChecked(settings.get_clean_names())
-        options.addWidget(self.clean_check)
+        extras_row.addWidget(self.clean_check)
 
         self.metadata_check = QCheckBox("Read comic metadata")
         self.metadata_check.setChecked(True)
-        options.addWidget(self.metadata_check)
-        options.addStretch()
-        layout.addLayout(options)
+        extras_row.addWidget(self.metadata_check)
+        extras_row.addStretch()
+        options.addLayout(extras_row)
+        layout.addWidget(options_card)
 
         # Tables ---------------------------------------------------------
         tabs = QTabWidget()
@@ -165,6 +187,7 @@ class FolderImportDialog(QDialog):
             ["Create", "Series name", "Files", "New", "Already in library", "Volumes"]
         )
         self.groups_table.verticalHeader().setVisible(False)
+        self.groups_table.verticalHeader().setDefaultSectionSize(34)
         self.groups_table.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectRows
         )
@@ -192,6 +215,7 @@ class FolderImportDialog(QDialog):
         self.names_table = QTableWidget(0, 3)
         self.names_table.setHorizontalHeaderLabels(["File", "Title after import", "Volume"])
         self.names_table.verticalHeader().setVisible(False)
+        self.names_table.verticalHeader().setDefaultSectionSize(32)
         self.names_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         header = self.names_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)

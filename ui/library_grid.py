@@ -24,6 +24,8 @@ class LibraryGrid(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setObjectName("LibraryGrid")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._layout = QGridLayout(self)
         self._layout.setSpacing(14)
         self._layout.setContentsMargins(6, 6, 6, 6)
@@ -52,6 +54,13 @@ class LibraryGrid(QWidget):
 
     def add_card(self, card: BookCard, row: int, column: int):
         self._layout.addWidget(card, row, column)
+
+    def set_centered(self, centered: bool):
+        """Centre a lone empty-state widget instead of pinning it top-left."""
+        self._layout.setAlignment(
+            Qt.AlignmentFlag.AlignTop
+            | (Qt.AlignmentFlag.AlignHCenter if centered else Qt.AlignmentFlag.AlignLeft)
+        )
 
     def cards(self) -> List[BookCard]:
         result = []
