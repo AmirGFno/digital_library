@@ -25,6 +25,7 @@ from PyQt6.QtCore import (
 )
 from PyQt6.QtGui import (
     QAction,
+    QActionGroup,
     QCursor,
     QDesktopServices,
     QDragEnterEvent,
@@ -47,9 +48,11 @@ from PyQt6.QtWidgets import (
     QProgressDialog,
     QPushButton,
     QScrollArea,
+    QButtonGroup,
     QSpinBox,
     QSizePolicy,
     QSplitter,
+    QStackedWidget,
     QStatusBar,
     QToolButton,
     QVBoxLayout,
@@ -67,6 +70,7 @@ from cover_extractor import cover_extractor
 from database import db
 from importer import ImportResult, build_folder_plan_with_db, importer
 from ui.book_card import BookCard
+from ui.books_table import BooksTable
 from ui.details_dialog import DetailsDialog
 from ui.dialogs import (
     AddBookDialog,
@@ -220,6 +224,7 @@ class MainWindow(QMainWindow):
         self.current_series_filter = None  # None, "unsorted" or a series id
         self.current_search = ""
         self.columns = settings.get_columns()
+        self.view_mode = "details" if settings.get_view("view_mode") == "details" else "grid"
         self.book_cards: List[BookCard] = []
         self.books: List[Dict] = []
         self.selected_ids: set[int] = set()
@@ -271,7 +276,11 @@ class MainWindow(QMainWindow):
         self._setup_statusbar()
         self._restore_window_state()
         self._ui_ready = True
+        self._style_status_labels()
+        theme.register_restyle(self)
         self._apply_responsive_layout()
+        self._apply_view_mode()
+        self._update_theme_actions()
         self.refresh_books()
 
         if self._run_startup:
@@ -304,42 +313,46 @@ class MainWindow(QMainWindow):
         self._root_layout.setContentsMargins(0, 0, 0, 0)
         self._root_layout.setSpacing(0)
 
-        # ---- hero header ------------------------------------------------
+        # ---- app bar ----------------------------------------------------
+        # One compact strip like the command bar of a Windows program: the
+        # small icon, the name and the library folder on the left, the actions
+        # on the right. The old tall hero pushed the actual books down.
         self.hero = QFrame()
-        self.hero.setObjectName("HeroBar")
+        self.hero.setObjectName("AppBar")
+        self.hero.setFixedHeight(46)
         hero_layout = QHBoxLayout(self.hero)
-        hero_layout.setContentsMargins(20, 14, 20, 14)
-        hero_layout.setSpacing(14)
+        hero_layout.setContentsMargins(12, 6, 12, 6)
+        hero_layout.setSpacing(8)
 
         self.logo = QLabel()
-        self.logo.setFixedSize(46, 46)
-        self.logo.setPixmap(theme.logo_pixmap(46))
+        self.logo.setFixedSize(24, 24)
+        self.logo.setPixmap(theme.logo_pixmap(24))
         self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hero_layout.addWidget(self.logo)
 
         title_box = QVBoxLayout()
-        title_box.setSpacing(1)
+        title_box.setSpacing(0)
         app_title = QLabel(APP_NAME)
         app_title.setObjectName("HeroTitle")
-        self.hero_subtitle = QLabel("Your comic shelf")
+        self.hero_subtitle = QLabel("No library folder yet")
         self.hero_subtitle.setObjectName("MutedLabel")
         title_box.addWidget(app_title)
         title_box.addWidget(self.hero_subtitle)
         hero_layout.addLayout(title_box)
         hero_layout.addStretch(1)
 
-        self.stat_books = StatCard("▦", "BOOKS", theme.BLUE)
-        self.stat_unread = StatCard("●", "UNREAD", theme.ACCENT)
-        self.stat_favorites = StatCard("★", "FAVORITES", theme.GOLD)
-        self.stat_series = StatCard("≡", "SERIES", theme.VIOLET)
+        self.stat_books = StatCard("▦", "Books", theme.BLUE)
+        self.stat_unread = StatCard("●", "Unread", theme.ACCENT)
+        self.stat_favorites = StatCard("★", "Favorites", theme.GOLD)
+        self.stat_series = StatCard("≡", "Series", theme.VIOLET)
         self.stat_cards = [self.stat_books, self.stat_unread,
                            self.stat_favorites, self.stat_series]
         for card in self.stat_cards:
             hero_layout.addWidget(card)
-        self.stat_unread.clicked.connect(lambda: self.read_filter_combo.setCurrentIndex(1))
-        self.stat_favorites.clicked.connect(lambda: self.favorites_button.setChecked(True))
+        self.stat_unread.clicked.connect(lambda: self._activate_shelf("unread"))
+        self.stat_favorites.clicked.connect(lambda: self._activate_shelf("favorites"))
 
-        hero_layout.addSpacing(6)
+        hero_layout.addSpacing(4)
 
         self.add_button = QPushButton("＋  Add comics")
         self.add_button.setObjectName("PrimaryButton")
@@ -353,38 +366,35 @@ class MainWindow(QMainWindow):
         self.import_button.clicked.connect(self._bulk_import)
         hero_layout.addWidget(self.import_button)
 
-        self.sync_button = QPushButton("Sync")
+        self.sync_button = QPushButton("↻  Sync")
         self.sync_button.setObjectName("GhostButton")
         self.sync_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.sync_button.setToolTip("Check the library folder for new comics (Ctrl+R)")
+        self.sync_button.setToolTip("Check the library folder for new comics (F5)")
         self.sync_button.clicked.connect(self._sync_library_folder)
         hero_layout.addWidget(self.sync_button)
 
-        self.settings_button = QPushButton("⚙")
-        self.settings_button.setObjectName("GhostButton")
-        self.settings_button.setMinimumWidth(44)
-        self.settings_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.settings_button = QToolButton()
+        self.settings_button.setObjectName("IconButton")
+        self.settings_button.setText("⚙")
         self.settings_button.setToolTip("Reader settings (Ctrl+,)")
+        self.settings_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.settings_button.setFixedSize(28, 28)
         self.settings_button.clicked.connect(self._show_reader_settings)
         hero_layout.addWidget(self.settings_button)
 
         # Shown only when the window is too narrow for the buttons above.
         self.overflow_button = QToolButton()
-        self.overflow_button.setObjectName("GhostButton")
+        self.overflow_button.setObjectName("IconButton")
         self.overflow_button.setText("⋯")
         self.overflow_button.setToolTip("More actions")
         self.overflow_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.overflow_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         self.overflow_button.setVisible(False)
+        self.overflow_button.setFixedSize(28, 28)
         hero_layout.addWidget(self.overflow_button)
 
         self._root_layout.addWidget(self.hero)
         self._build_overflow_menu()
-
-        accent_line = QFrame()
-        accent_line.setObjectName("AccentLine")
-        accent_line.setFixedHeight(2)
-        self._root_layout.addWidget(accent_line)
 
         # ---- command bar (search + filters) -----------------------------
         self.command_container = QWidget()
@@ -400,10 +410,12 @@ class MainWindow(QMainWindow):
 
         self.series_panel = SeriesPanel()
         self.series_panel.setObjectName("SidebarPanel")
-        self.series_panel.setMinimumWidth(232)
-        self.series_panel.setMaximumWidth(330)
+        self.series_panel.setMinimumWidth(218)
+        self.series_panel.setMaximumWidth(320)
         self.series_panel.series_selected.connect(self._on_series_selected)
         self.series_panel.series_changed.connect(self._on_series_changed)
+        self.series_panel.quick_filter_selected.connect(self._on_quick_filter)
+        self.series_panel.format_selected.connect(self._on_format_selected)
         self.series_panel.import_folder_requested.connect(self._open_folder_import)
         self.series_panel.library_folder_requested.connect(self._on_library_folder_button)
         self.series_panel.restore_requested.connect(self._restore_deleted_series)
@@ -412,29 +424,42 @@ class MainWindow(QMainWindow):
         content = QWidget()
         content.setObjectName("ContentArea")
         content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(20, 16, 20, 10)
-        content_layout.setSpacing(10)
+        content_layout.setContentsMargins(12, 10, 12, 8)
+        content_layout.setSpacing(8)
 
+        # ---- page header -----------------------------------------------
         page_header = QHBoxLayout()
-        page_header.setSpacing(10)
+        page_header.setSpacing(8)
         self.page_title = QLabel("All books")
-        self.page_title.setStyleSheet(
-            f"color: {theme.TEXT}; font-size: 21px; font-weight: 700;"
-        )
         page_header.addWidget(self.page_title)
 
         self.page_count = QLabel("")
-        self.page_count.setStyleSheet(
-            f"color: {theme.TEXT_DIM}; font-size: 12px; padding-top: 6px;"
-        )
         page_header.addWidget(self.page_count)
         page_header.addStretch(1)
 
-        columns_label = QLabel("Columns")
-        columns_label.setStyleSheet(
-            f"color: {theme.TEXT_DIM}; font-size: 11px;"
-        )
-        page_header.addWidget(columns_label)
+        # Grid / Details switch, like the View menu of Explorer.
+        self.grid_view_button = QToolButton()
+        self.grid_view_button.setObjectName("ViewButton")
+        self.grid_view_button.setText("⊞  Grid")
+        self.grid_view_button.setToolTip("Show covers (Ctrl+1)")
+        self.grid_view_button.setCheckable(True)
+        self.grid_view_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.details_view_button = QToolButton()
+        self.details_view_button.setObjectName("ViewButton")
+        self.details_view_button.setText("☰  Details")
+        self.details_view_button.setToolTip("Show a sortable list (Ctrl+2)")
+        self.details_view_button.setCheckable(True)
+        self.details_view_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.view_group = QButtonGroup(self)
+        self.view_group.setExclusive(True)
+        self.view_group.addButton(self.grid_view_button, 0)
+        self.view_group.addButton(self.details_view_button, 1)
+        self.view_group.idClicked.connect(self._on_view_group_clicked)
+        page_header.addWidget(self.grid_view_button)
+        page_header.addWidget(self.details_view_button)
+
+        self.columns_label = QLabel("Columns")
+        page_header.addWidget(self.columns_label)
         self.columns_spin = QSpinBox()
         self.columns_spin.setRange(2, 10)
         self.columns_spin.setValue(self.columns)
@@ -443,10 +468,11 @@ class MainWindow(QMainWindow):
             "cutting them off."
         )
         self.columns_spin.valueChanged.connect(self._on_columns_changed)
-        self.columns_spin.setFixedWidth(66)
+        self.columns_spin.setFixedWidth(58)
         page_header.addWidget(self.columns_spin)
         content_layout.addLayout(page_header)
 
+        # ---- the two views ----------------------------------------------
         self.scroll_area = QScrollArea()
         self.scroll_area.setObjectName("GridViewport")
         self.scroll_area.viewport().setObjectName("GridViewport")
@@ -463,7 +489,21 @@ class MainWindow(QMainWindow):
         # The number of cards per row depends on the width of the viewport,
         # which settles a moment after the window is shown.
         self.scroll_area.viewport().installEventFilter(self)
-        content_layout.addWidget(self.scroll_area, 1)
+
+        self.books_table = BooksTable()
+        self.books_table.open_requested.connect(self._open_book)
+        self.books_table.selection_changed.connect(self._on_table_selection)
+        self.books_table.book_menu_requested.connect(self._on_table_context_menu)
+
+        self.empty_page = QWidget()
+        self.empty_layout = QVBoxLayout(self.empty_page)
+        self.empty_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.view_stack = QStackedWidget()
+        self.view_stack.addWidget(self.scroll_area)     # 0: covers
+        self.view_stack.addWidget(self.books_table)     # 1: details
+        self.view_stack.addWidget(self.empty_page)      # 2: nothing to show
+        content_layout.addWidget(self.view_stack, 1)
 
         # The selection bar lives in its own strip under the grid: it never
         # covers a card, so Ctrl/Shift clicks keep hitting the books.
@@ -481,7 +521,7 @@ class MainWindow(QMainWindow):
         content_layout.addLayout(selection_strip)
 
         self.splitter.addWidget(content)
-        self.splitter.setSizes([248, 1190])
+        self.splitter.setSizes([232, 1160])
         self.splitter.setStretchFactor(1, 1)
 
         # ---- selection bar signals --------------------------------------
@@ -591,6 +631,34 @@ class MainWindow(QMainWindow):
         self.shortcuts_action = QAction("Keyboard shortcuts", self)
         self.shortcuts_action.triggered.connect(self._show_shortcuts)
 
+        # ---- view mode (covers / details) ------------------------------
+        self.grid_view_action = QAction("Covers", self)
+        self.grid_view_action.setShortcut(QKeySequence("Ctrl+1"))
+        self.grid_view_action.setCheckable(True)
+        self.grid_view_action.triggered.connect(lambda: self._set_view_mode("grid"))
+
+        self.details_view_action = QAction("Details", self)
+        self.details_view_action.setShortcut(QKeySequence("Ctrl+2"))
+        self.details_view_action.setCheckable(True)
+        self.details_view_action.triggered.connect(
+            lambda: self._set_view_mode("details")
+        )
+
+        # ---- appearance --------------------------------------------------
+        self.theme_actions = {}
+        self.theme_group = QActionGroup(self)
+        self.theme_group.setExclusive(True)
+        for mode, label in (("system", "Follow Windows"),
+                            ("light", "Light"),
+                            ("dark", "Dark")):
+            action = QAction(label, self)
+            action.setCheckable(True)
+            action.triggered.connect(
+                lambda _checked=False, value=mode: self._change_theme(value)
+            )
+            self.theme_group.addAction(action)
+            self.theme_actions[mode] = action
+
     def _setup_menu(self):
         menubar = self.menuBar()
 
@@ -632,6 +700,9 @@ class MainWindow(QMainWindow):
         series_menu.addAction(self.restore_series_action)
 
         view_menu = menubar.addMenu("&View")
+        view_menu.addAction(self.grid_view_action)
+        view_menu.addAction(self.details_view_action)
+        view_menu.addSeparator()
         zoom_in = view_menu.addAction("More columns")
         zoom_in.setShortcut(QKeySequence("Ctrl++"))
         zoom_in.triggered.connect(lambda: self._change_columns(1))
@@ -640,6 +711,10 @@ class MainWindow(QMainWindow):
         zoom_out.triggered.connect(lambda: self._change_columns(-1))
         reset_view = view_menu.addAction("Reset layout")
         reset_view.triggered.connect(self._reset_view)
+        view_menu.addSeparator()
+        appearance_menu = view_menu.addMenu("Appearance")
+        for action in self.theme_actions.values():
+            appearance_menu.addAction(action)
 
         help_menu = menubar.addMenu("&Help")
         help_menu.addAction(self.check_updates_action)
@@ -730,9 +805,9 @@ class MainWindow(QMainWindow):
         bar = QFrame()
         bar.setObjectName("CommandBar")
         layout = QGridLayout(bar)
-        layout.setContentsMargins(20, 10, 20, 10)
-        layout.setHorizontalSpacing(10)
-        layout.setVerticalSpacing(8)
+        layout.setContentsMargins(12, 6, 12, 6)
+        layout.setHorizontalSpacing(6)
+        layout.setVerticalSpacing(6)
         layout.setColumnStretch(0, 1)
         self.command_grid = layout
 
@@ -754,7 +829,7 @@ class MainWindow(QMainWindow):
         self.format_combo = QComboBox()
         for label, value in FORMAT_OPTIONS:
             self.format_combo.addItem(label, value)
-        self.format_combo.currentIndexChanged.connect(self.refresh_books)
+        self.format_combo.currentIndexChanged.connect(self._on_format_changed)
 
         self.sort_caption = self._field_label("Sort")
         self.sort_combo = QComboBox()
@@ -796,12 +871,16 @@ class MainWindow(QMainWindow):
             + hint(self.favorites_button)
             + 6 * spacing
         )
+        # The favourites chip sits in the last column next to the three
+        # filters, so its width is part of the row and not an alternative to
+        # it. Summing only the combos left the chip squeezed on a wide font.
         two_rows = max(
             self.search_input.minimumWidth() + hint(self.favorites_button) + spacing,
             hint(self.read_filter_combo)
             + hint(self.format_combo)
             + hint(self.sort_combo)
-            + 2 * spacing,
+            + hint(self.favorites_button)
+            + 3 * spacing,
         )
         return one_row, two_rows
 
@@ -873,31 +952,249 @@ class MainWindow(QMainWindow):
         grid.invalidate()
         grid.activate()
 
-    @staticmethod
-    def _field_label(text: str) -> QLabel:
+    def _field_label(self, text: str) -> QLabel:
         label = QLabel(text)
+        if not hasattr(self, "_field_labels"):
+            self._field_labels = []
+        self._field_labels.append(label)
+        self._style_field_label(label)
+        return label
+
+    @staticmethod
+    def _style_field_label(label: QLabel) -> None:
         label.setStyleSheet(
             f"color: {theme.TEXT_DIM}; font-size: 11px; padding-left: 4px;"
         )
-        return label
+
+    def _style_status_labels(self) -> None:
+        """Inline colours of the small labels; re-run after a theme change."""
+        self.page_title.setStyleSheet(
+            f"color: {theme.TEXT}; font-size: 14pt; font-weight: 600;"
+        )
+        self.page_count.setStyleSheet(
+            f"color: {theme.TEXT_DIM}; font-size: 9pt; padding-top: 5px;"
+        )
+        self.columns_label.setStyleSheet(
+            f"color: {theme.TEXT_DIM}; font-size: 8.5pt; margin-left: 8px;"
+        )
+        self.shown_label.setStyleSheet(
+            f"color: {theme.TEXT_MUTED}; font-size: 11px; padding-left: 8px;"
+        )
+        self.selection_label.setStyleSheet(
+            f"color: {theme.ACCENT_GLOW}; font-size: 11px;"
+        )
+        self.stats_label.setStyleSheet(
+            f"color: {theme.TEXT_DIM}; font-size: 11px;"
+        )
+        for label in getattr(self, "_field_labels", []):
+            self._style_field_label(label)
+
+    def restyle(self) -> None:
+        """Repaint the widgets that keep a few colours inline."""
+        self._style_status_labels()
+        self.series_panel.restyle()
+        for card in self.book_cards:
+            card.restyle()
 
     def _setup_statusbar(self):
         statusbar = QStatusBar()
         statusbar.setSizeGripEnabled(False)
+        statusbar.setContentsMargins(8, 0, 8, 0)
         self.statusbar = statusbar
         self.setStatusBar(statusbar)
 
         self.shown_label = QLabel()
-        self.shown_label.setStyleSheet(f"color: {theme.TEXT_MUTED}; font-size: 11px;")
         self.selection_label = QLabel()
-        self.selection_label.setStyleSheet(f"color: {theme.ACCENT_GLOW}; font-size: 11px;")
         self.stats_label = QLabel()
-        self.stats_label.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
 
         statusbar.addWidget(self.shown_label, 1)
         statusbar.addPermanentWidget(self.selection_label)
         statusbar.addPermanentWidget(self.stats_label)
         self._update_statusbar()
+
+    # ------------------------------------------------------------------
+    # View mode (covers / details)
+    # ------------------------------------------------------------------
+    def _on_view_group_clicked(self, index: int):
+        self._set_view_mode("grid" if index == 0 else "details")
+
+    def _set_view_mode(self, mode: str, save: bool = True):
+        """Switch between the cover grid and the Explorer-style list."""
+        mode = "details" if mode == "details" else "grid"
+        self.view_mode = mode
+        if save:
+            settings.set_view("view_mode", mode)
+        self._apply_view_mode()
+        if mode == "grid":
+            self._ensure_cards()
+        self._update_page_header(len(self.books))
+        self._update_statusbar()
+
+    def _apply_view_mode(self):
+        details = getattr(self, "view_mode", "grid") == "details"
+        empty = not getattr(self, "books", None)
+        if empty:
+            self.view_stack.setCurrentIndex(2)
+        else:
+            self.view_stack.setCurrentIndex(1 if details else 0)
+        self.columns_spin.setVisible(not details)
+        self.columns_label.setVisible(not details)
+        self.grid_view_button.setChecked(not details)
+        self.details_view_button.setChecked(details)
+        self.grid_view_action.setChecked(not details)
+        self.details_view_action.setChecked(details)
+        if details:
+            self.books_table.select_ids(self.selected_ids)
+
+    def _ensure_cards(self):
+        """Build the cover cards the first time the grid is shown."""
+        if not self.books:
+            return
+        if len(self.book_cards) >= len(self.books):
+            return
+        self._cancel_card_build()
+        for card in self.book_cards:
+            card.setParent(None)
+            card.deleteLater()
+        self.book_cards.clear()
+        self.library_grid.clear()
+        self._queue_cards(self.books)
+
+    def _on_table_selection(self, book_ids):
+        """The details list drives the same selection as the cards."""
+        if getattr(self, "_syncing_selection", False):
+            return
+        self._syncing_selection = True
+        try:
+            self.selected_ids = {int(value) for value in book_ids}
+            self._selection_mode = len(self.selected_ids) > 1
+            self._anchor_id = int(book_ids[-1]) if book_ids else None
+            self._update_card_selection()
+        finally:
+            self._syncing_selection = False
+
+    def _on_table_context_menu(self, book_id: int, position):
+        """Right-click menu of a row: the same actions as a card."""
+        book = db.get_book(book_id)
+        if not book:
+            return
+        if book_id not in self.selected_ids:
+            self.selected_ids = {book_id}
+            self._anchor_id = book_id
+            self._update_card_selection()
+        elif len(self.selected_ids) > 1:
+            self._show_bulk_menu(book_id)
+            return
+
+        menu = QMenu(self)
+        menu.addAction("Open", lambda: self._open_book(book_id))
+        open_with = menu.addMenu("Open with")
+        open_with.addAction(
+            "System default",
+            lambda: self._open_book_with(book_id, SYSTEM_READER_ID),
+        )
+        readers = [r for r in reader_manager.available_readers() if not r.is_system]
+        if readers:
+            open_with.addSeparator()
+            for reader in readers:
+                open_with.addAction(
+                    reader.name,
+                    lambda _checked=False, reader_id=reader.id: self._open_book_with(
+                        book_id, reader_id
+                    ),
+                )
+        open_with.addSeparator()
+        open_with.addAction("Reader settings...", self._show_reader_settings)
+        menu.addAction("Details && edit...", lambda: self._show_details(book_id))
+        menu.addAction("Show in folder", lambda: self._open_folder(book_id))
+        menu.addSeparator()
+        favorite = bool(book.get("favorite"))
+        menu.addAction(
+            "Remove from favorites" if favorite else "Add to favorites",
+            lambda: self._toggle_favorite(book_id),
+        )
+        is_read = bool(book.get("is_read"))
+        menu.addAction(
+            "Mark as unread" if is_read else "Mark as read",
+            lambda: self._toggle_read(book_id),
+        )
+        menu.addSeparator()
+        menu.addAction("Edit volume", lambda: self._edit_volume(
+            book_id, book.get("volume") or ""
+        ))
+        menu.addAction("Change series", lambda: self._change_series(book_id))
+        menu.addAction("Set custom cover", lambda: self._set_custom_cover(book_id))
+        if book.get("custom_cover"):
+            menu.addAction(
+                "Remove custom cover", lambda: self._remove_custom_cover(book_id)
+            )
+        menu.addSeparator()
+        menu.addAction("Select several books…", lambda: self._start_selection_mode(book_id))
+        menu.addAction("Delete from library...", lambda: self._delete_book(book_id))
+        menu.exec(position)
+
+    # ------------------------------------------------------------------
+    # Shelves, format chips and the appearance menu
+    # ------------------------------------------------------------------
+    def _on_quick_filter(self, kind: str):
+        """A shelf in the navigation pane was picked."""
+        self.current_series_filter = None
+        self.favorites_button.blockSignals(True)
+        self.read_filter_combo.blockSignals(True)
+        try:
+            self.favorites_button.setChecked(kind == "favorites")
+            self.favorites_action.setChecked(kind == "favorites")
+            wanted = {"unread": "unread", "started": "started"}.get(kind, "all")
+            index = self.read_filter_combo.findData(wanted)
+            self.read_filter_combo.setCurrentIndex(index if index >= 0 else 0)
+        finally:
+            self.favorites_button.blockSignals(False)
+            self.read_filter_combo.blockSignals(False)
+        if kind == "all":
+            self.format_combo.blockSignals(True)
+            self.format_combo.setCurrentIndex(0)
+            self.format_combo.blockSignals(False)
+            self.series_panel.set_active_format("all")
+        settings.set_many_view(
+            {
+                "filter": self.read_filter_combo.currentData(),
+                "favorites_only": self.favorites_button.isChecked(),
+                "format": self.format_combo.currentData(),
+            }
+        )
+        self.refresh_books()
+
+    def _activate_shelf(self, kind: str):
+        self.series_panel.activate_shelf(kind)
+
+    def _on_format_selected(self, value: str):
+        """A format chip in the navigation pane was picked."""
+        index = self.format_combo.findData(value)
+        if index < 0:
+            index = 0
+        self.format_combo.blockSignals(True)
+        self.format_combo.setCurrentIndex(index)
+        self.format_combo.blockSignals(False)
+        settings.set_view("format", self.format_combo.currentData())
+        self.refresh_books()
+
+    def _on_format_changed(self):
+        self.series_panel.set_active_format(self.format_combo.currentData() or "all")
+        self.refresh_books()
+
+    def _update_theme_actions(self):
+        current = str(settings.get_view("theme", "system") or "system")
+        action = self.theme_actions.get(current)
+        if action is not None:
+            action.setChecked(True)
+
+    def _change_theme(self, mode: str):
+        """Repaint the program in another colour mode, without a restart."""
+        settings.set_many_view({"theme": mode, "theme_chosen": True})
+        theme.apply_theme(QApplication.instance(), mode)
+        self._update_theme_actions()
+        self.view_stack.update()
+        self.update()
 
     # ------------------------------------------------------------------
     # State persistence
@@ -922,6 +1219,22 @@ class MainWindow(QMainWindow):
         favorites_only = bool(settings.get_view("favorites_only", False))
         self.favorites_action.setChecked(favorites_only)
         self.favorites_button.setChecked(favorites_only)
+
+        details = settings.get_view("view_mode") == "details"
+        self.view_mode = "details" if details else "grid"
+
+        # The navigation pane shows the same choice as the filter row.
+        shelf = "all"
+        if favorites_only:
+            shelf = "favorites"
+        elif self.read_filter_combo.currentData() in ("unread", "started"):
+            shelf = self.read_filter_combo.currentData()
+        if hasattr(self, "series_panel"):
+            self.series_panel.set_active_shelf(shelf)
+        self.details_view_button.setChecked(details)
+        self.grid_view_button.setChecked(not details)
+        self.details_view_action.setChecked(details)
+        self.grid_view_action.setChecked(not details)
 
         for widget in (self.sort_combo, self.read_filter_combo, self.format_combo,
                        self.favorites_button, self.columns_spin):
@@ -964,6 +1277,7 @@ class MainWindow(QMainWindow):
                     "filter": self.read_filter_combo.currentData(),
                     "format": self.format_combo.currentData(),
                     "favorites_only": self.favorites_button.isChecked(),
+                    "view_mode": self.view_mode,
                 }
             )
         except Exception as exc:
@@ -1424,6 +1738,10 @@ class MainWindow(QMainWindow):
         valid_ids = {book["id"] for book in books}
         self.selected_ids &= valid_ids
 
+        # The details list is always filled: it costs nothing and keeps the
+        # status bar and the switching between the two views instant.
+        self.books_table.set_books(books)
+
         self.library_grid.set_centered(not books)
         self._layout_columns = self.columns_that_fit()
         self._update_page_header(len(books))
@@ -1431,11 +1749,17 @@ class MainWindow(QMainWindow):
 
         if not books:
             self._show_empty_state()
+            self._apply_view_mode()
             self._update_card_selection()
             self._update_statusbar()
             return
 
-        self._queue_cards(books)
+        if self.view_mode == "grid":
+            self._queue_cards(books)
+        else:
+            self._update_card_selection()
+            self._update_statusbar()
+        self._apply_view_mode()
 
     # ------------------------------------------------------------------
     # Grid filling
@@ -1703,6 +2027,25 @@ class MainWindow(QMainWindow):
             empty, 0, 0, 1, max(1, self.columns)
         )
 
+        # The details page has no grid to hold the message, so it gets its own
+        # copy of the same empty state.
+        while self.empty_layout.count():
+            item = self.empty_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
+                widget.deleteLater()
+        detail_empty = EmptyState(title, subtitle)
+        if self.current_search or self.current_series_filter is not None \
+                or self.favorites_button.isChecked():
+            detail_empty.add_requested.connect(self._clear_filters)
+            detail_empty.folder_requested.connect(self._clear_filters)
+        else:
+            detail_empty.add_requested.connect(self._add_book)
+            detail_empty.folder_requested.connect(self._bulk_import)
+        detail_empty.setMinimumHeight(420)
+        self.empty_layout.addWidget(detail_empty)
+
     def _clear_filters(self):
         self.search_input.clear()
         self.current_search = ""
@@ -1715,7 +2058,7 @@ class MainWindow(QMainWindow):
     def _update_statusbar(self):
         stats = db.get_statistics()
         self.shown_label.setText(
-            f"{len(self.book_cards)} shown  ·  {stats['total']} in the library"
+            f"{len(self.books)} shown  ·  {stats['total']} in the library"
         )
         self.stats_label.setText(
             f"{format_file_size(stats.get('total_size') or 0)}  ·  "
@@ -1733,9 +2076,13 @@ class MainWindow(QMainWindow):
 
         folder = settings.get_library_root()
         if hasattr(self, "hero_subtitle"):
-            self.hero_subtitle.setText(
-                self._shorten_path(folder) if folder else "No library folder yet"
-            )
+            total = stats.get("total", 0) or 0
+            if total:
+                text = f"{total} comics  ·  {stats.get('series_count', 0) or 0} series"
+            else:
+                text = "No comics yet"
+            self.hero_subtitle.setText(text)
+            self.hero_subtitle.setToolTip(folder or "No library folder yet")
 
     @staticmethod
     def _shorten_path(path: str, limit: int = 58) -> str:
@@ -1871,6 +2218,10 @@ class MainWindow(QMainWindow):
             card.set_selection_mode(self._selection_mode)
             card.set_selected(selected)
             card.set_multi_selected(selected and multi)
+        # Keep the details list on the same rows as the cards.
+        table = getattr(self, "books_table", None)
+        if table is not None and not getattr(self, "_syncing_selection", False):
+            table.select_ids(self.selected_ids)
         self.update_selection_bars()
 
     def _fit_selection_bar(self):

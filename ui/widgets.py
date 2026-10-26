@@ -102,23 +102,31 @@ class StatCard(QFrame):
         layout.setContentsMargins(11, 7, 13, 7)
         layout.setSpacing(9)
 
-        icon_label = QLabel(icon)
-        icon_label.setStyleSheet(f"color: {accent}; font-size: 15px;")
-        layout.addWidget(icon_label)
+        self.icon_label = QLabel(icon)
+        layout.addWidget(self.icon_label)
 
         text_box = QVBoxLayout()
         text_box.setSpacing(0)
         self.value_label = QLabel("0")
+        self.caption_label = QLabel(caption)
+        text_box.addWidget(self.value_label)
+        text_box.addWidget(self.caption_label)
+        layout.addLayout(text_box)
+        self.restyle()
+        theme.register_restyle(self)
+
+    def restyle(self) -> None:
+        """Repaint the inline colours after a light/dark switch."""
+        self.icon_label.setStyleSheet(
+            f"color: {self._accent}; font-size: 15px; background: transparent;"
+        )
         self.value_label.setStyleSheet(
             f"color: {theme.TEXT}; font-size: 14px; font-weight: 700;"
+            " background: transparent;"
         )
-        caption_label = QLabel(caption)
-        caption_label.setStyleSheet(
-            f"color: {theme.TEXT_DIM}; font-size: 10px;"
+        self.caption_label.setStyleSheet(
+            f"color: {theme.TEXT_DIM}; font-size: 10px; background: transparent;"
         )
-        text_box.addWidget(self.value_label)
-        text_box.addWidget(caption_label)
-        layout.addLayout(text_box)
 
     def set_value(self, value) -> None:
         self.value_label.setText(str(value))
@@ -466,18 +474,21 @@ class EmptyState(QWidget):
         art.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(art)
 
-        heading = QLabel(title)
-        heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        heading.setStyleSheet(
-            f"color: {theme.TEXT}; font-size: 19px; font-weight: 700;"
-        )
-        layout.addWidget(heading)
+        self.heading = QLabel(title)
+        self.heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.heading)
 
-        description = QLabel(subtitle)
-        description.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        description.setWordWrap(True)
-        description.setStyleSheet(f"color: {theme.TEXT_MUTED}; font-size: 13px;")
-        layout.addWidget(description)
+        self.description = QLabel(subtitle)
+        self.description.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.description.setWordWrap(True)
+        layout.addWidget(self.description)
+
+        self.art_label = QLabel()
+        self.art_label.setPixmap(self._artwork())
+        self.art_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.insertWidget(0, self.art_label)
+        self.restyle()
+        theme.register_restyle(self)
 
         buttons = QHBoxLayout()
         buttons.setSpacing(10)
@@ -498,21 +509,31 @@ class EmptyState(QWidget):
         layout.addSpacing(6)
         layout.addLayout(buttons)
 
+    def restyle(self) -> None:
+        self.heading.setStyleSheet(
+            f"color: {theme.TEXT}; font-size: 19px; font-weight: 700;"
+        )
+        self.description.setStyleSheet(
+            f"color: {theme.TEXT_MUTED}; font-size: 13px;"
+        )
+        self.art_label.setPixmap(self._artwork())
+
     @staticmethod
     def _artwork() -> QPixmap:
+        """Three neutral books and one accent book, in the current palette."""
         pixmap = QPixmap(150, 96)
         pixmap.fill(QColor(0, 0, 0, 0))
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        colors = ["#1c2330", "#242c3c", "#2d3648"]
+        colors = [theme.BORDER_STRONG, theme.SURFACE_HOVER, theme.BORDER]
         for index, color in enumerate(colors):
             x = 18 + index * 30
             y = 12 + index * 6
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QColor(color))
-            painter.drawRoundedRect(x, y, 56, 74, 9, 9)
+            painter.drawRoundedRect(x, y, 56, 74, 6, 6)
         painter.setBrush(QColor(theme.ACCENT))
-        painter.drawRoundedRect(66, 20, 56, 74, 9, 9)
+        painter.drawRoundedRect(66, 20, 56, 74, 6, 6)
         painter.end()
         return pixmap
 

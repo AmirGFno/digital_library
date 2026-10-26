@@ -48,33 +48,30 @@ class WelcomeDialog(QDialog):
         # ---- hero banner ------------------------------------------------
         hero = QFrame()
         hero.setObjectName("WelcomeHero")
-        hero.setFixedHeight(148)
+        hero.setFixedHeight(132)
         hero.setStyleSheet(
             "QFrame#WelcomeHero {"
-            " background: qlineargradient(x1:0, y1:0, x2:1, y2:1,"
-            f" stop:0 {theme.ACCENT_SOFT}, stop:0.5 #1a1220, stop:1 {theme.BG_ELEVATED});"
-            f" border-bottom: 2px solid {theme.ACCENT};"
+            f" background-color: {theme.SURFACE};"
+            f" border-bottom: 1px solid {theme.BORDER};"
             "}"
         )
         hero_layout = QHBoxLayout(hero)
-        hero_layout.setContentsMargins(28, 22, 28, 22)
-        hero_layout.setSpacing(18)
+        hero_layout.setContentsMargins(28, 20, 28, 20)
+        hero_layout.setSpacing(16)
 
         logo = QLabel()
-        logo.setFixedSize(76, 76)
-        logo.setPixmap(theme.gradient_pixmap(76, 76, theme.ACCENT, "#ff9f68", 22))
+        logo.setFixedSize(64, 64)
+        logo.setPixmap(theme.logo_pixmap(64))
         logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hero_layout.addWidget(logo)
 
         hero_text = QVBoxLayout()
-        hero_text.setSpacing(2)
+        hero_text.setSpacing(3)
         name = QLabel(APP_NAME)
-        name.setStyleSheet(
-            "color: #ffffff; font-size: 26px; font-weight: 800;"
-        )
-        tagline = QLabel("Your comics, beautifully organised.")
-        tagline.setStyleSheet(f"color: {theme.ACCENT_GLOW}; font-size: 13px;")
-        version = QLabel(f"version {APP_VERSION}")
+        name.setObjectName("WelcomeTitle")
+        tagline = QLabel("Your comics, organised.")
+        tagline.setObjectName("SubtitleLabel")
+        version = QLabel(f"Version {APP_VERSION}")
         version.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 11px;")
         hero_text.addWidget(name)
         hero_text.addWidget(tagline)
@@ -106,8 +103,8 @@ class WelcomeDialog(QDialog):
         folder_card = QFrame()
         folder_card.setObjectName("Chip")
         folder_card.setStyleSheet(
-            f"QFrame#Chip {{ background-color: {theme.SURFACE};"
-            f" border: 1px solid {theme.BORDER}; border-radius: 14px; }}"
+            f"QFrame#Chip {{ background-color: {theme.BG_ELEVATED};"
+            f" border: 1px solid {theme.BORDER}; border-radius: 6px; }}"
         )
         folder_layout = QHBoxLayout(folder_card)
         folder_layout.setContentsMargins(10, 10, 10, 10)

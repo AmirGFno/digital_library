@@ -111,3 +111,28 @@ def test_the_data_folder_can_be_pointed_elsewhere(tmp_path, monkeypatch):
 
         importlib.reload(config)
         sys.modules.pop("config", None)
+
+
+def test_an_old_forced_dark_theme_starts_following_windows(temp_settings):
+    """2.4.x wrote "dark" without ever asking; that is not a user choice."""
+    import json
+
+    temp_settings.settings_file.write_text(
+        json.dumps({"view": {"theme": "dark", "columns": 5}}), encoding="utf-8"
+    )
+    from utils.settings import Settings
+
+    loaded = Settings(temp_settings.settings_file)
+    assert loaded.get_view("theme") == "system"
+    assert loaded.get_view("theme_chosen") is False
+    assert loaded.get_view("columns") == 5
+
+
+def test_a_theme_the_user_picked_is_kept(temp_settings):
+    temp_settings.set_view("theme", "dark")
+    temp_settings.set_view("theme_chosen", True)
+
+    from utils.settings import Settings
+
+    loaded = Settings(temp_settings.settings_file)
+    assert loaded.get_view("theme") == "dark"

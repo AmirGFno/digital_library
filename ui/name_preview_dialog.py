@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
 )
 
 from ui import layout as layout_tools
+from ui import theme
 from utils.text_cleaner import clean_file_stem
 
 PREVIEW_LIMIT = 300
@@ -78,7 +79,7 @@ class NamePreviewDialog(QDialog):
 
         self.summary_label = QLabel("")
         self.summary_label.setObjectName("SubtitleLabel")
-        self.summary_label.setStyleSheet("color: #ffd79a; font-size: 12px;")
+        self.summary_label.setStyleSheet(f"color: {theme.ACCENT_GLOW}; font-size: 12px;")
         self.summary_label.setWordWrap(True)
         layout.addWidget(self.summary_label)
 
