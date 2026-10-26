@@ -107,11 +107,15 @@ jobs:
 
             $setup = Join-Path $PWD "build\installer\DigitalLibrary-$version-Setup.exe"
             New-Item -ItemType Directory -Force -Path (Split-Path $setup) | Out-Null
-            & $makensis "/DVERSION=$version" "/DSRCDIR=$PWD\dist\installed\DigitalLibrary" `
-              "/DOUTFILE=$setup" installer\DigitalLibrary.nsi
-            Write-Host "makensis exit code: $LASTEXITCODE"
-            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $setup)) {
-              Write-Host "::error title=Setup::the setup program could not be built (exit $LASTEXITCODE)"
+            $log = "build\makensis.log"
+            & $makensis "/V3" "/DVERSION=$version" "/DSRCDIR=$PWD\dist\installed\DigitalLibrary" `
+              "/DOUTFILE=$setup" installer\DigitalLibrary.nsi *>&1 | Tee-Object -FilePath $log
+            $code = $LASTEXITCODE
+            Get-Content $log -Tail 40 | ForEach-Object { Write-Host $_ }
+            Write-Host "makensis exit code: $code"
+            if ($code -ne 0 -or -not (Test-Path $setup)) {
+              $tail = (Get-Content $log -Tail 12) -join " | "
+              Write-Host "::error title=Setup::makensis failed (exit $code): $tail"
               exit 1
             }
             Compress-Archive -LiteralPath $setup -DestinationPath "release\DigitalLibrary-$version-setup.zip"
@@ -179,6 +183,14 @@ jobs:
           name: DigitalLibrary-windows-x64
           path: release/*
           if-no-files-found: error
+
+      - name: Upload installer log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: makensis-log
+          path: build/makensis.log
+          if-no-files-found: ignore
 
   publish:
     needs: build
