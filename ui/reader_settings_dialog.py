@@ -14,7 +14,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict, Optional
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -33,8 +33,10 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QVBoxLayout,
+    QWidget,
 )
 
+from ui import layout as layout_tools
 from ui import theme
 from utils import rar_tools
 from utils.logger import logger
@@ -157,9 +159,12 @@ class ReaderSettingsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Reader settings")
-        self.setMinimumSize(700, 640)
         self._build_ui()
         self.reload()
+        # The list of readers and the per-format overrides do not fit on a
+        # laptop screen at 125 % scaling, so the body scrolls and the buttons
+        # stay visible at the bottom of the window.
+        layout_tools.clamp_window(self, QSize(760, 820), QSize(560, 460))
 
     # ------------------------------------------------------------------
     # UI
@@ -262,7 +267,15 @@ class ReaderSettingsDialog(QDialog):
 
         list_layout.addLayout(primary_row)
         list_layout.addLayout(secondary_row)
-        layout.addWidget(list_group, 1)
+
+        # Everything between the header and the buttons lives in a scroll
+        # area: on a short screen the list stays usable instead of pushing
+        # the Save button below the taskbar.
+        body = QWidget()
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setSpacing(12)
+        body_layout.addWidget(list_group, 1)
 
         # Per-format overrides -------------------------------------------
         format_group = QGroupBox("Different reader per file type (optional)")
@@ -278,11 +291,14 @@ class ReaderSettingsDialog(QDialog):
             self.format_combos[group] = combo
             grid.addWidget(label, row, 0)
             grid.addWidget(combo, row, 1)
-        layout.addWidget(format_group)
+        body_layout.addWidget(format_group)
 
         self.status_label = QLabel("")
         self.status_label.setObjectName("SubtitleLabel")
-        layout.addWidget(self.status_label)
+        body_layout.addWidget(self.status_label)
+
+        self.scroll_area = layout_tools.wrap_in_scroll(body)
+        layout.addWidget(self.scroll_area, 1)
 
         buttons = QDialogButtonBox()
         save_button = QPushButton("Save settings")
@@ -304,9 +320,13 @@ class ReaderSettingsDialog(QDialog):
         self._fill_format_combos()
         self._select_current_default()
 
-        available = [reader for reader in reader_manager.readers if reader.available]
+        available = [
+            reader
+            for reader in reader_manager.readers
+            if reader.available and not reader.is_system
+        ]
         self.status_label.setText(
-            f"{len(available) - 1} reader(s) detected on this computer"
+            f"{len(available)} reader(s) detected on this computer"
         )
 
     def _fill_list(self):

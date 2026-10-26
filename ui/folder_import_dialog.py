@@ -17,7 +17,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, Optional
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -42,6 +42,7 @@ from PyQt6.QtWidgets import (
 )
 
 from importer import FolderPlan, build_folder_plan_with_db, importer
+from ui import layout as layout_tools
 from ui import theme
 from importer import ImportResult
 from utils.logger import logger
@@ -57,13 +58,14 @@ class FolderImportDialog(QDialog):
     def __init__(self, parent=None, folder: Optional[str] = None, mode: str = "auto"):
         super().__init__(parent)
         self.setWindowTitle("Import a folder")
-        self.setMinimumSize(900, 680)
+        self._preferred_size = QSize(980, 720)
         self.folder_path = folder or ""
         self.plan: Optional[FolderPlan] = None
         self.result: Optional[ImportResult] = None
         self._mode = mode
 
         self._build_ui()
+        layout_tools.finish_dialog(self, self._preferred_size, QSize(680, 460))
         if self.folder_path:
             self.folder_input.setText(self.folder_path)
             self.refresh_plan()
@@ -90,7 +92,9 @@ class FolderImportDialog(QDialog):
         layout.addWidget(subtitle)
 
         # Folder row -----------------------------------------------------
-        folder_row = QHBoxLayout()
+        folder_box = QWidget()
+        folder_row = QHBoxLayout(folder_box)
+        folder_row.setContentsMargins(0, 0, 0, 0)
         self.folder_input = QLineEdit()
         self.folder_input.setPlaceholderText("Choose the folder that contains your comics")
         self.folder_input.editingFinished.connect(self.refresh_plan)
@@ -98,7 +102,7 @@ class FolderImportDialog(QDialog):
         browse = QPushButton("Browse...")
         browse.clicked.connect(self._browse)
         folder_row.addWidget(browse)
-        layout.addLayout(folder_row)
+        layout.addWidget(folder_box)
 
         # Options --------------------------------------------------------
         options_card = QFrame()

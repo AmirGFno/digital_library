@@ -390,6 +390,33 @@ class ReaderManager:
             available=True,
         )
 
+    # Executables that show up in "Open with" lists without being readers.
+    # Windows lets a program register itself for a file type, and a stray entry
+    # (mstsc.exe was reported by a user) must not be offered as a comic reader.
+    NOT_A_READER = (
+        "mstsc.exe", "explorer.exe", "notepad.exe", "regedit.exe",
+        "rundll32.exe", "cmd.exe", "powershell.exe", "wt.exe", "conhost.exe",
+        "iexplore.exe", "msedge.exe", "chrome.exe", "firefox.exe",
+        "winword.exe", "excel.exe", "powerpnt.exe", "7zfm.exe", "winrar.exe",
+        "notepad++.exe", "code.exe",
+    )
+
+    # Comic extensions whose "Open with" registration proves a real reader.
+    COMIC_EXTENSIONS = (".cbz", ".cbr", ".cb7", ".cbt", ".cba", ".pdf")
+
+    @classmethod
+    def looks_like_reader(cls, path) -> bool:
+        """False for the system tools that end up in an "Open with" list.
+
+        Windows stores every program that ever claimed a file type there, so
+        Remote Desktop, Explorer or a text editor must not be offered as a
+        comic reader.
+        """
+        # Backslashes are kept: a Windows path is checked on every platform in
+        # the tests, and Path() on Linux would not split it.
+        name = str(path).replace("\\", "/").rstrip("/").rsplit("/", 1)[-1].lower()
+        return name not in cls.NOT_A_READER
+
     # Executables that identify a comic/book reader, used by the registry scan.
     KNOWN_EXECUTABLES = (
         "CDisplayEx.exe",
@@ -433,6 +460,8 @@ class ReaderManager:
                 return
             path = Path(candidate)
             if not path.is_file():
+                return
+            if not self.looks_like_reader(path):
                 return
             key = str(path).lower()
             if key in seen:
@@ -500,7 +529,7 @@ class ReaderManager:
                 continue
 
         # 3) "Open with" handlers for comic extensions
-        for extension in (".cbz", ".cbr", ".cb7", ".cbt", ".pdf"):
+        for extension in self.COMIC_EXTENSIONS:
             for hive in (winreg.HKEY_CLASSES_ROOT, winreg.HKEY_CURRENT_USER):
                 try:
                     with winreg.OpenKey(hive, f"{extension}\\OpenWithList") as key:

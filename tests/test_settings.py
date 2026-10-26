@@ -87,3 +87,27 @@ def test_reader_choice_survives_a_restart(temp_settings):
     reloaded = Settings(temp_settings.settings_file)
     assert reloaded.get_default_reader_id() == "custom-probe"
     assert reloaded.get_reader_for_format("archive") == "custom-probe"
+
+
+def test_the_data_folder_can_be_pointed_elsewhere(tmp_path, monkeypatch):
+    """The smoke test must never write into a real library.
+
+    ``DIGITAL_LIBRARY_DATA_DIR`` is read when config is imported, so it is
+    checked here by importing the module fresh.
+    """
+    import importlib
+    import sys
+
+    monkeypatch.setenv("DIGITAL_LIBRARY_DATA_DIR", str(tmp_path / "sandbox"))
+    try:
+        import config
+
+        reloaded = importlib.reload(config)
+        assert reloaded.DATA_DIR.parent == tmp_path / "sandbox"
+        assert reloaded.DATABASE_PATH.parent == reloaded.DATA_DIR
+    finally:
+        monkeypatch.delenv("DIGITAL_LIBRARY_DATA_DIR", raising=False)
+        import config
+
+        importlib.reload(config)
+        sys.modules.pop("config", None)

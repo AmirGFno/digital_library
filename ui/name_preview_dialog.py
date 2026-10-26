@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable, List
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -24,6 +24,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
+from ui import layout as layout_tools
 from utils.text_cleaner import clean_file_stem
 
 PREVIEW_LIMIT = 300
@@ -35,9 +36,10 @@ class NamePreviewDialog(QDialog):
     def __init__(self, files: Iterable[str], parent=None):
         super().__init__(parent)
         self.setWindowTitle("Names before import")
-        self.setMinimumSize(760, 480)
+        self._preferred_size = QSize(820, 540)
         self.files: List[str] = [str(path) for path in files]
         self._build_ui()
+        layout_tools.finish_dialog(self, self._preferred_size, QSize(560, 420))
         self.refresh_preview()
 
     # ------------------------------------------------------------------

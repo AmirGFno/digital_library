@@ -7,7 +7,9 @@ main window uses, adds a reading-progress bar and a format breakdown.
 """
 from __future__ import annotations
 
+from PyQt6.QtCore import QSize
 from PyQt6.QtWidgets import (
+    QWidget,
     QDialog,
     QFrame,
     QHBoxLayout,
@@ -19,6 +21,7 @@ from PyQt6.QtWidgets import (
 
 from config import APP_NAME
 from database import db
+from ui import layout as layout_tools
 from ui import theme
 from ui.widgets import StatCard, Divider
 from utils.helpers import format_file_size
@@ -39,8 +42,9 @@ class StatisticsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Library statistics")
-        self.setMinimumSize(660, 560)
+        self._preferred_size = QSize(700, 600)
         self._build_ui()
+        layout_tools.finish_dialog(self, self._preferred_size, QSize(520, 420))
 
     def _build_ui(self):
         stats = db.get_statistics()
@@ -63,7 +67,9 @@ class StatisticsDialog(QDialog):
         layout.addWidget(subtitle)
 
         # ---- cards ------------------------------------------------------
-        cards = QHBoxLayout()
+        cards_box = QWidget()
+        cards = QHBoxLayout(cards_box)
+        cards.setContentsMargins(0, 0, 0, 0)
         cards.setSpacing(10)
         for glyph, caption, value, accent in (
             ("▦", "BOOKS", total, theme.BLUE),
@@ -75,7 +81,7 @@ class StatisticsDialog(QDialog):
             card = StatCard(glyph, caption, accent)
             card.set_value(value)
             cards.addWidget(card)
-        layout.addLayout(cards)
+        layout.addWidget(cards_box)
 
         # ---- progress ---------------------------------------------------
         progress_card = QFrame()
@@ -112,7 +118,9 @@ class StatisticsDialog(QDialog):
         # ---- formats ----------------------------------------------------
         layout.addWidget(Divider())
         formats = stats.get("formats", {})
-        format_row = QHBoxLayout()
+        formats_box = QWidget()
+        format_row = QHBoxLayout(formats_box)
+        format_row.setContentsMargins(0, 0, 0, 0)
         format_row.setSpacing(10)
         for key, label, color in FORMAT_LABELS:
             count = formats.get(key, 0)
@@ -128,7 +136,7 @@ class StatisticsDialog(QDialog):
             chip_layout.addWidget(number)
             chip_layout.addWidget(text)
             format_row.addWidget(chip)
-        layout.addLayout(format_row)
+        layout.addWidget(formats_box)
 
         # ---- footer stats ----------------------------------------------
         facts = QLabel(

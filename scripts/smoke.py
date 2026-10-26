@@ -18,9 +18,16 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
+# The smoke test imports fake comics and deletes one of them again. Point the
+# application data at a temporary folder first, even when it runs on a
+# developer machine that already has a real library.
+SMOKE_HOME = Path(tempfile.mkdtemp(prefix="dl-smoke-home-"))
+os.environ["DIGITAL_LIBRARY_DATA_DIR"] = str(SMOKE_HOME)
+
 from PyQt6.QtCore import Qt  # noqa: E402
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
+from config import DATA_DIR  # noqa: E402
 from database import db  # noqa: E402
 from ui.theme import apply_theme  # noqa: E402
 
@@ -49,6 +56,7 @@ def main() -> int:
     from ui.welcome_dialog import WelcomeDialog
 
     root = Path(tempfile.mkdtemp(prefix="dl-smoke-"))
+    assert str(DATA_DIR).startswith(str(SMOKE_HOME)), str(DATA_DIR)
     library = root / "comics"
     make_comic(library / "Batman" / "Batman 001.cbz", "Batman", 1)
     make_comic(library / "Batman" / "Batman 002.cbz", "Batman", 2)
@@ -168,7 +176,13 @@ def main() -> int:
     stats_dialog.close()
 
     # --- a deleted file leaves the library ------------------------------
-    victim = db.get_all_books()[0]
+    # Only ever touch a file this script created: the smoke test also runs on
+    # a developer machine that already has a real library.
+    victim = next(
+        book
+        for book in db.get_all_books()
+        if Path(book["filepath"]).is_file() and str(root) in book["filepath"]
+    )
     victim_path = Path(victim["filepath"])
     victim_path.unlink()
     assert window._prune_missing_files(silent=False) >= 1, "missing file was not pruned"
