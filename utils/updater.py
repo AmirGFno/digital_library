@@ -649,23 +649,67 @@ def _ps_quote(value: object) -> str:
     return "'" + str(value).replace("'", "''") + "'"
 
 
+def needs_elevation(directory: Optional[Path] = None) -> bool:
+    """True when this user cannot write to the install folder.
+
+    The setup program installs under ``Program Files``, which a normally
+    started app may not modify; the update then has to ask Windows for
+    administrator permission.
+    """
+    folder = Path(directory) if directory else installation_dir()
+    probe = folder / f".dl-write-test-{os.getpid()}"
+    try:
+        probe.write_text("x", encoding="utf-8")
+        probe.unlink()
+        return False
+    except OSError:
+        return True
+
+
 def build_apply_script(
     archive: Path,
     install_dir: Path,
     executable: Path,
     pid: int,
     removed: Sequence[str] = (),
+    version: str = "",
+    elevated: bool = False,
 ) -> str:
-    """PowerShell helper that swaps the files once the app has exited."""
+    """PowerShell helper that swaps the files once the app has exited.
+
+    Every outcome is visible: a failure pops up a message with the log path
+    instead of silently reopening the old version, and the copy step checks
+    that the new files really carry the expected version.
+    """
     # The package carries its own manifest; it must not stay in the install
     # folder after it has been applied.
     files_to_remove = list(dict.fromkeys([*removed, UPDATE_MANIFEST_NAME]))
     removed_lines = "\n".join(f"    {_ps_quote(item)}" for item in files_to_remove) or ""
+    if elevated:
+        # An elevated process would start an elevated app; hand the restart
+        # back to the shell so the app keeps running as the normal user.
+        restart = """$explorer = Join-Path $env:WINDIR 'explorer.exe'
+if (Test-Path -LiteralPath $explorer) {
+    Write-Log 'starting the app through the shell'
+    Start-Process -FilePath $explorer -ArgumentList ('"' + $exe + '"')
+} else {
+    Start-Process -FilePath $exe -WorkingDirectory $target
+}"""
+    else:
+        restart = "Start-Process -FilePath $exe -WorkingDirectory $target"
+
     return f"""# Digital Library in-place update helper.
 $ErrorActionPreference = 'SilentlyContinue'
 $log = Join-Path $env:TEMP 'DigitalLibrary-update.log'
 function Write-Log($message) {{
     Add-Content -LiteralPath $log -Value ("{{0}} {{1}}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $message)
+}}
+function Show-Problem($message) {{
+    Write-Log ("problem: " + $message)
+    try {{
+        $shell = New-Object -ComObject WScript.Shell
+        $shell.Popup(("The update could not be installed.`n`n" + $message + "`n`nYour current version still works. Log: " + $log), 0, 'Digital Library', 16) | Out-Null
+    }} catch {{ }}
 }}
 Write-Log 'update helper started'
 
@@ -679,20 +723,24 @@ Start-Sleep -Milliseconds 600
 $archive = {_ps_quote(archive)}
 $target = {_ps_quote(install_dir)}
 $exe = {_ps_quote(executable)}
+$expected = {_ps_quote(version)}
 
-$ok = $false
+$copied = $false
+$lastError = ''
 for ($attempt = 0; $attempt -lt 6; $attempt++) {{
     try {{
         Expand-Archive -LiteralPath $archive -DestinationPath $target -Force -ErrorAction Stop
-        $ok = $true
+        $copied = $true
         break
     }} catch {{
-        Write-Log ("extract failed: " + $_.Exception.Message)
+        $lastError = $_.Exception.Message
+        Write-Log ("extract failed: " + $lastError)
         Start-Sleep -Seconds 2
     }}
 }}
 
-if ($ok) {{
+$ok = $copied
+if ($copied) {{
     Write-Log 'new files copied'
     $removedFiles = @(
 {removed_lines}
@@ -705,16 +753,58 @@ if ($ok) {{
             Write-Log ("removed " + $relative)
         }}
     }}
-    Remove-Item -LiteralPath $archive -Force
+    if ($expected) {{
+        $marker = Join-Path $target 'install_info.json'
+        $installed = ''
+        if (Test-Path -LiteralPath $marker) {{
+            try {{
+                $installed = (Get-Content -LiteralPath $marker -Raw | ConvertFrom-Json).version
+            }} catch {{
+                $installed = ''
+            }}
+        }}
+        if ($installed -ne $expected) {{
+            $ok = $false
+            $lastError = "the copied files report version '" + $installed + "' instead of '" + $expected + "'"
+            Write-Log $lastError
+        }}
+    }}
+}}
+
+if ($ok) {{
     Write-Log 'update finished'
+    Remove-Item -LiteralPath $archive -Force
 }} else {{
-    Write-Log 'update failed, starting the previous version'
+    if (-not $lastError) {{
+        $lastError = 'the files could not be replaced'
+    }}
+    Show-Problem $lastError
 }}
 
 if (Test-Path -LiteralPath $exe) {{
-    Start-Process -FilePath $exe -WorkingDirectory $target
+    {restart.replace(chr(10), chr(10) + "    ")}
 }}
 """
+
+
+def _spawn_elevated(command: List[str]) -> None:
+    """Start the helper through the Windows UAC prompt ("runas")."""
+    import ctypes
+
+    parameters = subprocess.list2cmdline([str(item) for item in command[1:]])
+    result = ctypes.windll.shell32.ShellExecuteW(
+        None, "runas", str(command[0]), parameters, None, 0
+    )
+    if result <= 32:
+        if result == 5:
+            raise UpdateError(
+                "The update needs administrator permission. Windows asked for "
+                "it, but the request was refused, so nothing was changed."
+            )
+        raise UpdateError(
+            "The update helper could not start (Windows error "
+            f"{int(result)}). Download the setup program from the releases page."
+        )
 
 
 def _spawn_detached(command: List[str]) -> None:
@@ -740,16 +830,30 @@ def apply_update(
     pid: Optional[int] = None,
     executable: Optional[Path] = None,
     runner: Optional[Callable[[List[str]], None]] = None,
+    version: str = "",
+    elevate: Optional[bool] = None,
 ) -> Path:
     """Start the helper that installs ``archive`` after this process exits.
 
-    Returns the generated script path. ``runner`` is injected by the tests so
-    no process is ever started there.
+    When the folder needs administrator rights (an install under Program
+    Files) the helper is started with a UAC prompt *before* the app closes, so
+    a refusal is reported in the dialog instead of leaving a half-closed app
+    and an unchanged version. ``runner`` is injected by the tests so no
+    process is ever started there.
     """
     folder = Path(install_dir) if install_dir else installation_dir()
     exe = Path(executable) if executable else executable_path()
     process_id = os.getpid() if pid is None else int(pid)
-    script = build_apply_script(Path(archive), folder, exe, process_id, removed)
+    need_admin = needs_elevation(folder) if elevate is None else bool(elevate)
+    script = build_apply_script(
+        Path(archive),
+        folder,
+        exe,
+        process_id,
+        removed,
+        version=version,
+        elevated=need_admin,
+    )
 
     target = Path(tempfile.mkdtemp(prefix="dl-update-")) / "apply-update.ps1"
     # Windows PowerShell reads a BOM as UTF-8; without it non-ASCII install
@@ -759,7 +863,7 @@ def apply_update(
     if runner is None:
         if sys.platform != "win32":
             raise UpdateError("In-place updates are only used on Windows.")
-        runner = _spawn_detached
+        runner = _spawn_elevated if need_admin else _spawn_detached
     runner(
         [
             "powershell.exe",
@@ -773,7 +877,9 @@ def apply_update(
             str(target),
         ]
     )
-    logger.info("Update helper started (%s)", target)
+    logger.info(
+        "Update helper started (%s, administrator=%s)", target, need_admin
+    )
     return target
 
 
@@ -794,7 +900,10 @@ def install_update(archive: Path, install_dir: Optional[Path] = None) -> Path:
     """Apply a downloaded package, including the files it removes."""
     manifest = read_update_manifest(archive)
     removed = [str(item) for item in manifest.get("removed") or [] if str(item).strip()]
-    return apply_update(archive, install_dir=install_dir, removed=removed)
+    version = str(manifest.get("version") or "")
+    return apply_update(
+        archive, install_dir=install_dir, removed=removed, version=version
+    )
 
 
 def cleanup_downloads(folder: Optional[Path] = None) -> None:

@@ -220,6 +220,7 @@ def test_the_helper_waits_for_the_app_and_swaps_the_files(tmp_path):
         install_dir / "DigitalLibrary.exe",
         4242,
         removed=["_internal/old.dll", "stale.txt"],
+        version="2.4.3",
     )
 
     assert "Expand-Archive" in script
@@ -228,7 +229,57 @@ def test_the_helper_waits_for_the_app_and_swaps_the_files(tmp_path):
     assert "4242" in script
     assert "_internal/old.dll" in script
     assert "stale.txt" in script
-    assert script.count("Start-Process") == 1
+    # the package manifest must not stay behind in the install folder
+    assert "update.json" in script
+    # the copy is checked against the release the package claims to be
+    assert "2.4.3" in script
+    assert "install_info.json" in script
+
+
+def test_a_failed_update_is_reported_instead_of_vanishing(tmp_path):
+    script = updater.build_apply_script(
+        tmp_path / "update.zip",
+        tmp_path / "app",
+        tmp_path / "app" / "DigitalLibrary.exe",
+        1,
+        version="2.4.3",
+    )
+
+    assert "Show-Problem $lastError" in script
+    assert "$shell.Popup(" in script
+    assert "Your current version still works" in script
+    assert "DigitalLibrary-update.log" in script
+
+
+def test_an_elevated_helper_restarts_the_app_as_the_normal_user(tmp_path):
+    script = updater.build_apply_script(
+        tmp_path / "update.zip",
+        tmp_path / "Program Files" / "Digital Library",
+        tmp_path / "Program Files" / "Digital Library" / "DigitalLibrary.exe",
+        7,
+        elevated=True,
+    )
+
+    # Starting the exe directly would hand the user an elevated app.
+    assert "explorer.exe" in script
+    assert "Start-Process -FilePath $exe" in script  # fallback kept
+
+
+def test_the_install_folder_that_needs_admin_permission_is_detected(tmp_path, monkeypatch):
+    folder = tmp_path / "Program Files" / "Digital Library"
+    folder.mkdir(parents=True)
+
+    # A folder the user owns: the probe file can be written and removed.
+    assert updater.needs_elevation(folder) is False
+
+    # Program Files for a normal user: the write is refused by Windows. The
+    # permission itself is simulated, because chmod does not lock a folder on
+    # Windows and the CI runs this suite there as well.
+    def refuse(self, *args, **kwargs):
+        raise PermissionError("access denied")
+
+    monkeypatch.setattr(Path, "write_text", refuse)
+    assert updater.needs_elevation(folder) is True
 
 
 def test_paths_with_quotes_cannot_break_the_helper(tmp_path):
@@ -263,6 +314,106 @@ def test_apply_update_starts_powershell_with_the_generated_script(tmp_path):
     assert "Expand-Archive" in content and "777" in content
 
 
+def test_a_protected_install_folder_gets_the_uac_prompt(tmp_path):
+    calls = []
+    archive = tmp_path / "update.zip"
+    protected = tmp_path / "Program Files" / "Digital Library"
+
+    script = updater.apply_update(
+        archive,
+        install_dir=protected,
+        executable=protected / "DigitalLibrary.exe",
+        pid=9,
+        runner=calls.append,
+        elevate=True,
+    )
+
+    assert calls and str(script) in calls[0]
+    content = script.read_text(encoding="utf-8-sig")
+    assert "explorer.exe" in content
+
+
+def test_a_refused_admin_prompt_is_an_explicit_error(monkeypatch):
+    import sys as _sys
+    import types
+
+    fake = types.SimpleNamespace(
+        windll=types.SimpleNamespace(
+            shell32=types.SimpleNamespace(
+                # SE_ERR_ACCESSDENIED: the user clicked "No" on the UAC prompt.
+                ShellExecuteW=lambda *args: 5
+            )
+        )
+    )
+    monkeypatch.setitem(_sys.modules, "ctypes", fake)
+
+    with pytest.raises(updater.UpdateError) as info:
+        updater._spawn_elevated(["powershell.exe", "-File", "x.ps1"])
+
+    assert "administrator permission" in str(info.value)
+
+
+def test_the_uac_helper_is_started_when_windows_accepts(monkeypatch):
+    import sys as _sys
+    import types
+
+    seen = {}
+
+    def shell_execute(hwnd, verb, file, parameters, directory, show):
+        seen.update(verb=verb, file=file, parameters=parameters)
+        return 42
+
+    fake = types.SimpleNamespace(
+        windll=types.SimpleNamespace(
+            shell32=types.SimpleNamespace(ShellExecuteW=shell_execute)
+        )
+    )
+    monkeypatch.setitem(_sys.modules, "ctypes", fake)
+
+    updater._spawn_elevated(["powershell.exe", "-NoProfile", "-File", "C:\\x y\\a.ps1"])
+
+    assert seen["verb"] == "runas"
+    assert seen["file"] == "powershell.exe"
+    assert '"C:\\x y\\a.ps1"' in seen["parameters"]
+
+
+def test_the_generated_helper_has_balanced_blocks(tmp_path):
+    """A stray brace would make PowerShell exit without doing anything."""
+
+    def balance(script):
+        braces = parens = 0
+        quoted = False
+        for char in script:
+            if char == "'":
+                quoted = not quoted
+                continue
+            if quoted:
+                continue
+            if char == "{":
+                braces += 1
+            elif char == "}":
+                braces -= 1
+            elif char == "(":
+                parens += 1
+            elif char == ")":
+                parens -= 1
+            assert braces >= 0 and parens >= 0, script
+        return braces, parens
+
+    for elevated in (False, True):
+        script = updater.build_apply_script(
+            tmp_path / "update.zip",
+            tmp_path / "app",
+            tmp_path / "app" / "DigitalLibrary.exe",
+            5,
+            removed=["_internal/old.dll", "update.json"],
+            version="2.4.3",
+            elevated=elevated,
+        )
+        assert balance(script) == (0, 0)
+        assert "{{" not in script and "}}" not in script
+
+
 def test_installing_reads_the_removed_files_from_the_package(tmp_path, monkeypatch):
     package = _make_package(
         tmp_path,
@@ -276,6 +427,7 @@ def test_installing_reads_the_removed_files_from_the_package(tmp_path, monkeypat
     def fake_apply(archive, install_dir=None, removed=(), **kwargs):
         captured["removed"] = list(removed)
         captured["archive"] = Path(archive)
+        captured["version"] = kwargs.get("version")
         return Path(archive)
 
     monkeypatch.setattr(updater, "apply_update", fake_apply)
@@ -283,6 +435,8 @@ def test_installing_reads_the_removed_files_from_the_package(tmp_path, monkeypat
 
     assert captured["archive"] == package
     assert "gone.dll" in captured["removed"]
+    # The copier checks the marker, so the manifest version travels with it.
+    assert captured["version"] == updater.read_update_manifest(package)["version"]
 
 
 # ----------------------------------------------------------------------
