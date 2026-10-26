@@ -33,16 +33,20 @@ from utils.helpers import format_file_size
 BOOK_ID_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 SORT_ROLE = int(Qt.ItemDataRole.UserRole) + 2
 
+# name, natural width, stretch weight. The list shares the window instead of
+# scrolling sideways: the two text columns take the extra space, and every
+# other column keeps at least its own header width so a value is never
+# squeezed into "Deep Fie…".
 COLUMNS = (
-    ("Title", 300),
-    ("Series", 210),
-    ("Volume", 90),
-    ("Year", 60),
-    ("Format", 70),
-    ("Size", 90),
-    ("Pages", 70),
-    ("Status", 90),
-    ("★", 34),
+    ("Title", 300, 3),
+    ("Series", 190, 2),
+    ("Volume", 78, 0),
+    ("Year", 62, 0),
+    ("Format", 74, 0),
+    ("Size", 88, 0),
+    ("Pages", 66, 0),
+    ("Status", 84, 0),
+    ("★", 34, 0),
 )
 NUMERIC_COLUMNS = {5, 6}
 
@@ -227,13 +231,16 @@ class BooksTable(QTableView):
         header.setStretchLastSection(False)
         header.setSectionsClickable(True)
         header.setSortIndicatorShown(False)
+        header.setMinimumSectionSize(34)
         header.setDefaultAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
-        for index, (_name, width) in enumerate(COLUMNS):
-            header.setSectionResizeMode(index, QHeaderView.ResizeMode.Interactive)
+        for index, (_name, width, weight) in enumerate(COLUMNS):
+            if weight:
+                header.setSectionResizeMode(index, QHeaderView.ResizeMode.Stretch)
+            else:
+                header.setSectionResizeMode(index, QHeaderView.ResizeMode.Interactive)
             header.resizeSection(index, width)
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         header.sectionClicked.connect(self._on_header_clicked)
 
         self.verticalHeader().hide()

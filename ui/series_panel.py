@@ -1,11 +1,14 @@
 """
-Navigation pane: shelves, formats and series.
+Navigation pane: shelves and series.
 
 The left side of the window follows the Windows navigation pane: a short list of
-shelves (All books, Unread, Reading now, Favorites), the file formats that are
-actually present in the library, and then every series with its counters.
-Series can be renamed, deleted (with a restore history) and re-imported from
-their folder.
+shelves (All books, Unread, Reading now, Favorites) and then every series with
+its counters. Series can be renamed, deleted (with a restore history) and
+re-imported from their folder.
+
+The pane holds nothing else: the library folder lives in the Library menu and
+the format and read filters live in the command bar above the books, so the
+navigation list gets every pixel of height it can use.
 """
 from __future__ import annotations
 
@@ -16,14 +19,13 @@ from PyQt6.QtGui import QAction, QColor, QFont, QPainter, QPixmap
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QFrame,
-    QGridLayout,
     QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
     QMenu,
     QPushButton,
-    QToolButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -32,8 +34,17 @@ from database import db
 from ui import theme
 from ui.widgets import Divider, ElidedLabel, IconButton
 
-ROW_HEIGHT = 44
-NAV_ROW_HEIGHT = 30
+# Minimum heights. Every row asks its own labels how tall they are, so the
+# Windows text scale (125 %, 150 %...) can never clip a counter in half.
+ROW_HEIGHT = 34
+NAV_ROW_HEIGHT = 28
+ROW_PADDING = 8
+
+
+def _row_height(row: QWidget, minimum: int) -> int:
+    """The height a navigation row really needs for its current font."""
+    row.ensurePolished()
+    return max(minimum, row.sizeHint().height() + ROW_PADDING)
 
 # value, label, glyph
 SHELVES = (
@@ -43,21 +54,13 @@ SHELVES = (
     ("favorites", "Favorites", "★"),
 )
 
-FORMAT_CHIPS = (
-    ("comic", "Comics"),
-    ("pdf", "PDF"),
-    ("image", "Images"),
-    ("archive", "Archives"),
-)
-
-
 def _initial_pixmap(text: str, color: str = "") -> QPixmap:
     """Rounded tile with the first letter of a series.
 
     Windows navigation panes keep these tiles neutral, so the argument is only
     kept for callers that want to tint a single row (a brand colour, say).
     """
-    size = 24
+    size = 22
     pixmap = QPixmap(size, size)
     pixmap.fill(QColor(0, 0, 0, 0))
     painter = QPainter(pixmap)
@@ -86,7 +89,7 @@ class SeriesRow(QWidget):
         layout.setSpacing(8)
 
         badge = QLabel()
-        badge.setFixedSize(24, 24)
+        badge.setFixedSize(22, 22)
         badge.setPixmap(_initial_pixmap(name))
         layout.addWidget(badge)
 
@@ -97,31 +100,31 @@ class SeriesRow(QWidget):
         layout.addWidget(title, 1)
 
         counter = QLabel(str(total))
-        counter.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 8pt;")
+        counter.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 9pt;")
+        counter.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
         layout.addWidget(counter)
 
         if unread:
             dot = QLabel("●")
             dot.setToolTip(f"{unread} unread")
-            dot.setStyleSheet(f"color: {theme.ACCENT}; font-size: 7pt;")
+            dot.setStyleSheet(f"color: {theme.ACCENT}; font-size: 8pt;")
             layout.addWidget(dot)
 
 
 class SeriesPanel(QWidget):
-    """Navigation pane for shelves, formats and series."""
+    """Navigation pane for shelves and series."""
 
     series_selected = pyqtSignal(object)  # series_id, "unsorted" or None
     series_changed = pyqtSignal()
     import_folder_requested = pyqtSignal(str)
-    library_folder_requested = pyqtSignal()
     restore_requested = pyqtSignal()
     quick_filter_selected = pyqtSignal(str)
-    format_selected = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("SidebarPanel")
-        self._format_buttons = {}
         self._active_shelf = "all"
         self._setup_ui()
         theme.register_restyle(self)
@@ -152,14 +155,14 @@ class SeriesPanel(QWidget):
         header_layout.addLayout(title_box, 1)
 
         self.add_btn = IconButton("+", "Create a new series")
-        self.add_btn.setFixedSize(26, 26)
-        self.add_btn.setStyleSheet(
-            f"QToolButton {{ color: {theme.ACCENT}; background: {theme.ACCENT_SOFT};"
-            " border: 1px solid transparent; border-radius: 4px;"
-            " font-size: 12pt; font-weight: 600; }"
-            f"QToolButton:hover {{ background: {theme.ACCENT_TINT};"
-            f" border-color: {theme.ACCENT}; }}"
+        self._style_add_button()
+        # The button is square, and it is measured: a fixed 26 px box cut the
+        # "+" in half as soon as Windows scaled the text up.
+        self.add_btn.setSizePolicy(
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
         )
+        self.add_btn.setMinimumSize(26, 26)
+        self.add_btn.setMaximumHeight(26)
         self.add_btn.clicked.connect(self._add_series)
         header_layout.addWidget(self.add_btn)
         layout.addWidget(header)
@@ -174,26 +177,6 @@ class SeriesPanel(QWidget):
         self.quick_list.itemClicked.connect(self._on_shelf_clicked)
         self.quick_list.setFixedHeight(len(SHELVES) * NAV_ROW_HEIGHT + 4)
         layout.addWidget(self.quick_list)
-
-        # ---- formats -------------------------------------------------
-        self.formats_box = QWidget()
-        formats_layout = QGridLayout(self.formats_box)
-        formats_layout.setContentsMargins(14, 2, 10, 4)
-        formats_layout.setHorizontalSpacing(4)
-        formats_layout.setVerticalSpacing(4)
-        for index, (value, label) in enumerate(FORMAT_CHIPS):
-            button = QToolButton()
-            button.setObjectName("FilterChip")
-            button.setCheckable(True)
-            button.setCursor(Qt.CursorShape.PointingHandCursor)
-            button.setText(label)
-            button.setToolTip(f"Show only {label.lower()}")
-            button.clicked.connect(
-                lambda _checked=False, key=value: self._on_format_clicked(key)
-            )
-            formats_layout.addWidget(button, index // 2, index % 2)
-            self._format_buttons[value] = button
-        layout.addWidget(self.formats_box)
 
         # ---- series --------------------------------------------------
         series_header = QWidget()
@@ -239,34 +222,6 @@ class SeriesPanel(QWidget):
 
         layout.addWidget(Divider())
 
-        # ---- library folder -----------------------------------------
-        footer = QWidget()
-        footer_layout = QVBoxLayout(footer)
-        footer_layout.setContentsMargins(14, 4, 12, 2)
-        footer_layout.setSpacing(0)
-
-        self.folder_caption = QLabel("LIBRARY FOLDER")
-        self.folder_caption.setObjectName("SectionLabel")
-        self.folder_path = QLabel("Not set")
-        self.folder_path.setStyleSheet(
-            f"color: {theme.TEXT_MUTED}; font-size: 8pt;"
-        )
-        self.folder_path.setWordWrap(False)
-        footer_layout.addWidget(self.folder_caption)
-        footer_layout.addWidget(self.folder_path)
-
-        self.folder_button = QPushButton("Choose folder")
-        self.folder_button.setObjectName("GhostButton")
-        self.folder_button.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.folder_button.setStyleSheet(
-            f"QPushButton {{ background: transparent; border: none; padding: 2px 0;"
-            f" color: {theme.ACCENT}; font-size: 8.5pt; text-align: left; }}"
-            f"QPushButton:hover {{ color: {theme.ACCENT_HOVER}; }}"
-        )
-        self.folder_button.clicked.connect(self.library_folder_requested.emit)
-        footer_layout.addWidget(self.folder_button)
-        layout.addWidget(footer)
-
     # ------------------------------------------------------------------
     # Data
     # ------------------------------------------------------------------
@@ -276,7 +231,6 @@ class SeriesPanel(QWidget):
 
         stats = db.get_statistics()
         self._update_shelves(stats)
-        self._update_formats(stats.get("formats") or {})
 
         unsorted_count = len(db.get_books_without_series())
         if unsorted_count:
@@ -292,7 +246,6 @@ class SeriesPanel(QWidget):
             color = palette[index % len(palette)]
             self._add_series_row(series["id"], series["name"], total, unread, color)
 
-        self._update_folder_label()
         self._update_trash_button()
 
         if not self._select_series(current):
@@ -307,14 +260,20 @@ class SeriesPanel(QWidget):
             "favorites": stats.get("favorites", 0),
         }
         active = self._active_shelf or "all"
+        total_height = 4
         for row, (value, label, glyph) in enumerate(SHELVES):
             item = QListWidgetItem()
             item.setData(Qt.ItemDataRole.UserRole, value)
-            item.setSizeHint(QSize(10, NAV_ROW_HEIGHT))
+            widget = self._shelf_row(label, counts[value], glyph)
+            height = _row_height(widget, NAV_ROW_HEIGHT)
+            item.setSizeHint(QSize(10, height))
+            total_height += height
             self.quick_list.addItem(item)
-            self.quick_list.setItemWidget(item, self._shelf_row(label, counts[value], glyph))
+            self.quick_list.setItemWidget(item, widget)
             if value == active:
                 self.quick_list.setCurrentRow(row)
+        # The list never scrolls: its height is the sum of its own rows.
+        self.quick_list.setFixedHeight(total_height)
 
     def _shelf_row(self, label: str, count: int, glyph: str) -> QWidget:
         row = QWidget()
@@ -333,28 +292,17 @@ class SeriesPanel(QWidget):
         text.setStyleSheet(f"color: {theme.TEXT}; font-size: 9pt;")
         layout.addWidget(text, 1)
 
-        counter = QLabel(str(count) if count else "")
-        counter.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 8pt;")
+        # A zero is a number too: leaving it out made "Reading now" look like
+        # a row whose counter had been cut off.
+        counter = QLabel(str(count))
+        counter.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 9pt;")
+        counter.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
         layout.addWidget(counter)
         return row
 
-    def _update_formats(self, formats):
-        has_any = False
-        for value, button in self._format_buttons.items():
-            count = formats.get(value, 0) or 0
-            button.setVisible(count > 0)
-            button.setText(f"{dict(FORMAT_CHIPS)[value]}  {count}")
-            button.setChecked(False)
-            has_any = has_any or count > 0
-        self.formats_box.setVisible(has_any)
-
     def _add_entry(self, name: str, value, count: int, color: str, glyph: str):
-        item = QListWidgetItem()
-        item.setData(Qt.ItemDataRole.UserRole, value)
-        item.setData(Qt.ItemDataRole.UserRole + 1, name)
-        item.setSizeHint(QSize(10, NAV_ROW_HEIGHT))
-        self.series_list.addItem(item)
-
         row = QWidget()
         row.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         layout = QHBoxLayout(row)
@@ -367,25 +315,35 @@ class SeriesPanel(QWidget):
         icon.setStyleSheet(f"color: {color}; font-size: 9pt;")
         layout.addWidget(icon)
 
-        label = QLabel(name)
+        label = ElidedLabel(name)
         label.setStyleSheet(f"color: {theme.TEXT}; font-size: 9pt;")
         layout.addWidget(label, 1)
 
         counter = QLabel(str(count))
-        counter.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 8pt;")
+        counter.setStyleSheet(f"color: {theme.TEXT_DIM}; font-size: 9pt;")
+        counter.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
         layout.addWidget(counter)
 
+        item = QListWidgetItem()
+        item.setData(Qt.ItemDataRole.UserRole, value)
+        item.setData(Qt.ItemDataRole.UserRole + 1, name)
+        item.setSizeHint(QSize(10, _row_height(row, NAV_ROW_HEIGHT)))
+        item.setToolTip(name)
+        self.series_list.addItem(item)
         self.series_list.setItemWidget(item, row)
 
     def _add_series_row(self, series_id: int, name: str, total: int, unread: int,
                         color: str):
+        row = SeriesRow(name, total, unread, color)
         item = QListWidgetItem()
         item.setData(Qt.ItemDataRole.UserRole, series_id)
         item.setData(Qt.ItemDataRole.UserRole + 1, name)
-        item.setSizeHint(QSize(10, ROW_HEIGHT))
+        item.setSizeHint(QSize(10, _row_height(row, ROW_HEIGHT)))
         item.setToolTip(f"{name} — {total} books, {unread} unread")
         self.series_list.addItem(item)
-        self.series_list.setItemWidget(item, SeriesRow(name, total, unread, color))
+        self.series_list.setItemWidget(item, row)
 
     def _update_trash_button(self):
         """Only show the restore shortcut when there is something to restore."""
@@ -398,24 +356,6 @@ class SeriesPanel(QWidget):
         self.trash_button.setVisible(bool(deleted))
         if deleted:
             self.trash_button.setText(f"↺  Restore deleted series ({len(deleted)})")
-
-    def _update_folder_label(self):
-        from utils.settings import settings
-
-        folder = settings.get_library_root()
-        if folder:
-            self.folder_path.setText(self._shorten(folder, 32))
-            self.folder_path.setToolTip(folder)
-            self.folder_button.setText("Sync now")
-        else:
-            self.folder_path.setText("Not set")
-            self.folder_button.setText("Choose folder")
-
-    @staticmethod
-    def _shorten(path: str, limit: int) -> str:
-        if len(path) <= limit:
-            return path
-        return "…" + path[-(limit - 1):]
 
     def _current_series_id(self):
         item = self.series_list.currentItem()
@@ -439,29 +379,23 @@ class SeriesPanel(QWidget):
             )
         self._active_shelf = kind
         self.subtitle.setText(dict((value, label) for value, label, _ in SHELVES)[kind])
-        for button in self._format_buttons.values():
-            button.setChecked(False)
         self.quick_filter_selected.emit(kind)
 
-    def _on_format_clicked(self, value: str):
-        button = self._format_buttons[value]
-        active = button.isChecked()
-        for key, other in self._format_buttons.items():
-            other.setChecked(active and key == value)
-        self.format_selected.emit(value if active else "all")
+    def _style_add_button(self) -> None:
+        self.add_btn.setStyleSheet(
+            f"QToolButton {{ color: {theme.ACCENT}; background: {theme.ACCENT_SOFT};"
+            " border: 1px solid transparent; border-radius: 4px; padding: 0px;"
+            " font-size: 11pt; font-weight: 600; }"
+            f"QToolButton:hover {{ background: {theme.ACCENT_TINT};"
+            f" border-color: {theme.ACCENT}; }}"
+        )
 
     def restyle(self) -> None:
         """Re-apply the inline colours, then rebuild the rows with new ones."""
         self.subtitle.setStyleSheet(
             f"color: {theme.TEXT}; font-size: 10.5pt; font-weight: 600;"
         )
-        self.add_btn.setStyleSheet(
-            f"QToolButton {{ color: {theme.ACCENT}; background: {theme.ACCENT_SOFT};"
-            " border: 1px solid transparent; border-radius: 4px;"
-            " font-size: 12pt; font-weight: 600; }"
-            f"QToolButton:hover {{ background: {theme.ACCENT_TINT};"
-            f" border-color: {theme.ACCENT}; }}"
-        )
+        self._style_add_button()
         self.series_count_label.setStyleSheet(
             f"color: {theme.TEXT_DIM}; font-size: 8pt;"
         )
@@ -471,14 +405,6 @@ class SeriesPanel(QWidget):
             " text-align: left; }"
             f"QPushButton:hover {{ background: {theme.SURFACE_HOVER};"
             f" color: {theme.TEXT}; }}"
-        )
-        self.folder_path.setStyleSheet(
-            f"color: {theme.TEXT_MUTED}; font-size: 8pt;"
-        )
-        self.folder_button.setStyleSheet(
-            f"QPushButton {{ background: transparent; border: none; padding: 2px 0;"
-            f" color: {theme.ACCENT}; font-size: 8.5pt; text-align: left; }}"
-            f"QPushButton:hover {{ color: {theme.ACCENT_HOVER}; }}"
         )
         self.series_count_label.setStyleSheet(
             f"color: {theme.TEXT_DIM}; font-size: 8pt;"
@@ -503,12 +429,6 @@ class SeriesPanel(QWidget):
                 self.quick_list.setCurrentRow(row)
                 return
         self.quick_list.setCurrentRow(-1)
-
-    def set_active_format(self, value: str):
-        for key, button in self._format_buttons.items():
-            button.blockSignals(True)
-            button.setChecked(key == value)
-            button.blockSignals(False)
 
     def clear_shelves(self):
         """Drop the shelf highlight when a series is picked instead."""

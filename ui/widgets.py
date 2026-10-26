@@ -65,11 +65,24 @@ class IconButton(QToolButton):
         self.setToolTip(tooltip)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setAutoRaise(True)
-        # Only the height is fixed: a wider glyph (or a bigger Windows text
-        # scale) must not be cut in half.
-        self.setFixedHeight(32)
+        # Only the height is fixed, and it is measured from the font: a wider
+        # glyph (or a bigger Windows text scale) must not be cut in half.
+        self.setMinimumHeight(max(32, theme.text_height(self, 14)))
         self.setMinimumWidth(32)
         self.setStyleSheet("font-size: 15px;")
+
+
+def fit_icon_button(button: QToolButton, minimum: int = 28) -> None:
+    """Make an icon button square without ever clipping its glyph.
+
+    A fixed 28x28 box looks tidy until Windows scales the text and the glyph
+    needs 31 px: the last pixels are simply cut off. The box is the larger of
+    the minimum and what the button really asks for.
+    """
+    button.ensurePolished()
+    hint = button.sizeHint()
+    side = max(minimum, hint.width(), hint.height())
+    button.setFixedSize(side, side)
 
 
 class Divider(QFrame):
@@ -78,13 +91,15 @@ class Divider(QFrame):
     def __init__(self, horizontal: bool = True, parent=None):
         super().__init__(parent)
         self.setObjectName("Divider")
+        # The colour comes from the stylesheet, so a light/dark switch repaints
+        # a divider created minutes ago along with everything else.
+        self.setProperty("orientation", "horizontal" if horizontal else "vertical")
         if horizontal:
             self.setFixedHeight(1)
             self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         else:
             self.setFixedWidth(1)
             self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-        self.setStyleSheet(f"background-color: {theme.BORDER_SOFT}; border: none;")
 
 
 class StatCard(QFrame):
@@ -144,12 +159,6 @@ class Banner(QFrame):
         super().__init__(parent)
         self.setObjectName("HeroBar")
         self.setFixedHeight(76)
-        self.setStyleSheet(
-            "QFrame#HeroBar {"
-            f" background-color: {theme.BG_ELEVATED};"
-            f" border-bottom: 1px solid {theme.BORDER_SOFT};"
-            "}"
-        )
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(18, 12, 18, 12)
@@ -197,33 +206,20 @@ class Toast(QFrame):
         super().__init__(parent)
         self.setObjectName("Toast")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        self.setStyleSheet(
-            "QFrame#Toast {"
-            f" background-color: {theme.SURFACE_ACTIVE};"
-            f" border: 1px solid {theme.BORDER_STRONG};"
-            " border-radius: 14px;"
-            "}"
-        )
         theme.add_shadow(self, blur=34, y_offset=10, alpha=200)
-
-        accent = {
-            "info": theme.BLUE,
-            "success": theme.GREEN,
-            "warning": theme.GOLD,
-            "error": theme.ACCENT,
-        }.get(kind, theme.BLUE)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(14, 10, 14, 10)
         layout.setSpacing(10)
         bar = QFrame()
+        bar.setObjectName("ToastBar")
+        bar.setProperty("kind", kind)
         bar.setFixedWidth(3)
-        bar.setStyleSheet(f"background-color: {accent}; border-radius: 2px;")
         layout.addWidget(bar)
 
         label = QLabel(wrap_long_words(text))
+        label.setObjectName("ToastText")
         label.setWordWrap(True)
-        label.setStyleSheet(f"color: {theme.TEXT}; font-size: 12px;")
         layout.addWidget(label, 1)
 
         self._effect = QGraphicsOpacityEffect(self)
@@ -378,10 +374,7 @@ class SelectionBar(QFrame):
         layout.setSpacing(8)
 
         self.count_label = QLabel("0 selected")
-        self.count_label.setStyleSheet(
-            f"color: {theme.TEXT}; font-weight: 700; font-size: 13px;"
-            " background: transparent;"
-        )
+        self.count_label.setObjectName("SelectionCount")
         layout.addWidget(self.count_label)
         layout.addSpacing(6)
         layout.addWidget(Divider(horizontal=False))
@@ -389,14 +382,8 @@ class SelectionBar(QFrame):
 
         def add_button(text: str, slot, object_name: str = ""):
             button = QPushButton(text)
-            if object_name:
-                button.setObjectName(object_name)
+            button.setObjectName(object_name or "SelectionAction")
             button.setCursor(Qt.CursorShape.PointingHandCursor)
-            button.setStyleSheet(
-                "QPushButton { background: transparent; border: 1px solid transparent;"
-                f" color: {theme.TEXT_MUTED}; padding: 6px 11px; border-radius: 9px; }}"
-                f"QPushButton:hover {{ background: {theme.SURFACE_HOVER}; color: {theme.TEXT}; }}"
-            )
             button.clicked.connect(slot)
             layout.addWidget(button)
             return button
@@ -418,11 +405,8 @@ class SelectionBar(QFrame):
 
         close = QToolButton()
         close.setText("✕")
+        close.setObjectName("SelectionClose")
         close.setCursor(Qt.CursorShape.PointingHandCursor)
-        close.setStyleSheet(
-            "QToolButton { border: none; color: %s; font-size: 14px; padding: 4px; }"
-            "QToolButton:hover { color: %s; }" % (theme.TEXT_DIM, theme.TEXT)
-        )
         close.clicked.connect(self.clear_requested.emit)
         layout.addWidget(close)
 

@@ -54,7 +54,19 @@ def fake_opener(routes, requested=None):
     return opener
 
 
-def release_payload(version="2.5.1", with_update=True):
+def _next_version() -> str:
+    """The release after the running build, so a bump never breaks the test."""
+    from config import APP_VERSION
+
+    parts = [int(part) for part in APP_VERSION.split(".") if part.isdigit()]
+    major, minor = (parts + [0, 0])[:2]
+    return f"{major}.{minor + 1}.0"
+
+
+NEXT_VERSION = _next_version()
+
+
+def release_payload(version=NEXT_VERSION, with_update=True):
     assets = [
         {
             "name": f"DigitalLibrary-{version}-windows-x64.exe",
@@ -105,8 +117,8 @@ def test_the_newest_release_points_at_the_update_package():
         opener=fake_opener({updater.RELEASES_API: release_payload()})
     )
 
-    assert info.version == "2.5.1"
-    assert info.tag == "v2.5.1"
+    assert info.version == NEXT_VERSION
+    assert info.tag == f"v{NEXT_VERSION}"
     assert info.can_install_in_place
     assert info.asset_name.endswith("-update.zip")
     assert info.checksum_url == "https://example.test/SHA256.txt"
@@ -120,7 +132,7 @@ def test_a_release_without_an_update_package_cannot_update_in_place():
         opener=fake_opener({updater.RELEASES_API: release_payload(with_update=False)})
     )
     assert not info.can_install_in_place
-    assert info.page_url.endswith("/releases/v2.5.1")
+    assert info.page_url.endswith(f"/releases/v{NEXT_VERSION}")
 
 
 def test_a_broken_answer_is_an_update_error():
@@ -171,7 +183,7 @@ def test_the_download_is_verified_against_the_published_hash(tmp_path):
     routes = {
         "https://example.test/update.zip": data,
         "https://example.test/SHA256.txt": (
-            f"{digest}  DigitalLibrary-2.5.1-windows-x64-update.zip\n"
+            f"{digest}  DigitalLibrary-{NEXT_VERSION}-windows-x64-update.zip\n"
         ).encode(),
     }
     info = updater.fetch_latest_release(
@@ -195,7 +207,7 @@ def test_a_damaged_download_is_deleted_and_rejected(tmp_path):
     routes = {
         "https://example.test/update.zip": b"not the published file",
         "https://example.test/SHA256.txt": (
-            f"{'0' * 64}  DigitalLibrary-2.5.1-windows-x64-update.zip\n"
+            f"{'0' * 64}  DigitalLibrary-{NEXT_VERSION}-windows-x64-update.zip\n"
         ).encode(),
     }
     info = updater.fetch_latest_release(

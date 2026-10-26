@@ -70,7 +70,7 @@ DARK = {
     "ACCENT_SOFT": "#3a241d",
     "ACCENT_GLOW": "#ffa285",
     "ACCENT_TINT": "rgba(255, 106, 61, 46)",
-    "SELECTION": "#3a241d",
+    "SELECTION": "#33241f",
     "GOLD": "#f2c14e",
     "GREEN": "#4cc38a",
     "BLUE": "#4fa3f7",
@@ -104,7 +104,7 @@ LIGHT = {
     "ACCENT_SOFT": "#fdeae4",
     "ACCENT_GLOW": "#b93d18",
     "ACCENT_TINT": "rgba(232, 85, 45, 32)",
-    "SELECTION": "#fdeae4",
+    "SELECTION": "#f6e3dc",
     "GOLD": "#a9741a",
     "GREEN": "#107c41",
     "BLUE": "#0f6cbd",
@@ -624,8 +624,52 @@ QFrame#CoverFrame {{
 }}
 QFrame#Divider {{
     background-color: {BORDER};
-    max-height: 1px;
     border: none;
+}}
+QFrame#Divider[orientation="horizontal"] {{
+    max-height: 1px;
+}}
+QFrame#Divider[orientation="vertical"] {{
+    max-width: 1px;
+}}
+QFrame#HeroBar {{
+    background-color: {BG_ELEVATED};
+    border-bottom: 1px solid {BORDER_SOFT};
+}}
+QFrame#ToastBar[kind="info"] {{ background-color: {BLUE}; }}
+QFrame#ToastBar[kind="success"] {{ background-color: {GREEN}; }}
+QFrame#ToastBar[kind="warning"] {{ background-color: {GOLD}; }}
+QFrame#ToastBar[kind="error"] {{ background-color: {ACCENT}; }}
+QLabel#ToastText {{
+    color: {TEXT};
+    font-size: 12px;
+    background: transparent;
+}}
+QLabel#SelectionCount {{
+    color: {TEXT};
+    font-weight: 700;
+    font-size: 13px;
+    background: transparent;
+}}
+QPushButton#SelectionAction {{
+    background: transparent;
+    border: 1px solid transparent;
+    color: {TEXT_MUTED};
+    padding: 6px 11px;
+    border-radius: 4px;
+}}
+QPushButton#SelectionAction:hover {{
+    background-color: {SURFACE_HOVER};
+    color: {TEXT};
+}}
+QToolButton#SelectionClose {{
+    border: none;
+    color: {TEXT_DIM};
+    font-size: 14px;
+    padding: 4px;
+}}
+QToolButton#SelectionClose:hover {{
+    color: {TEXT};
 }}
 QFrame#EmptyState {{
     background: transparent;
@@ -1035,6 +1079,21 @@ def apply_theme(app, mode: str | None = None):
 
 
 # ---------------------------------------------------------------- helpers
+def text_height(widget, extra: int = 0) -> int:
+    """The height ``widget`` needs to draw its current font without clipping.
+
+    Qt stylesheets set the font at polish time, so a label created before the
+    application stylesheet exists still reports the old font. Polishing it
+    first and then asking its font metrics is what keeps a title or a counter
+    from being cut in half on a 125 % Windows display.
+    """
+    try:
+        widget.ensurePolished()
+        return widget.fontMetrics().height() + extra
+    except AttributeError:  # not a widget (an icon size, say)
+        return extra
+
+
 def add_shadow(widget: QWidget, blur: int = 26, y_offset: int = 8,
                color: str = "#000000", alpha: int | None = None) -> QGraphicsDropShadowEffect:
     """Attach a soft drop shadow (used on floating panels, not on every card)."""
