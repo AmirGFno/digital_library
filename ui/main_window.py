@@ -19,9 +19,18 @@ from PyQt6.QtCore import (
     Qt,
     QThread,
     QTimer,
+    QUrl,
     pyqtSignal,
 )
-from PyQt6.QtGui import QAction, QCursor, QDragEnterEvent, QDropEvent, QIcon, QKeySequence
+from PyQt6.QtGui import (
+    QAction,
+    QCursor,
+    QDesktopServices,
+    QDragEnterEvent,
+    QDropEvent,
+    QIcon,
+    QKeySequence,
+)
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -69,6 +78,7 @@ from ui.new_folder_dialog import ask_about_new_folders
 from ui.reader_settings_dialog import ReaderSettingsDialog
 from ui.restore_dialog import RestoreSeriesDialog
 from ui.series_panel import SeriesPanel
+from ui.update_dialog import UpdateCheckWorker, UpdateDialog
 from ui.name_preview_dialog import preview_when_needed
 from ui.welcome_dialog import WelcomeDialog
 from ui.widgets import EmptyState, SelectionBar, StatCard, ToastManager
@@ -80,6 +90,7 @@ from utils.helpers import (
 from utils.folder_watch import find_unmanaged_folders
 from utils.logger import logger
 from utils.reader_manager import SYSTEM_READER_ID, reader_manager
+from utils import updater
 from utils.settings import settings
 
 SORT_OPTIONS = [
@@ -173,6 +184,11 @@ class MainWindow(QMainWindow):
         self._pending_folder_check = False
         self._folder_prompt_open = False
         self._page_count_text = ""
+        # The installed edition asks GitHub for a newer release once at start.
+        self._update_thread: Optional[UpdateCheckWorker] = None
+        self._update_dialog: Optional[UpdateDialog] = None
+        self._pending_update = None
+        self._update_retries = 0
 
         # Throttles the "did a file disappear?" check when the window is focused.
         self._prune_timer = QTimer(self)
@@ -191,6 +207,7 @@ class MainWindow(QMainWindow):
 
         if self._run_startup:
             QTimer.singleShot(120, self._startup_tasks)
+            QTimer.singleShot(2400, self._auto_check_updates)
 
     # ------------------------------------------------------------------
     # UI construction
@@ -457,6 +474,16 @@ class MainWindow(QMainWindow):
         self.about_action = QAction("About", self)
         self.about_action.triggered.connect(self._show_about)
 
+        self.check_updates_action = QAction("Check for updates…", self)
+        self.check_updates_action.triggered.connect(
+            lambda: self._check_for_updates(manual=True)
+        )
+
+        self.auto_update_action = QAction("Check for updates automatically", self)
+        self.auto_update_action.setCheckable(True)
+        self.auto_update_action.setChecked(settings.get_check_updates())
+        self.auto_update_action.toggled.connect(self._toggle_auto_updates)
+
         self.restore_series_action = QAction("Restore deleted series...", self)
         self.restore_series_action.setShortcut(QKeySequence("Ctrl+Shift+Z"))
         self.restore_series_action.triggered.connect(self._restore_deleted_series)
@@ -523,6 +550,9 @@ class MainWindow(QMainWindow):
         reset_view.triggered.connect(self._reset_view)
 
         help_menu = menubar.addMenu("&Help")
+        help_menu.addAction(self.check_updates_action)
+        help_menu.addAction(self.auto_update_action)
+        help_menu.addSeparator()
         help_menu.addAction(self.shortcuts_action)
         help_menu.addSeparator()
         help_menu.addAction(self.about_action)
@@ -1947,6 +1977,137 @@ class MainWindow(QMainWindow):
             "<b>Ctrl / Shift + click</b> — Multi-select<br>"
             "<b>Drag on empty space</b> — Rubber-band select",
         )
+
+    # ------------------------------------------------------------------
+    # Updates
+    # ------------------------------------------------------------------
+    def _auto_check_updates(self):
+        """Ask GitHub for a newer release, but only in the installed edition."""
+        if not settings.get_check_updates():
+            return
+        if not updater.is_installed_copy():
+            return
+        self._check_for_updates(manual=False)
+
+    def _toggle_auto_updates(self, enabled: bool):
+        settings.set_check_updates(bool(enabled))
+        if enabled:
+            self._toast("The installed edition will look for new versions at start.")
+        else:
+            self._toast("Automatic update checks are off.")
+
+    def _check_for_updates(self, manual: bool = False):
+        thread = self._update_thread
+        if thread is not None and thread.isRunning():
+            if manual:
+                self._toast("Already checking for updates…")
+            return
+        if manual:
+            self.statusbar.showMessage("Checking for updates…", 4000)
+
+        worker = UpdateCheckWorker(self)
+        worker.checked.connect(lambda info: self._on_update_checked(info, manual))
+        worker.failed.connect(lambda message: self._on_update_failed(message, manual))
+        worker.finished.connect(worker.deleteLater)
+        self._update_thread = worker
+        worker.start()
+
+    def _on_update_failed(self, message: str, manual: bool):
+        self._update_thread = None
+        logger.info("Update check did not finish: %s", message)
+        if manual:
+            self._toast(
+                "Could not check for updates. Is the internet connection working?",
+                "warning",
+            )
+
+    def _on_update_checked(self, info, manual: bool):
+        self._update_thread = None
+        if info is None or not updater.is_newer(info.version):
+            if manual:
+                self._toast(f"You are running the newest version ({APP_VERSION}).", "success")
+            return
+
+        if not updater.is_installed_copy():
+            # A portable copy must never rewrite itself; point at the page.
+            if manual:
+                self._offer_portable_download(info)
+            return
+
+        deferred_version, deferred_at = settings.deferred_update()
+        if not manual and updater.was_deferred_recently(
+            info.version, deferred_version, deferred_at
+        ):
+            return
+
+        if not manual and self._busy_with_a_dialog():
+            # Never stack the update page on top of the welcome screen or the
+            # "should this folder become a series?" question; ask again in a
+            # moment instead.
+            if self._update_retries < 20:
+                self._update_retries += 1
+                self._pending_update = info
+                QTimer.singleShot(8000, self._resume_pending_update)
+            return
+
+        self._show_update_dialog(info)
+
+    def _busy_with_a_dialog(self) -> bool:
+        app = QApplication.instance()
+        return bool(app is not None and app.activeModalWidget() is not None)
+
+    def _resume_pending_update(self):
+        """Show a deferred update offer once the window is free again."""
+        info = self._pending_update
+        if info is None or self._update_dialog is not None:
+            return
+        if self._busy_with_a_dialog():
+            if self._update_retries < 20:
+                self._update_retries += 1
+                QTimer.singleShot(8000, self._resume_pending_update)
+            return
+        self._pending_update = None
+        self._update_retries = 0
+        self._show_update_dialog(info)
+
+    def _offer_portable_download(self, info):
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setWindowTitle(f"{APP_NAME} - update available")
+        box.setText(f"Digital Library {info.version} is available.")
+        box.setInformativeText(
+            "This is the portable edition, so it cannot update itself. Download "
+            "the new file from the releases page and replace the old one; your "
+            "library folder and settings stay untouched."
+        )
+        open_button = box.addButton(
+            "Open download page", QMessageBox.ButtonRole.AcceptRole
+        )
+        box.addButton(QMessageBox.StandardButton.Close)
+        box.exec()
+        if box.clickedButton() is open_button:
+            QDesktopServices.openUrl(QUrl(info.page_url or updater.RELEASE_PAGE))
+
+    def _show_update_dialog(self, info):
+        dialog = UpdateDialog(info, self)
+        self._update_dialog = dialog
+        accepted = dialog.exec()
+        self._update_dialog = None
+        if dialog.applying:
+            # The PowerShell helper waits for this process to exit, swaps the
+            # files and starts the new version.
+            logger.info("Installing update %s in place", info.version)
+            self.statusbar.showMessage("Installing the update…")
+            self._quit_for_update()
+            return
+        if not accepted:
+            settings.defer_update(info.version)
+
+    def _quit_for_update(self):
+        """Let the update helper take over once this process is gone."""
+        app = QApplication.instance()
+        if app is not None:
+            QTimer.singleShot(0, app.quit)
 
     def _show_about(self):
         QMessageBox.about(

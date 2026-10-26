@@ -1,78 +1,29 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller build definition (single-file Windows executable)."""
+"""PyInstaller build definition (portable single-file Windows executable).
 
-datas = [
-    ("assets/icon.png", "assets"),
-    ("assets/icon.ico", "assets"),
-    ("assets/default_cover.png", "assets"),
-    ("assets/chevron.png", "assets"),
-    ("assets/check.png", "assets"),
-    ("assets/radio_dot.png", "assets"),
-]
+This is the edition people download as one EXE: it stores its data next to
+itself and never updates in place. The installed edition is described in
+``DigitalLibraryInstalled.spec`` and is packed into a setup program.
+"""
+import os
+import sys
 
-hiddenimports = [
-    "rarfile",
-    "py7zr",
-    "PIL",
-    "PIL.Image",
-    "pypdfium2",
-    "pypdfium2_raw",
-]
+ROOT = os.path.abspath(os.environ.get("DL_BUILD_ROOT") or os.getcwd())
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
-excludes = [
-    "tkinter",
-    "unittest",
-    "pydoc",
-    "pytest",
-    "_pytest",
-    "PyQt6.QtQml",
-    "PyQt6.QtQuick",
-    "PyQt6.QtQuickWidgets",
-    "PyQt6.QtWebEngineCore",
-    "PyQt6.QtWebEngineWidgets",
-    "PyQt6.QtWebChannel",
-    "PyQt6.QtMultimedia",
-    "PyQt6.QtMultimediaWidgets",
-    "PyQt6.QtBluetooth",
-    "PyQt6.QtNfc",
-    "PyQt6.QtPositioning",
-    "PyQt6.QtSerialPort",
-    "PyQt6.QtDesigner",
-    "PyQt6.QtHelp",
-    "PyQt6.QtOpenGL",
-    "PyQt6.QtOpenGLWidgets",
-    "PyQt6.QtSql",
-    "PyQt6.QtTest",
-    "PyQt6.QtXml",
-    "PyQt6.QtDBus",
-    "PyQt6.QtPrintSupport",
-    "PyQt6.QtSvg",
-    "PyQt6.QtSvgWidgets",
-    "PyQt6.QtCharts",
-    "PyQt6.QtDataVisualization",
-    "PyQt6.Qt3DCore",
-    "PyQt6.Qt3DRender",
-    "pymupdf",
-    "pymupdf4llm",
-    "pymupdf_layout",
-    "fitz",
-    "numpy",
-    "scipy",
-    "matplotlib",
-    "pandas",
-    "onnxruntime",
-]
+from build_config import DATAS, EXCLUDES, HIDDEN_IMPORTS  # noqa: E402
 
 a = Analysis(
     ["main.py"],
     pathex=[],
     binaries=[],
-    datas=datas,
-    hiddenimports=hiddenimports,
+    datas=DATAS,
+    hiddenimports=HIDDEN_IMPORTS,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=excludes,
+    excludes=EXCLUDES,
     noarchive=False,
 )
 

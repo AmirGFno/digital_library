@@ -4,17 +4,23 @@ setlocal
 
 cd /d "%~dp0"
 
-echo [1/3] Installing dependencies...
+echo [1/4] Installing dependencies...
 python -m pip install -r requirements-dev.txt || goto :error
 
-echo [2/3] Running tests...
+echo [2/4] Running tests...
 python -m pytest -q || goto :error
 
-echo [3/3] Building DigitalLibrary.exe...
+echo [3/4] Building the portable executable...
 python -m PyInstaller --noconfirm --clean DigitalLibrary.spec || goto :error
 
+echo [4/4] Building the installed folder edition...
+python -m PyInstaller --noconfirm --clean --distpath dist\installed DigitalLibraryInstalled.spec || goto :error
+
 echo.
-echo Build finished: dist\DigitalLibrary.exe
+echo Build finished:
+echo   dist\DigitalLibrary.exe                  (portable)
+echo   dist\installed\DigitalLibrary\          (installed edition)
+echo Run installer\build_installer.bat to make the setup program (needs NSIS).
 pause
 exit /b 0
 
