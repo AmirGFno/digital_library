@@ -26,15 +26,7 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Unit tests
-        shell: pwsh
-        run: |
-          python -m pytest -q 2>&1 | Tee-Object -FilePath pytest-output.txt
-          if ($LASTEXITCODE -ne 0) {
-            Get-Content pytest-output.txt | Select-Object -Last 200 | ForEach-Object {
-              Write-Host "::error::$($_)"
-            }
-            exit 1
-          }
+        run: pytest -q
 
       - name: GUI smoke test
         env:
