@@ -63,3 +63,19 @@ def qt_app():
         except Exception as exc:  # no display / missing platform plugin
             pytest.skip(f"Qt cannot start here: {exc}")
     return app
+
+
+def pytest_runtest_logreport(report):
+    """Surface a failing test as an annotation on the GitHub run page.
+
+    The Actions log download is not always reachable, while the annotations of
+    a check run are; this turns every failure into one readable line there.
+    """
+    import os as _os
+
+    if not _os.environ.get("GITHUB_ACTIONS"):
+        return
+    if report.failed and report.when == "call":
+        message = str(report.longrepr).strip().splitlines()
+        detail = message[-1] if message else "failed"
+        print(f"::error title={report.nodeid}::{detail[:400]}")
