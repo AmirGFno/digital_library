@@ -64,3 +64,17 @@ def test_missing_file_reports_error(temp_settings):
     ok, message = manager.open_with(SYSTEM_READER_ID, "/does/not/exist.cbz")
     assert ok is False
     assert "not found" in message.lower()
+
+
+def test_a_non_reader_from_the_open_with_list_is_ignored(temp_settings):
+    """Windows reports programs registered for a file type, not only readers.
+
+    A user saw ``mstsc`` (Remote Desktop) in the reader list because something
+    had registered it for one of the comic extensions.
+    """
+    manager = ReaderManager(temp_settings)
+    assert not manager.looks_like_reader(r"C:\Windows\System32\mstsc.exe")
+    assert not manager.looks_like_reader(r"C:\Windows\explorer.exe")
+    assert not manager.looks_like_reader(r"C:\Windows\notepad.exe")
+    assert manager.looks_like_reader(r"C:\Program Files\CDisplayEx\CDisplayEx.exe")
+    assert manager.looks_like_reader(r"C:\Tools\YACReader.exe")

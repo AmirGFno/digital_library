@@ -9,9 +9,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtWidgets import (
+    QWidget,
     QCheckBox,
     QComboBox,
     QDialog,
@@ -31,7 +32,9 @@ from comic_metadata import count_pages
 from config import CARD_WIDTH, COVER_HEIGHT
 from cover_extractor import cover_extractor
 from database import db
+from ui import layout as layout_tools
 from ui import theme
+from ui.widgets import WrappingLabel, wrap_long_words
 from utils.helpers import format_file_size, open_containing_folder, open_file_with_reader
 from utils.logger import logger
 from utils.reader_manager import SYSTEM_READER_ID, reader_manager
@@ -48,8 +51,8 @@ class DetailsDialog(QDialog):
         self._page_count_detected = False
 
         self.setWindowTitle(self.book.get("title") or "Book details")
-        self.setMinimumSize(820, 620)
         self._build_ui()
+        layout_tools.finish_dialog(self, QSize(900, 700), QSize(620, 460))
         self._load_book()
 
     # ------------------------------------------------------------------
@@ -62,7 +65,9 @@ class DetailsDialog(QDialog):
         layout.setSpacing(14)
 
         # ---- header -----------------------------------------------------
-        header_row = QHBoxLayout()
+        header = QWidget()
+        header_row = QHBoxLayout(header)
+        header_row.setContentsMargins(0, 0, 0, 0)
         header_row.setSpacing(12)
 
         self.format_badge = QLabel("")
@@ -80,11 +85,11 @@ class DetailsDialog(QDialog):
         self.header_label = QLabel(self.book.get("title") or "Book details")
         self.header_label.setObjectName("TitleLabel")
         self.header_label.setWordWrap(True)
-        self.path_label = QLabel(str(self.book.get("filepath", "")))
+        self.path_label = WrappingLabel()
+        self.path_label.setToolTip(str(self.book.get("filepath", "")))
         self.path_label.setStyleSheet(
             f"color: {theme.TEXT_DIM}; font-size: 11px;"
         )
-        self.path_label.setWordWrap(True)
         title_box.addWidget(self.header_label)
         title_box.addWidget(self.path_label)
         header_row.addLayout(title_box, 1)
@@ -98,11 +103,15 @@ class DetailsDialog(QDialog):
         )
         self.favorite_badge.setVisible(False)
         header_row.addWidget(self.favorite_badge, 0, Qt.AlignmentFlag.AlignTop)
-        layout.addLayout(header_row)
+        layout.addWidget(header)
 
-        body = QHBoxLayout()
+        # Everything between the header and the buttons scrolls when the
+        # screen is short; see ui/layout.py.
+        body_widget = QWidget()
+        body = QHBoxLayout(body_widget)
+        body.setContentsMargins(0, 0, 0, 0)
         body.setSpacing(18)
-        layout.addLayout(body, 1)
+        layout.addWidget(body_widget, 1)
 
         # ---- cover column ----------------------------------------------
         cover_frame = QFrame()
@@ -257,7 +266,8 @@ class DetailsDialog(QDialog):
         self.header_label.setText(
             book.get("title") or Path(filepath).stem or "Book details"
         )
-        self.path_label.setText(str(filepath))
+        self.path_label.setText(wrap_long_words(str(filepath)))
+        self.path_label.setToolTip(str(filepath))
         self.favorite_badge.setVisible(bool(book.get("favorite")))
 
         self._load_cover()

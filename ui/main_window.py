@@ -16,6 +16,7 @@ from PyQt6.QtCore import (
     QEvent,
     QByteArray,
     QFileSystemWatcher,
+    QSize,
     Qt,
     QThread,
     QTimer,
@@ -36,6 +37,7 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -46,6 +48,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSpinBox,
+    QSizePolicy,
     QSplitter,
     QStatusBar,
     QToolButton,
@@ -57,6 +60,7 @@ from config import (
     APP_NAME,
     APP_VERSION,
     ASSETS_DIR,
+    CARD_WIDTH,
     DEFAULT_COLUMNS,
 )
 from cover_extractor import cover_extractor
@@ -71,6 +75,7 @@ from ui.dialogs import (
     EditVolumeDialog,
     SetCustomCoverDialog,
 )
+from ui import layout as layout_tools
 from ui import theme
 from ui.folder_import_dialog import FolderImportDialog
 from ui.library_grid import LibraryGrid
@@ -210,6 +215,8 @@ class MainWindow(QMainWindow):
     def __init__(self, run_startup: bool = True):
         super().__init__()
         self._run_startup = run_startup
+        # resizeEvent may arrive while _setup_ui is still building the widgets.
+        self._ui_ready = False
         self.current_series_filter = None  # None, "unsorted" or a series id
         self.current_search = ""
         self.columns = settings.get_columns()
@@ -258,10 +265,13 @@ class MainWindow(QMainWindow):
         self.setAcceptDrops(True)
         self._setup_ui()
         self._setup_actions()
+        self._fill_overflow_menu()
         self._setup_menu()
         self._setup_toolbar()
         self._setup_statusbar()
         self._restore_window_state()
+        self._ui_ready = True
+        self._apply_responsive_layout()
         self.refresh_books()
 
         if self._run_startup:
@@ -273,8 +283,10 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     def _setup_ui(self):
         self.setWindowTitle(f"{APP_NAME} {APP_VERSION}")
-        self.setMinimumSize(1080, 700)
-        self.resize(1440, 900)
+        # 1080x700 does not fit a 1366x768 laptop at 125 % scaling, and the
+        # buttons of the header ended up outside the window. The minimum is
+        # now small enough for such a screen and the header folds itself.
+        layout_tools.clamp_window(self, QSize(1440, 900), QSize(880, 560))
 
         # The window icon is what Windows shows on the taskbar button. The
         # application icon is already the best variant (multi-size ICO on
@@ -320,8 +332,9 @@ class MainWindow(QMainWindow):
         self.stat_unread = StatCard("●", "UNREAD", theme.ACCENT)
         self.stat_favorites = StatCard("★", "FAVORITES", theme.GOLD)
         self.stat_series = StatCard("≡", "SERIES", theme.VIOLET)
-        for card in (self.stat_books, self.stat_unread,
-                     self.stat_favorites, self.stat_series):
+        self.stat_cards = [self.stat_books, self.stat_unread,
+                           self.stat_favorites, self.stat_series]
+        for card in self.stat_cards:
             hero_layout.addWidget(card)
         self.stat_unread.clicked.connect(lambda: self.read_filter_combo.setCurrentIndex(1))
         self.stat_favorites.clicked.connect(lambda: self.favorites_button.setChecked(True))
@@ -349,13 +362,24 @@ class MainWindow(QMainWindow):
 
         self.settings_button = QPushButton("⚙")
         self.settings_button.setObjectName("GhostButton")
-        self.settings_button.setFixedWidth(42)
+        self.settings_button.setMinimumWidth(44)
         self.settings_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.settings_button.setToolTip("Reader settings (Ctrl+,)")
         self.settings_button.clicked.connect(self._show_reader_settings)
         hero_layout.addWidget(self.settings_button)
 
+        # Shown only when the window is too narrow for the buttons above.
+        self.overflow_button = QToolButton()
+        self.overflow_button.setObjectName("GhostButton")
+        self.overflow_button.setText("⋯")
+        self.overflow_button.setToolTip("More actions")
+        self.overflow_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.overflow_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.overflow_button.setVisible(False)
+        hero_layout.addWidget(self.overflow_button)
+
         self._root_layout.addWidget(self.hero)
+        self._build_overflow_menu()
 
         accent_line = QFrame()
         accent_line.setObjectName("AccentLine")
@@ -414,7 +438,10 @@ class MainWindow(QMainWindow):
         self.columns_spin = QSpinBox()
         self.columns_spin.setRange(2, 10)
         self.columns_spin.setValue(self.columns)
-        self.columns_spin.setToolTip("Cards per row")
+        self.columns_spin.setToolTip(
+            "Cards per row. A narrow window draws fewer cards instead of "
+            "cutting them off."
+        )
         self.columns_spin.valueChanged.connect(self._on_columns_changed)
         self.columns_spin.setFixedWidth(66)
         page_header.addWidget(self.columns_spin)
@@ -433,6 +460,9 @@ class MainWindow(QMainWindow):
         self.library_grid.rubber_band_finished.connect(self._on_rubber_band)
         self.grid_layout = self.library_grid.grid_layout
         self.scroll_area.setWidget(self.library_grid)
+        # The number of cards per row depends on the width of the viewport,
+        # which settles a moment after the window is shown.
+        self.scroll_area.viewport().installEventFilter(self)
         content_layout.addWidget(self.scroll_area, 1)
 
         # The selection bar lives in its own strip under the grid: it never
@@ -440,6 +470,9 @@ class MainWindow(QMainWindow):
         self.selection_bar = SelectionBar()
         self.selection_bar.setVisible(False)
         self.selection_bar.setMaximumWidth(760)
+        self.selection_bar.setSizePolicy(
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed
+        )
         selection_strip = QHBoxLayout()
         selection_strip.setContentsMargins(0, 4, 0, 0)
         selection_strip.addStretch(1)
@@ -616,13 +649,92 @@ class MainWindow(QMainWindow):
         help_menu.addSeparator()
         help_menu.addAction(self.about_action)
 
+    def _build_overflow_menu(self):
+        """The header actions that move into “⋯” when the window is narrow."""
+        menu = QMenu(self.overflow_button)
+        for text, slot in (
+            ("Add comics", self._add_book),
+            ("Import folder", self._bulk_import),
+            ("Sync library folder", self._sync_library_folder),
+            ("Reader settings", self._show_reader_settings),
+            ("Library statistics", self._show_statistics),
+        ):
+            action = menu.addAction(text)
+            action.triggered.connect(slot)
+        self.overflow_menu = menu
+        self.overflow_button.setMenu(menu)
+
+    def _fill_overflow_menu(self):
+        """The menu grows after the actions exist (created in _setup_actions)."""
+        menu = getattr(self, "overflow_menu", None)
+        if menu is None:
+            return
+        menu.addSeparator()
+        for name in ("check_updates_action", "shortcuts_action"):
+            action = getattr(self, name, None)
+            if action is not None:
+                menu.addAction(action)
+
+    # Widths where the header sheds its widest pieces. The numbers are the
+    # natural width of each group, so nothing is clipped before it folds.
+    COMPACT_WIDTH = 1180
+    NARROW_WIDTH = 940
+    TINY_WIDTH = 760
+
+    def _apply_responsive_layout(self):
+        """Fold the header instead of letting its buttons leave the window."""
+        if not getattr(self, "_ui_ready", False):
+            return
+        width = self.width()
+
+        for card in getattr(self, "stat_cards", []):
+            card.setVisible(width >= self.COMPACT_WIDTH)
+        self.hero_subtitle.setVisible(width >= self.NARROW_WIDTH)
+
+        narrow = width < self.NARROW_WIDTH
+        self.import_button.setVisible(not narrow)
+        self.sync_button.setVisible(not narrow)
+
+        tiny = width < self.TINY_WIDTH
+        self.settings_button.setVisible(not tiny)
+        self.search_input.setMinimumWidth(170 if tiny else 220 if narrow else 280)
+
+        # Below ~800 px the sidebar costs a third of the window; hide it (the
+        # shelf list is also reachable from the Library menu).
+
+        # The overflow menu appears as soon as anything moved into it.
+        self.overflow_button.setVisible(narrow or tiny)
+
+        # On a narrow window the search box gets its own row (or two), so no
+        # combo has to squeeze its text into half of its width.
+        if hasattr(self, "command_grid"):
+            self._layout_command_bar()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._apply_responsive_layout()
+        if getattr(self, "_ui_ready", False):
+            self._reflow_cards()
+
+    def eventFilter(self, watched, event):
+        if (
+            getattr(self, "_ui_ready", False)
+            and event.type() == QEvent.Type.Resize
+            and watched is getattr(getattr(self, "scroll_area", None), "viewport", lambda: None)()
+        ):
+            self._reflow_cards()
+        return super().eventFilter(watched, event)
+
     def _setup_toolbar(self):
         """Search and filter bar under the hero header."""
         bar = QFrame()
         bar.setObjectName("CommandBar")
-        layout = QHBoxLayout(bar)
+        layout = QGridLayout(bar)
         layout.setContentsMargins(20, 10, 20, 10)
-        layout.setSpacing(10)
+        layout.setHorizontalSpacing(10)
+        layout.setVerticalSpacing(8)
+        layout.setColumnStretch(0, 1)
+        self.command_grid = layout
 
         self.search_input = QLineEdit()
         self.search_input.setObjectName("SearchInput")
@@ -630,29 +742,25 @@ class MainWindow(QMainWindow):
         self.search_input.setClearButtonEnabled(True)
         self.search_input.setMinimumWidth(280)
         self.search_input.textChanged.connect(self._on_search_changed)
-        layout.addWidget(self.search_input, 1)
 
-        layout.addWidget(self._field_label("Show"))
+        self.show_caption = self._field_label("Show")
         self.read_filter_combo = QComboBox()
         self.read_filter_combo.addItem("All books", "all")
         self.read_filter_combo.addItem("Unread", "unread")
         self.read_filter_combo.addItem("Read", "read")
         self.read_filter_combo.addItem("Started", "started")
         self.read_filter_combo.currentIndexChanged.connect(self.refresh_books)
-        layout.addWidget(self.read_filter_combo)
 
         self.format_combo = QComboBox()
         for label, value in FORMAT_OPTIONS:
             self.format_combo.addItem(label, value)
         self.format_combo.currentIndexChanged.connect(self.refresh_books)
-        layout.addWidget(self.format_combo)
 
-        layout.addWidget(self._field_label("Sort"))
+        self.sort_caption = self._field_label("Sort")
         self.sort_combo = QComboBox()
         for label, value in SORT_OPTIONS:
             self.sort_combo.addItem(label, value)
         self.sort_combo.currentIndexChanged.connect(self._on_sort_changed)
-        layout.addWidget(self.sort_combo)
 
         self.favorites_button = QToolButton()
         self.favorites_button.setObjectName("FilterChip")
@@ -661,10 +769,109 @@ class MainWindow(QMainWindow):
         self.favorites_button.setToolTip("Show only favorites (Ctrl+D)")
         self.favorites_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.favorites_button.toggled.connect(self._on_favorites_toggled)
-        layout.addWidget(self.favorites_button)
 
+        for combo in (self.read_filter_combo, self.format_combo, self.sort_combo):
+            combo.setMinimumWidth(120)
+        self._layout_command_bar("wide")
         self.command_layout.addWidget(bar)
         self._restore_view_controls()
+
+    def _command_bar_widths(self) -> tuple[int, int]:
+        """How much room one row of the filter bar needs, and two rows.
+
+        Measured from the widgets themselves: the combo boxes are much wider
+        with the Windows font than with the Linux one, so a hardcoded
+        breakpoint folded the bar too late and Qt clipped the labels.
+        """
+        grid = self.command_grid
+        spacing = grid.spacing()
+        hint = lambda widget: widget.sizeHint().width()  # noqa: E731
+        one_row = (
+            self.search_input.minimumWidth()
+            + hint(self.show_caption)
+            + hint(self.read_filter_combo)
+            + hint(self.format_combo)
+            + hint(self.sort_caption)
+            + hint(self.sort_combo)
+            + hint(self.favorites_button)
+            + 6 * spacing
+        )
+        two_rows = max(
+            self.search_input.minimumWidth() + hint(self.favorites_button) + spacing,
+            hint(self.read_filter_combo)
+            + hint(self.format_combo)
+            + hint(self.sort_combo)
+            + 2 * spacing,
+        )
+        return one_row, two_rows
+
+    def _command_bar_mode(self) -> str:
+        """Which arrangement of the filter bar fits the current width."""
+        margins = self.command_grid.contentsMargins()
+        available = self.width() - margins.left() - margins.right()
+        one_row, two_rows = self._command_bar_widths()
+
+        # A little slack: Qt rounds widget sizes up, and a row that only just
+        # fits still shaves a few pixels off the last combo box.
+        slack = 24
+        if available >= one_row + slack:
+            return "wide"
+        if available >= two_rows + slack:
+            return "two"
+        # Three rows always fit: two combo boxes side by side plus the search
+        # box above them, with the favourites chip next to it.
+        return "three"
+
+    def _layout_command_bar(self, mode: str | None = None):
+        """One row when there is room, otherwise two or three."""
+        grid = self.command_grid
+        mode = mode or self._command_bar_mode()
+        if getattr(self, "_command_bar_mode_name", None) == mode:
+            return
+        self._command_bar_mode_name = mode
+
+        for widget in (
+            self.search_input, self.show_caption, self.read_filter_combo,
+            self.format_combo, self.sort_caption, self.sort_combo,
+            self.favorites_button,
+        ):
+            grid.removeWidget(widget)
+        for column in range(7):
+            grid.setColumnStretch(column, 0)
+        for row in range(4):
+            grid.setRowStretch(row, 0)
+
+        show_captions = mode == "wide"
+        self.show_caption.setVisible(show_captions)
+        self.sort_caption.setVisible(show_captions)
+
+        if mode == "wide":
+            grid.addWidget(self.search_input, 0, 0, 1, 1)
+            grid.addWidget(self.show_caption, 0, 1, 1, 1)
+            grid.addWidget(self.read_filter_combo, 0, 2, 1, 1)
+            grid.addWidget(self.format_combo, 0, 3, 1, 1)
+            grid.addWidget(self.sort_caption, 0, 4, 1, 1)
+            grid.addWidget(self.sort_combo, 0, 5, 1, 1)
+            grid.addWidget(self.favorites_button, 0, 6, 1, 1)
+            grid.setColumnStretch(0, 1)
+        elif mode == "two":
+            grid.addWidget(self.search_input, 0, 0, 1, 3)
+            grid.addWidget(self.favorites_button, 0, 3, 1, 1)
+            grid.addWidget(self.read_filter_combo, 1, 0, 1, 1)
+            grid.addWidget(self.format_combo, 1, 1, 1, 1)
+            grid.addWidget(self.sort_combo, 1, 2, 1, 1)
+            grid.setColumnStretch(2, 1)
+        else:
+            grid.addWidget(self.search_input, 0, 0, 1, 3)
+            grid.addWidget(self.favorites_button, 0, 3, 1, 1)
+            grid.addWidget(self.read_filter_combo, 1, 0, 1, 4)
+            grid.addWidget(self.format_combo, 2, 0, 1, 4)
+            grid.addWidget(self.sort_combo, 3, 0, 1, 4)
+            grid.setColumnStretch(3, 1)
+
+        self._command_bar_narrow = mode != "wide"
+        grid.invalidate()
+        grid.activate()
 
     @staticmethod
     def _field_label(text: str) -> QLabel:
@@ -725,6 +932,14 @@ class MainWindow(QMainWindow):
         if geometry:
             try:
                 self.restoreGeometry(QByteArray.fromBase64(geometry.encode("ascii")))
+                # The saved geometry may come from a bigger screen: shrink it
+                # so the window and its buttons stay reachable.
+                room = layout_tools.screen_size(self)
+                if self.height() > room.height() - layout_tools.MARGIN:
+                    self.resize(
+                        min(self.width(), room.width() - layout_tools.MARGIN),
+                        room.height() - layout_tools.MARGIN,
+                    )
             except Exception:
                 logger.debug("Could not restore window geometry")
         splitter_state = settings.get_view("splitter_state", "")
@@ -896,6 +1111,11 @@ class MainWindow(QMainWindow):
             icon = app.windowIcon()
         if not icon.isNull():
             self.setWindowIcon(icon)
+        # A combo box only knows how wide its text really is once it has been
+        # polished for the first time, which happens during this event. Fold
+        # the filter bar again now that the numbers are final, otherwise a
+        # narrow window keeps a one-row bar that clips "All formats".
+        QTimer.singleShot(0, self._apply_responsive_layout)
 
     def closeEvent(self, event):
         self._save_state()
@@ -1205,6 +1425,7 @@ class MainWindow(QMainWindow):
         self.selected_ids &= valid_ids
 
         self.library_grid.set_centered(not books)
+        self._layout_columns = self.columns_that_fit()
         self._update_page_header(len(books))
         self.scroll_area.verticalScrollBar().setValue(0)
 
@@ -1219,6 +1440,46 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     # Grid filling
     # ------------------------------------------------------------------
+    def columns_that_fit(self) -> int:
+        """How many cards really fit - the Columns setting is only a maximum.
+
+        The grid used to draw the requested number of columns even when the
+        window was narrower, and because the horizontal scroll bar is off, the
+        right-most cards were simply cut away and could not be reached.
+        """
+        wanted = max(1, int(self.columns or 4))
+        viewport = self.scroll_area.viewport().width() if hasattr(self, "scroll_area") else 0
+        if viewport <= 0:
+            return wanted
+        margins = self.grid_layout.contentsMargins()
+        usable = viewport - margins.left() - margins.right()
+        spacing = max(0, self.grid_layout.spacing())
+        per_card = CARD_WIDTH + spacing
+        fits = max(1, (usable + spacing) // per_card) if usable > 0 else 1
+        return max(1, min(wanted, int(fits)))
+
+    def _reflow_cards(self) -> None:
+        """Re-place the existing cards after the window changed width."""
+        columns = self.columns_that_fit()
+        if columns == getattr(self, "_layout_columns", None):
+            return
+        self._layout_columns = columns
+        cards = list(self.book_cards)
+        if not cards:
+            return
+        layout = self.library_grid.grid_layout
+        layout.setEnabled(False)
+        self.library_grid.setUpdatesEnabled(False)
+        try:
+            for card in cards:
+                layout.removeWidget(card)
+            for index, card in enumerate(cards):
+                self.library_grid.add_card(card, *divmod(index, columns))
+        finally:
+            layout.setEnabled(True)
+            self.library_grid.setUpdatesEnabled(True)
+            self.scroll_area.updateGeometry()
+
     def _card_batch_size(self, first: bool = True) -> int:
         """How many cards to build before letting the window breathe again.
 
@@ -1264,6 +1525,8 @@ class MainWindow(QMainWindow):
         stop = min(len(queue), start + size)
 
         # One layout pass per batch instead of one per card.
+        columns = self.columns_that_fit()
+        self._layout_columns = columns
         layout = self.library_grid.grid_layout
         self.library_grid.setUpdatesEnabled(False)
         layout.setEnabled(False)
@@ -1271,7 +1534,7 @@ class MainWindow(QMainWindow):
             for index in range(start, stop):
                 book = queue[index]
                 card = self._create_card(book)
-                row, column = divmod(index, max(1, int(self.columns or 4)))
+                row, column = divmod(index, columns)
                 self.library_grid.add_card(card, row, column)
                 card.set_selection_mode(self._selection_mode)
                 card.set_selected(book["id"] in self.selected_ids)
@@ -1610,11 +1873,25 @@ class MainWindow(QMainWindow):
             card.set_multi_selected(selected and multi)
         self.update_selection_bars()
 
+    def _fit_selection_bar(self):
+        """Short labels when the bar would not fit the window."""
+        bar = getattr(self, "selection_bar", None)
+        if bar is None or not bar.isVisible():
+            return
+        # The sidebar and the grid margins take part of the width; the bar
+        # lives under the grid, so it can use what the content area has.
+        available = max(0, self.width() - self.series_panel.width() - 80)
+        bar.use_compact_labels(False)
+        if bar.sizeHint().width() > available:
+            bar.use_compact_labels(True)
+
     def update_selection_bars(self):
         count = len(self.selected_ids)
         # A single click only highlights a card; the group bar belongs to the
         # "pick several books" mode (or to a real multi-selection).
         grouping = self._selection_mode or count > 1
+        if grouping:
+            QTimer.singleShot(0, self._fit_selection_bar)
         self.selection_label.setText(f"{count} selected" if grouping else "")
         self.delete_selection_action.setEnabled(count > 0)
 
@@ -1623,6 +1900,7 @@ class MainWindow(QMainWindow):
             return
         bar.set_count(count)
         bar.setVisible(count > 0 and grouping)
+        self._fit_selection_bar()
         if hasattr(self, "page_count"):
             self.page_count.setText(
                 f"{count} selected" if count and grouping else self._page_count_text
@@ -1655,6 +1933,8 @@ class MainWindow(QMainWindow):
     def _on_columns_changed(self, value: int):
         self.columns = int(value)
         settings.set_columns(self.columns)
+        self._layout_columns = None
+        self._reflow_cards()
         self.refresh_books()
 
     def _change_columns(self, delta: int):
@@ -1679,7 +1959,8 @@ class MainWindow(QMainWindow):
         self.read_filter_combo.setCurrentIndex(0)
         self.format_combo.setCurrentIndex(0)
         self.favorites_button.setChecked(False)
-        self.resize(1280, 820)
+        layout_tools.clamp_window(self, QSize(1280, 820), QSize(880, 560))
+        self._apply_responsive_layout()
         self.splitter.setSizes([230, 1050])
         self.refresh_books()
 
@@ -1866,7 +2147,12 @@ class MainWindow(QMainWindow):
         book = db.get_book(book_id)
         if not book:
             return
-        dialog = SetCustomCoverDialog(book_id, book.get("title") or "Untitled", self)
+        dialog = SetCustomCoverDialog(
+            book_id,
+            book.get("title") or "Untitled",
+            self,
+            filepath=book.get("filepath") or "",
+        )
         if dialog.exec():
             self._refresh_card(book_id)
 

@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 APP_NAME = "Digital Library"
-APP_VERSION = "2.4.3"
+APP_VERSION = "2.4.4"
 
 # The setup installer drops this marker next to the executable. It is what
 # tells the app apart from the portable single-file build: only an installed
@@ -84,7 +84,13 @@ INSTALLED_COPY = is_installed_copy()
 # read-only locations fall back to the per-user data directory. An installed
 # copy always uses the per-user folder: updates rewrite the program files, so
 # the library must never live inside the installation folder.
-if INSTALLED_COPY:
+#
+# An explicit folder wins over both: the smoke test and the automated tests
+# point this at a temporary directory so they can never touch a real library.
+_DATA_OVERRIDE = os.environ.get("DIGITAL_LIBRARY_DATA_DIR", "").strip()
+if _DATA_OVERRIDE:
+    BASE_DIR = Path(_DATA_OVERRIDE).expanduser()
+elif INSTALLED_COPY:
     BASE_DIR = _user_data_dir()
 else:
     BASE_DIR = APP_DIR if _is_writable(APP_DIR / "data") else _user_data_dir()

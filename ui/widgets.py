@@ -65,7 +65,10 @@ class IconButton(QToolButton):
         self.setToolTip(tooltip)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setAutoRaise(True)
-        self.setFixedSize(32, 32)
+        # Only the height is fixed: a wider glyph (or a bigger Windows text
+        # scale) must not be cut in half.
+        self.setFixedHeight(32)
+        self.setMinimumWidth(32)
         self.setStyleSheet("font-size: 15px;")
 
 
@@ -210,7 +213,7 @@ class Toast(QFrame):
         bar.setStyleSheet(f"background-color: {accent}; border-radius: 2px;")
         layout.addWidget(bar)
 
-        label = QLabel(text)
+        label = QLabel(wrap_long_words(text))
         label.setWordWrap(True)
         label.setStyleSheet(f"color: {theme.TEXT}; font-size: 12px;")
         layout.addWidget(label, 1)
@@ -289,7 +292,9 @@ class Toast(QFrame):
             return
         margin = 22
         x = max(margin, (parent.width() - self.width()) // 2)
-        y = parent.height() - self.height() - 58
+        # A long message wraps into a tall box; keep its top inside the window
+        # so a three-line import summary is never cut by the title bar.
+        y = max(margin, parent.height() - self.height() - 58)
         self.move(x, y)
 
 
@@ -356,10 +361,11 @@ class SelectionBar(QFrame):
         self.setObjectName("SelectionBar")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setFixedHeight(56)
-        self.setMinimumWidth(560)
+        self.setMinimumWidth(300)
         theme.add_shadow(self, blur=40, y_offset=12, alpha=220)
 
-        layout = QHBoxLayout(self)
+        self._layout = QHBoxLayout(self)
+        layout = self._layout
         layout.setContentsMargins(16, 8, 12, 8)
         layout.setSpacing(8)
 
@@ -387,11 +393,19 @@ class SelectionBar(QFrame):
             layout.addWidget(button)
             return button
 
-        add_button("▶  Open", self.open_requested.emit)
-        add_button("✓  Read", lambda: self.read_requested.emit(True))
-        add_button("↺  Unread", lambda: self.read_requested.emit(False))
-        add_button("★  Favorite", lambda: self.favorite_requested.emit(True))
-        add_button("☰  Series", self.series_requested.emit)
+        # Each entry keeps its full label and its short form: on a narrow
+        # window the icons alone are used so that no button is cut in half.
+        self._buttons = []
+        for full, short, slot in (
+            ("▶  Open", "▶", self.open_requested.emit),
+            ("✓  Read", "✓", lambda: self.read_requested.emit(True)),
+            ("↺  Unread", "↺", lambda: self.read_requested.emit(False)),
+            ("★  Favorite", "★", lambda: self.favorite_requested.emit(True)),
+            ("☰  Series", "☰", self.series_requested.emit),
+        ):
+            button = add_button(full, slot)
+            button.setToolTip(full.replace("  ", " "))
+            self._buttons.append((button, full, short))
         layout.addStretch(1)
 
         close = QToolButton()
@@ -406,6 +420,31 @@ class SelectionBar(QFrame):
 
     def set_count(self, count: int):
         self.count_label.setText(f"{count} selected")
+        self.count_label.setToolTip(f"{count} selected")
+
+    def use_compact_labels(self, compact: bool):
+        """Shorten the buttons so the bar fits a narrow window."""
+        for button, full, short in getattr(self, "_buttons", []):
+            if button.text() != (short if compact else full):
+                button.setText(short if compact else full)
+                button.updateGeometry()
+        self.updateGeometry()
+
+    def sizeHint(self):  # noqa: N802 - Qt API
+        """The width the current labels need - never the cached one.
+
+        ``super().sizeHint()`` is not refreshed after the labels change, and
+        the window compares the two to decide when to shorten them.
+        """
+        hint = super().sizeHint()
+        widths = [self.count_label.sizeHint().width()]
+        widths += [button.sizeHint().width() for button, _full, _short in self._buttons]
+        margins = self._layout.contentsMargins()
+        spacing = self._layout.spacing() * (len(widths) + 3)
+        return QSize(
+            sum(widths) + margins.left() + margins.right() + spacing + 40,
+            hint.height(),
+        )
 
 
 # ---------------------------------------------------------------- empty state
@@ -491,6 +530,113 @@ def elide(text: str, limit: int = 42) -> str:
     if len(text) <= limit:
         return text
     return text[: limit - 1].rstrip() + "…"
+
+
+def elide_to_width(text: str, label, width: int = 0) -> str:
+    """Cut ``text`` with an ellipsis so it fits in ``width`` pixels.
+
+    Qt clips a QLabel with no word wrap by cutting it mid-letter, which looks
+    broken next to the counters in the sidebar. The text is shortened by whole
+    characters instead and the full value goes into the tooltip.
+    """
+    text = str(text or "")
+    if not text:
+        return text
+    pixels = width or (label.width() if label is not None else 0)
+    if label is None or pixels <= 0:
+        return text
+    metrics = label.fontMetrics()
+    if metrics.horizontalAdvance(text) <= pixels:
+        return text
+    ellipsis = "…"
+    keep = text
+    while keep and metrics.horizontalAdvance(keep + ellipsis) > pixels:
+        keep = keep[:-1]
+    return (keep.rstrip() + ellipsis) if keep else ellipsis
+
+
+class WrappingLabel(QLabel):
+    """A word-wrapping label that really grows to fit every wrapped line.
+
+    Qt asks a label for its height at a given width, but a label nested in a
+    couple of layouts keeps a one-line height and cuts the rest of the text -
+    exactly what a long file path did in the details window. Setting the
+    minimum height from ``heightForWidth`` keeps the whole text visible.
+    """
+
+    def __init__(self, text: str = "", parent=None):
+        super().__init__(text, parent)
+        self.setWordWrap(True)
+        policy = self.sizePolicy()
+        policy.setHeightForWidth(True)
+        self.setSizePolicy(policy)
+
+    def setText(self, text: str):  # noqa: N802 - Qt API
+        super().setText(text)
+        self._fit_height()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit_height()
+
+    def _fit_height(self):
+        width = self.width()
+        if width > 0:
+            self.setMinimumHeight(self.heightForWidth(width))
+
+
+def wrap_long_words(text: str, chunk: int = 26) -> str:
+    """Add invisible break points so a wrapping label can show a long path.
+
+    Qt breaks a line only at a space, so a Windows path or a file name without
+    spaces runs straight past the edge of the label and is clipped mid-word.
+    A zero-width space after every path separator and inside a very long word
+    gives the label somewhere to wrap, and the user sees the same text.
+    """
+    text = str(text or "")
+    if not text:
+        return text
+    pieces = []
+    run = 0
+    for char in text:
+        pieces.append(char)
+        if char.isspace():
+            run = 0
+            continue
+        if char in "\\/":
+            pieces.append("\u200b")
+            run = 0
+            continue
+        run += 1
+        if run >= chunk:
+            pieces.append("\u200b")
+            run = 0
+    return "".join(pieces)
+
+
+class ElidedLabel(QLabel):
+    """A label that always ends with “…” instead of a cut letter."""
+
+    def __init__(self, text: str = "", parent=None):
+        super().__init__(text, parent)
+        self._full_text = str(text or "")
+        self.setToolTip(self._full_text)
+        self.setMinimumWidth(40)
+
+    def setText(self, text: str):  # noqa: N802 - Qt API
+        self._full_text = str(text or "")
+        self.setToolTip(self._full_text)
+        self._refresh()
+
+    def full_text(self) -> str:
+        return self._full_text
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._refresh()
+
+    def _refresh(self):
+        super().setText(elide_to_width(self._full_text, self, self.width()))
 
 
 def workspace_badge(format_name: str) -> Tuple[str, str]:

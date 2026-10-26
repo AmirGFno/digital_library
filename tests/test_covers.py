@@ -396,3 +396,66 @@ def test_scan_folders_and_hidden_files_do_not_confuse_the_order(tmp_path):
     cover = CoverExtractor(cache_dir=tmp_path / "cache").get_cover(str(comic))
 
     _assert_page_color(cover, (30, 30, 240))
+
+
+# ---------------------------------------------------------------- page browser
+def test_pages_can_be_listed_and_read_for_the_manual_cover_picker(tmp_path):
+    """The cover dialog needs the page list and one page's bytes."""
+    from cover_extractor import cover_extractor
+
+    path = tmp_path / "Ben 10 02 [FA].cbz"
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("000.jpg", _png_bytes((20, 30, 60)))
+        archive.writestr("001.jpg", _png_bytes((200, 40, 40)))
+        archive.writestr("ComicInfo.xml", "<ComicInfo/>")
+
+    pages = cover_extractor.list_pages(str(path))
+    assert pages == ["000.jpg", "001.jpg"]
+
+    data = cover_extractor.read_page(str(path), "001.jpg")
+    assert data
+    image = Image.open(io.BytesIO(data))
+    assert image.size == (60, 80)
+
+
+def test_listing_pages_of_an_unreadable_file_is_empty_not_an_error(tmp_path):
+    from cover_extractor import cover_extractor
+
+    broken = tmp_path / "broken.cbz"
+    broken.write_bytes(b"not a zip")
+    assert cover_extractor.list_pages(str(broken)) == []
+    assert cover_extractor.read_page(str(broken), "001.jpg") is None
+
+
+def test_a_page_inside_the_book_can_become_the_cover(qt_app, tmp_path, monkeypatch):
+    """Automatic detection is not always right; the user must be able to pick."""
+    import ui.dialogs as dialogs
+
+    cover_dir = tmp_path / "custom_covers"
+    monkeypatch.setattr("config.CUSTOM_COVERS_DIR", cover_dir, raising=False)
+
+    book_path = tmp_path / "Ben 10 02.cbz"
+    with zipfile.ZipFile(book_path, "w") as archive:
+        archive.writestr("000.jpg", _png_bytes((20, 30, 60), (120, 160)))
+        archive.writestr("001.jpg", _png_bytes((200, 40, 40), (120, 160)))
+
+    saved = {}
+    monkeypatch.setattr(dialogs.db, "set_custom_cover",
+                        lambda book_id, path: saved.update(id=book_id, path=path) or True)
+    monkeypatch.setattr(dialogs.QMessageBox, "information", staticmethod(lambda *a, **k: 0))
+
+    dialog = dialogs.SetCustomCoverDialog(7, "Ben 10 02", None, filepath=str(book_path))
+    dialog.show()
+    qt_app.processEvents()
+
+    assert dialog.pages_list.count() == 2
+    dialog.pages_list.setCurrentRow(1)
+    qt_app.processEvents()
+    assert dialog.set_btn.isEnabled()
+
+    dialog._set_cover()
+    assert saved["id"] == 7
+    assert saved["path"].endswith(".jpg")
+    stored = Image.open(saved["path"])
+    assert stored.size == (120, 160)
+    dialog.close()

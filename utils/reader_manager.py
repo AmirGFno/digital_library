@@ -390,6 +390,33 @@ class ReaderManager:
             available=True,
         )
 
+    # Executables that show up in "Open with" lists without being readers.
+    # Windows lets a program register itself for a file type, and a stray entry
+    # (mstsc.exe was reported by a user) must not be offered as a comic reader.
+    NOT_A_READER = (
+        "mstsc.exe", "explorer.exe", "notepad.exe", "regedit.exe",
+        "rundll32.exe", "cmd.exe", "powershell.exe", "wt.exe", "conhost.exe",
+        "iexplore.exe", "msedge.exe", "chrome.exe", "firefox.exe",
+        "winword.exe", "excel.exe", "powerpnt.exe", "7zfm.exe", "winrar.exe",
+        "notepad++.exe", "code.exe",
+    )
+
+    # Comic extensions whose "Open with" registration proves a real reader.
+    COMIC_EXTENSIONS = (".cbz", ".cbr", ".cb7", ".cbt", ".cba", ".pdf")
+
+    @classmethod
+    def looks_like_reader(cls, path) -> bool:
+        """False for the system tools that end up in an "Open with" list.
+
+        Windows stores every program that ever claimed a file type there, so
+        Remote Desktop, Explorer or a text editor must not be offered as a
+        comic reader.
+        """
+        # Backslashes are kept: a Windows path is checked on every platform in
+        # the tests, and Path() on Linux would not split it.
+        name = str(path).replace("\\", "/").rstrip("/").rsplit("/", 1)[-1].lower()
+        return name not in cls.NOT_A_READER
+
     # Executables that identify a comic/book reader, used by the registry scan.
     KNOWN_EXECUTABLES = (
         "CDisplayEx.exe",
@@ -433,6 +460,8 @@ class ReaderManager:
                 return
             path = Path(candidate)
             if not path.is_file():
+                return
+            if not self.looks_like_reader(path):
                 return
             key = str(path).lower()
             if key in seen:
@@ -500,7 +529,7 @@ class ReaderManager:
                 continue
 
         # 3) "Open with" handlers for comic extensions
-        for extension in (".cbz", ".cbr", ".cb7", ".cbt", ".pdf"):
+        for extension in self.COMIC_EXTENSIONS:
             for hive in (winreg.HKEY_CLASSES_ROOT, winreg.HKEY_CURRENT_USER):
                 try:
                     with winreg.OpenKey(hive, f"{extension}\\OpenWithList") as key:
@@ -623,29 +652,36 @@ class ReaderManager:
                 command = ["open", "-a", reader.executable, str(filepath)]
             elif reader.source == "system":
                 return self.open_system_default(filepath)
-            elif WINDOWS:
-                command = [reader.executable]
-                command.extend(self._format_arguments(reader, filepath))
-                if not any("{file}" in arg for arg in reader.arguments):
-                    command.append(str(filepath))
-                # No shell: avoids command injection and quoting bugs.
-                subprocess.Popen(command, close_fds=True)
-                logger.info(f"Opened {filepath} with {reader.name}")
-                return True, f"Opened with {reader.name}"
             else:
                 command = [reader.executable]
                 command.extend(self._format_arguments(reader, filepath))
                 if not any("{file}" in arg for arg in reader.arguments):
                     command.append(str(filepath))
-                subprocess.Popen(
-                    command,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    start_new_session=True,
-                    close_fds=True,
-                )
+                # No shell: avoids command injection and quoting bugs.
+                if WINDOWS:
+                    subprocess.Popen(command, close_fds=True)
+                else:
+                    subprocess.Popen(
+                        command,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        start_new_session=True,
+                        close_fds=True,
+                    )
                 logger.info(f"Opened {filepath} with {reader.name}")
                 return True, f"Opened with {reader.name}"
+        except FileNotFoundError:
+            logger.error(f"Reader is gone: {reader.executable}")
+            return False, f"{reader.name} was not found at {reader.executable}"
+        except OSError as exc:
+            # 13 = permission denied, 115 = still copying, 267 = bad directory.
+            if getattr(exc, "winerror", None) == 193:
+                logger.error(f"Not an executable: {reader.executable}")
+                return False, f"{reader.name} cannot be started (not an .exe)"
+            if getattr(exc, "winerror", None) == 1223:
+                return False, "The launch was cancelled"
+            logger.error(f"Failed to open {filepath} with {reader.name}: {exc}")
+            return False, str(exc)
         except Exception as exc:
             logger.error(f"Failed to open {filepath} with {reader.name}: {exc}")
             return False, str(exc)

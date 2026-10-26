@@ -9,10 +9,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QSize, Qt
 from config import APP_NAME, APP_VERSION
+from ui import layout as layout_tools
 from ui import theme
 from PyQt6.QtWidgets import (
+    QWidget,
     QCheckBox,
     QFrame,
     QDialog,
@@ -34,7 +36,7 @@ class WelcomeDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Welcome to Digital Library")
-        self.setMinimumWidth(620)
+        self._preferred_size = QSize(660, 620)
         self.folder: Optional[str] = None
         self._build_ui()
 
@@ -82,10 +84,11 @@ class WelcomeDialog(QDialog):
         layout.addWidget(hero)
 
         # ---- body -------------------------------------------------------
-        body = QVBoxLayout()
+        body_widget = QWidget()
+        body = QVBoxLayout(body_widget)
         body.setContentsMargins(28, 22, 28, 20)
         body.setSpacing(12)
-        layout.addLayout(body)
+        layout.addWidget(body_widget, 1)
 
         title = QLabel("Choose your comics folder")
         title.setObjectName("TitleLabel")
@@ -150,6 +153,11 @@ class WelcomeDialog(QDialog):
         buttons.addButton(skip_button, QDialogButtonBox.ButtonRole.RejectRole)
         buttons.rejected.connect(self.reject)
         body.addWidget(buttons)
+        # The welcome window is the first thing a new user sees; it must not be
+        # taller than the screen either.
+        layout_tools.finish_dialog(
+            self, QSize(660, 620), QSize(460, 380), keep_first=1, keep_last=0
+        )
 
     def _browse(self):
         folder = QFileDialog.getExistingDirectory(

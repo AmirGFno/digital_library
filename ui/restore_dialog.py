@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
+from ui import layout as layout_tools
 from database import db
 
 
@@ -31,9 +32,10 @@ class RestoreSeriesDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Restore a deleted series")
-        self.setMinimumSize(600, 460)
+        self._preferred_size = QSize(640, 500)
         self.restored_id = None
         self._build_ui()
+        layout_tools.finish_dialog(self, self._preferred_size, QSize(480, 380))
         self._load()
 
     def _build_ui(self):

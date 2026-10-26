@@ -12,7 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Sequence
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -28,6 +28,8 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
+from ui import layout as layout_tools
+
 
 ACTIONS = [
     ("سری بساز / Create a series", "series"),
@@ -42,9 +44,10 @@ class NewFolderDialog(QDialog):
     def __init__(self, folders: Sequence[str], parent=None):
         super().__init__(parent)
         self.setWindowTitle("New folders found")
-        self.setMinimumSize(760, 460)
+        self._preferred_size = QSize(800, 520)
         self.folders: List[str] = [str(folder) for folder in folders]
         self._build_ui()
+        layout_tools.finish_dialog(self, self._preferred_size, QSize(560, 400))
         self._fill_table()
 
     # ------------------------------------------------------------------

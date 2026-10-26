@@ -13,8 +13,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable, Optional
 
-from PyQt6.QtCore import QThread, QUrl, pyqtSignal
-from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtCore import QSize, QThread, QUrl, pyqtSignal
+from PyQt6.QtGui import QDesktopServices, QTextOption
 from PyQt6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -28,6 +28,7 @@ from PyQt6.QtWidgets import (
 )
 
 from config import APP_VERSION
+from ui import layout as layout_tools
 from ui import theme
 from utils import updater
 from utils.logger import logger
@@ -107,11 +108,10 @@ class UpdateDialog(QDialog):
 
         self.setWindowTitle("Update Digital Library")
         self.setModal(True)
-        self.setMinimumSize(620, 430)
-        # Resize before show() so the taller error page does not stretch the
-        # offer page with empty space.
-        self.resize(620, 440)
         self._build_ui()
+        # Resize before show() so the taller error page does not stretch the
+        # offer page with empty space. The dialog still has to fit the screen.
+        layout_tools.clamp_window(self, QSize(620, 440), QSize(420, 340))
 
     # ------------------------------------------------------------------
     # Construction
@@ -183,6 +183,9 @@ class UpdateDialog(QDialog):
             self.notes_browser = browser
             browser.setObjectName("UpdateNotes")
             browser.setOpenExternalLinks(True)
+            browser.setWordWrapMode(
+                QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere
+            )
             browser.setPlainText(notes)
             browser.setMinimumHeight(140)
             browser.setMaximumHeight(210)
