@@ -24,6 +24,7 @@ from config import ALL_EXTENSIONS
 from database import db
 from importer import scan_folder
 from ui import layout as layout_tools
+from ui.widgets import WrappingLabel, wrap_long_words
 from utils.settings import settings
 
 
@@ -124,8 +125,7 @@ class AddBookDialog(QDialog):
         file_layout = QHBoxLayout(file_card)
         file_layout.setContentsMargins(12, 10, 10, 10)
         file_layout.setSpacing(8)
-        self.file_label = QLabel("No file selected")
-        self.file_label.setWordWrap(True)
+        self.file_label = WrappingLabel("No file selected")
         self.file_label.setStyleSheet("color: #aab3c5; font-size: 12px;")
         file_btn = QPushButton("Browse...")
         file_btn.setObjectName("GhostButton")
@@ -163,7 +163,8 @@ class AddBookDialog(QDialog):
         if files:
             self.filepaths = files
             if len(files) == 1:
-                self.file_label.setText(files[0])
+                self.file_label.setText(wrap_long_words(files[0]))
+                self.file_label.setToolTip(files[0])
                 self._autofill_from_metadata(files[0])
             else:
                 self.file_label.setText(f"{len(files)} files selected")

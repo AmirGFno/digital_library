@@ -776,20 +776,17 @@ class MainWindow(QMainWindow):
         self.command_layout.addWidget(bar)
         self._restore_view_controls()
 
-    def _command_bar_mode(self) -> str:
-        """Which arrangement of the filter bar fits the current width.
+    def _command_bar_widths(self) -> tuple[int, int]:
+        """How much room one row of the filter bar needs, and two rows.
 
-        Everything is measured instead of guessed: the combo boxes are much
-        wider with the Windows font than on Linux, so a fixed breakpoint put
-        three of them in one row and Qt clipped their labels to half a word.
+        Measured from the widgets themselves: the combo boxes are much wider
+        with the Windows font than with the Linux one, so a hardcoded
+        breakpoint folded the bar too late and Qt clipped the labels.
         """
         grid = self.command_grid
         spacing = grid.spacing()
-        margin = grid.contentsMargins()
-        available = self.width() - margin.left() - margin.right()
-
         hint = lambda widget: widget.sizeHint().width()  # noqa: E731
-        wide = (
+        one_row = (
             self.search_input.minimumWidth()
             + hint(self.show_caption)
             + hint(self.read_filter_combo)
@@ -806,11 +803,18 @@ class MainWindow(QMainWindow):
             + hint(self.sort_combo)
             + 2 * spacing,
         )
+        return one_row, two_rows
+
+    def _command_bar_mode(self) -> str:
+        """Which arrangement of the filter bar fits the current width."""
+        margins = self.command_grid.contentsMargins()
+        available = self.width() - margins.left() - margins.right()
+        one_row, two_rows = self._command_bar_widths()
 
         # A little slack: Qt rounds widget sizes up, and a row that only just
         # fits still shaves a few pixels off the last combo box.
         slack = 24
-        if available >= wide + slack:
+        if available >= one_row + slack:
             return "wide"
         if available >= two_rows + slack:
             return "two"

@@ -229,7 +229,16 @@ def test_the_command_bar_wraps_on_a_narrow_window(qt_app):
 
     window = MainWindow(run_startup=False)
     _show(qt_app, window, 1400, 900)
-    assert window._command_bar_narrow is False
+    # The bar decides from what it measures, not from a hardcoded breakpoint,
+    # so the decision has to match the width the window really got. A small
+    # screen can hand back a narrower window than the one asked for.
+    margins = window.command_grid.contentsMargins()
+    room = window.width() - margins.left() - margins.right()
+    one_row, _ = window._command_bar_widths()
+    assert window._command_bar_narrow is (room < one_row + 24), (
+        f"window={window.width()} px, room={room} px, one row needs {one_row} px, "
+        f"mode={window._command_bar_mode_name}"
+    )
 
     window.resize(820, 600)
     for _ in range(4):
@@ -272,6 +281,54 @@ def test_a_wide_font_never_squeezes_a_filter(qt_app):
     bar = window.search_input.parentWidget()
     assert bar.width() <= window.width()
     window.close()
+
+
+def test_a_toast_wraps_a_long_path_instead_of_running_off(qt_app):
+    """A message with no spaces used to run past the edge of the toast."""
+    from PyQt6.QtWidgets import QLabel
+    from ui.widgets import wrap_long_words
+
+    assert wrap_long_words("short words stay whole") == "short words stay whole"
+    path = wrap_long_words("C:" + "\\Comics\\Amazing Spider-Man (2026)" * 3)
+    assert "\u200b" in path and "C:" in path
+
+    from ui.main_window import MainWindow
+
+    window = MainWindow(run_startup=False)
+    _show(qt_app, window, 900, 700)
+    from PyQt6.QtTest import QTest
+
+    message = "Import failed: " + "D:" + "\\VeryLongFolderName" * 18
+    toast = window._toasts.show(message, kind="error")
+    QTest.qWait(80)   # the toast fades in on a 20 ms timer
+    qt_app.processEvents()
+    label = toast.findChild(QLabel)
+    assert toast.isVisible()
+    assert label.height() > label.fontMetrics().height() * 2, "the text was not wrapped"
+    parent = toast.parentWidget()
+    assert toast.geometry().left() >= 0
+    assert toast.geometry().top() >= 0
+    assert toast.geometry().right() < parent.width()
+    assert toast.geometry().bottom() < parent.height()
+    toast.dismiss()
+    window.close()
+
+
+def test_the_details_window_wraps_a_long_file_path(qt_app, tmp_path, sample, monkeypatch):
+    from ui import details_dialog
+
+    database, _ = sample
+    monkeypatch.setattr(details_dialog, "db", database)
+    long_path = str(tmp_path / ("A folder name without any spaces " * 6) / "book.cbz")
+    book_id = database.add_book(long_path, title="A long path")
+    dialog = details_dialog.DetailsDialog(book_id)
+    _show(qt_app, dialog, 620, 460)
+    label = dialog.path_label
+    assert label.height() >= label.heightForWidth(label.width()) - 2, (
+        "the path is cut off instead of wrapped"
+    )
+    assert label.toolTip().endswith("book.cbz")
+    dialog.close()
 
 
 def test_cards_never_hang_outside_the_grid(qt_app):

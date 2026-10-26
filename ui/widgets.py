@@ -213,7 +213,7 @@ class Toast(QFrame):
         bar.setStyleSheet(f"background-color: {accent}; border-radius: 2px;")
         layout.addWidget(bar)
 
-        label = QLabel(text)
+        label = QLabel(wrap_long_words(text))
         label.setWordWrap(True)
         label.setStyleSheet(f"color: {theme.TEXT}; font-size: 12px;")
         layout.addWidget(label, 1)
@@ -292,7 +292,9 @@ class Toast(QFrame):
             return
         margin = 22
         x = max(margin, (parent.width() - self.width()) // 2)
-        y = parent.height() - self.height() - 58
+        # A long message wraps into a tall box; keep its top inside the window
+        # so a three-line import summary is never cut by the title bar.
+        y = max(margin, parent.height() - self.height() - 58)
         self.move(x, y)
 
 
@@ -551,6 +553,65 @@ def elide_to_width(text: str, label, width: int = 0) -> str:
     while keep and metrics.horizontalAdvance(keep + ellipsis) > pixels:
         keep = keep[:-1]
     return (keep.rstrip() + ellipsis) if keep else ellipsis
+
+
+class WrappingLabel(QLabel):
+    """A word-wrapping label that really grows to fit every wrapped line.
+
+    Qt asks a label for its height at a given width, but a label nested in a
+    couple of layouts keeps a one-line height and cuts the rest of the text -
+    exactly what a long file path did in the details window. Setting the
+    minimum height from ``heightForWidth`` keeps the whole text visible.
+    """
+
+    def __init__(self, text: str = "", parent=None):
+        super().__init__(text, parent)
+        self.setWordWrap(True)
+        policy = self.sizePolicy()
+        policy.setHeightForWidth(True)
+        self.setSizePolicy(policy)
+
+    def setText(self, text: str):  # noqa: N802 - Qt API
+        super().setText(text)
+        self._fit_height()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._fit_height()
+
+    def _fit_height(self):
+        width = self.width()
+        if width > 0:
+            self.setMinimumHeight(self.heightForWidth(width))
+
+
+def wrap_long_words(text: str, chunk: int = 26) -> str:
+    """Add invisible break points so a wrapping label can show a long path.
+
+    Qt breaks a line only at a space, so a Windows path or a file name without
+    spaces runs straight past the edge of the label and is clipped mid-word.
+    A zero-width space after every path separator and inside a very long word
+    gives the label somewhere to wrap, and the user sees the same text.
+    """
+    text = str(text or "")
+    if not text:
+        return text
+    pieces = []
+    run = 0
+    for char in text:
+        pieces.append(char)
+        if char.isspace():
+            run = 0
+            continue
+        if char in "\\/":
+            pieces.append("\u200b")
+            run = 0
+            continue
+        run += 1
+        if run >= chunk:
+            pieces.append("\u200b")
+            run = 0
+    return "".join(pieces)
 
 
 class ElidedLabel(QLabel):

@@ -34,6 +34,7 @@ from cover_extractor import cover_extractor
 from database import db
 from ui import layout as layout_tools
 from ui import theme
+from ui.widgets import WrappingLabel, wrap_long_words
 from utils.helpers import format_file_size, open_containing_folder, open_file_with_reader
 from utils.logger import logger
 from utils.reader_manager import SYSTEM_READER_ID, reader_manager
@@ -84,11 +85,11 @@ class DetailsDialog(QDialog):
         self.header_label = QLabel(self.book.get("title") or "Book details")
         self.header_label.setObjectName("TitleLabel")
         self.header_label.setWordWrap(True)
-        self.path_label = QLabel(str(self.book.get("filepath", "")))
+        self.path_label = WrappingLabel()
+        self.path_label.setToolTip(str(self.book.get("filepath", "")))
         self.path_label.setStyleSheet(
             f"color: {theme.TEXT_DIM}; font-size: 11px;"
         )
-        self.path_label.setWordWrap(True)
         title_box.addWidget(self.header_label)
         title_box.addWidget(self.path_label)
         header_row.addLayout(title_box, 1)
@@ -265,7 +266,8 @@ class DetailsDialog(QDialog):
         self.header_label.setText(
             book.get("title") or Path(filepath).stem or "Book details"
         )
-        self.path_label.setText(str(filepath))
+        self.path_label.setText(wrap_long_words(str(filepath)))
+        self.path_label.setToolTip(str(filepath))
         self.favorite_badge.setVisible(bool(book.get("favorite")))
 
         self._load_cover()

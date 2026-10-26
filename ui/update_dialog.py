@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from PyQt6.QtCore import QSize, QThread, QUrl, pyqtSignal
-from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtGui import QDesktopServices, QTextOption
 from PyQt6.QtWidgets import (
     QDialog,
     QHBoxLayout,
@@ -183,6 +183,9 @@ class UpdateDialog(QDialog):
             self.notes_browser = browser
             browser.setObjectName("UpdateNotes")
             browser.setOpenExternalLinks(True)
+            browser.setWordWrapMode(
+                QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere
+            )
             browser.setPlainText(notes)
             browser.setMinimumHeight(140)
             browser.setMaximumHeight(210)

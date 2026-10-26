@@ -55,7 +55,7 @@ class Settings:
                 "answered_folders": [],
             },
             "app": {
-                "version": "2.4.3",
+                "version": "2.4.4",
             },
             "updates": {
                 # The installed edition asks for a newer release once the
