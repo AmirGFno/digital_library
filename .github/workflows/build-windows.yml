@@ -26,7 +26,20 @@ jobs:
           pip install -r requirements-dev.txt
 
       - name: Unit tests
-        run: pytest -q
+        shell: pwsh
+        run: |
+          # Keep the report as an artifact: reading the step log back is not
+          # always possible, while the artifact API always answers.
+          pytest -q 2>&1 | Tee-Object -FilePath pytest.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Keep the test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-report
+          path: pytest.log
+          if-no-files-found: ignore
 
       - name: GUI smoke test
         env:
