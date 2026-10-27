@@ -1,5 +1,5 @@
 """
-Configuration settings for the Digital Library application.
+Configuration settings for the Glib application.
 
 Paths are resolved so that the application works both from source and as a
 frozen (PyInstaller) executable:
@@ -13,8 +13,8 @@ import os
 import sys
 from pathlib import Path
 
-APP_NAME = "Digital Library"
-APP_VERSION = "2.6.0"
+APP_NAME = "Glib"
+APP_VERSION = "2.7.0"
 
 # The setup installer drops this marker next to the executable. It is what
 # tells the app apart from the portable single-file build: only an installed
@@ -45,6 +45,8 @@ def _user_data_dir() -> Path:
         base = Path.home() / "Library" / "Application Support"
     else:
         base = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
+    # Kept from before the rename so an existing installation still finds
+    # its data when the program folder itself is read-only.
     return Path(base) / "DigitalLibrary"
 
 

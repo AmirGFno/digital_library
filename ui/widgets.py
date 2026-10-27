@@ -13,12 +13,13 @@ from PyQt6 import sip
 from PyQt6.QtCore import (
     QEasingCurve,
     QPropertyAnimation,
+    QRectF,
     QSize,
     Qt,
     QTimer,
     pyqtSignal,
 )
-from PyQt6.QtGui import QColor, QFont, QPainter, QPixmap
+from PyQt6.QtGui import QColor, QFont, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import (
     QFrame,
     QGraphicsOpacityEffect,
@@ -70,6 +71,43 @@ class IconButton(QToolButton):
         self.setMinimumHeight(max(32, theme.text_height(self, 14)))
         self.setMinimumWidth(32)
         self.setStyleSheet("font-size: 15px;")
+
+
+def info_pixmap(size: int = 16, color: str = "") -> QPixmap:
+    """A circled "i", drawn instead of typed.
+
+    U+2139 has no glyph in every Windows font (and the ones that have it draw a
+    bare letter, indistinguishable from text), so the icon is painted: a ring
+    and the letter, both from the same colour.
+    """
+    color = color or theme.TEXT_MUTED
+    ratio = 2  # draw at twice the size so the ring stays smooth when scaled
+    pixmap = QPixmap(size * ratio, size * ratio)
+    pixmap.fill(QColor(0, 0, 0, 0))
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+    pen = QPen(QColor(color))
+    pen.setWidthF(max(1.2, size * 0.12) * ratio)
+    painter.setPen(pen)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    inset = size * 0.14 * ratio
+    painter.drawEllipse(
+        QRectF(inset, inset, size * ratio - 2 * inset, size * ratio - 2 * inset)
+    )
+
+    font = QFont(painter.font())
+    font.setPixelSize(int(size * 0.62 * ratio))
+    font.setBold(True)
+    painter.setFont(font)
+    painter.drawText(
+        QRectF(0, -size * 0.04 * ratio, size * ratio, size * ratio),
+        int(Qt.AlignmentFlag.AlignCenter),
+        "i",
+    )
+    painter.end()
+    pixmap.setDevicePixelRatio(ratio)
+    return pixmap
 
 
 def fit_icon_button(button: QToolButton, minimum: int = 28) -> None:

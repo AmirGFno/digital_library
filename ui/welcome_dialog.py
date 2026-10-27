@@ -35,7 +35,7 @@ class WelcomeDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Welcome to Digital Library")
+        self.setWindowTitle(f"Welcome to {APP_NAME}")
         self._preferred_size = QSize(660, 620)
         self.folder: Optional[str] = None
         self._build_ui()

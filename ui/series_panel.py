@@ -15,7 +15,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PyQt6.QtCore import QSize, Qt, pyqtSignal
-from PyQt6.QtGui import QAction, QColor, QFont, QPainter, QPixmap
+from PyQt6.QtGui import QAction, QColor, QFont, QIcon, QPainter, QPixmap
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QFrame,
@@ -32,7 +32,13 @@ from PyQt6.QtWidgets import (
 
 from database import db
 from ui import theme
-from ui.widgets import Divider, ElidedLabel, IconButton
+from ui.widgets import (
+    Divider,
+    ElidedLabel,
+    IconButton,
+    fit_icon_button,
+    info_pixmap,
+)
 
 # Minimum heights. Every row asks its own labels how tall they are, so the
 # Windows text scale (125 %, 150 %...) can never clip a counter in half.
@@ -146,7 +152,10 @@ class SeriesPanel(QWidget):
         title_box.setSpacing(0)
         title = QLabel("LIBRARY")
         title.setObjectName("SectionLabel")
-        self.subtitle = QLabel("All books")
+        # The current shelf or series name. Windows draws it a few pixels wider
+        # than Linux does, and the two round buttons next to it do not shrink,
+        # so the label ends with "…" instead of losing half a letter.
+        self.subtitle = ElidedLabel("All books")
         self.subtitle.setStyleSheet(
             f"color: {theme.TEXT}; font-size: 10.5pt; font-weight: 600;"
         )
@@ -161,10 +170,21 @@ class SeriesPanel(QWidget):
         self.add_btn.setSizePolicy(
             QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
         )
-        self.add_btn.setMinimumSize(26, 26)
-        self.add_btn.setMaximumHeight(26)
         self.add_btn.clicked.connect(self._add_series)
+        fit_icon_button(self.add_btn)
         header_layout.addWidget(self.add_btn)
+
+        # Info about the selected series: the same page the context menu and a
+        # double click open, reachable without knowing about either.
+        self.info_btn = IconButton("", "Select a series to see its info")
+        self.info_btn.setSizePolicy(
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
+        )
+        self._style_info_button()
+        self.info_btn.setEnabled(False)
+        self.info_btn.clicked.connect(self._show_current_series_info)
+        fit_icon_button(self.info_btn)
+        header_layout.addWidget(self.info_btn)
         layout.addWidget(header)
 
         # ---- shelves -------------------------------------------------
@@ -203,7 +223,16 @@ class SeriesPanel(QWidget):
             Qt.ContextMenuPolicy.CustomContextMenu
         )
         self.series_list.itemClicked.connect(self._on_series_clicked)
+        self.series_list.itemDoubleClicked.connect(
+            lambda item: self._show_series_info(item.data(Qt.ItemDataRole.UserRole))
+        )
         self.series_list.customContextMenuRequested.connect(self._show_context_menu)
+        # The tooltip of a row is filled in on hover: building it for every
+        # series would query every book on every refresh.
+        self._tooltip_cache: dict[int, str] = {}
+        self.series_list.setMouseTracking(True)
+        self.series_list.viewport().setMouseTracking(True)
+        self.series_list.itemEntered.connect(self._on_series_hovered)
         layout.addWidget(self.series_list, 1)
 
         self.trash_button = QPushButton("↺  Restore deleted series")
@@ -250,6 +279,8 @@ class SeriesPanel(QWidget):
 
         if not self._select_series(current):
             self.series_list.setCurrentRow(-1)
+        self._tooltip_cache.clear()
+        self._update_info_button()
 
     def _update_shelves(self, stats):
         self.quick_list.clear()
@@ -341,6 +372,7 @@ class SeriesPanel(QWidget):
         item.setData(Qt.ItemDataRole.UserRole, series_id)
         item.setData(Qt.ItemDataRole.UserRole + 1, name)
         item.setSizeHint(QSize(10, _row_height(row, ROW_HEIGHT)))
+        item.setData(Qt.ItemDataRole.UserRole + 2, (total, unread))
         item.setToolTip(f"{name} — {total} books, {unread} unread")
         self.series_list.addItem(item)
         self.series_list.setItemWidget(item, row)
@@ -358,7 +390,9 @@ class SeriesPanel(QWidget):
             self.trash_button.setText(f"↺  Restore deleted series ({len(deleted)})")
 
     def _current_series_id(self):
-        item = self.series_list.currentItem()
+        # Called from the header while the list is still being built.
+        series_list = getattr(self, "series_list", None)
+        item = series_list.currentItem() if series_list is not None else None
         return item.data(Qt.ItemDataRole.UserRole) if item else None
 
     def _select_series(self, series_id) -> bool:
@@ -379,6 +413,7 @@ class SeriesPanel(QWidget):
             )
         self._active_shelf = kind
         self.subtitle.setText(dict((value, label) for value, label, _ in SHELVES)[kind])
+        self._update_info_button()
         self.quick_filter_selected.emit(kind)
 
     def _style_add_button(self) -> None:
@@ -390,12 +425,38 @@ class SeriesPanel(QWidget):
             f" border-color: {theme.ACCENT}; }}"
         )
 
+    def _style_info_button(self) -> None:
+        """Paint the circled "i" in the current palette.
+
+        The button has no text at all: a typed glyph is missing from some
+        Windows fonts and looked like a stray lowercase "i" in others.
+        """
+        series_id = self._current_series_id() if hasattr(self, "info_btn") else None
+        has_series = series_id is not None and not isinstance(series_id, str)
+        icon = QIcon()
+        for mode, color in (
+            (QIcon.Mode.Normal, theme.ACCENT if has_series else theme.TEXT_MUTED),
+            (QIcon.Mode.Active, theme.TEXT),
+            (QIcon.Mode.Disabled, theme.TEXT_DIM),
+        ):
+            pixmap = info_pixmap(15, color)
+            for state in (QIcon.State.Off, QIcon.State.On):
+                icon.addPixmap(pixmap, mode, state)
+        self.info_btn.setIcon(icon)
+        self.info_btn.setIconSize(QSize(15, 15))
+        self.info_btn.setStyleSheet(
+            "QToolButton { background: transparent; border: 1px solid transparent;"
+            " border-radius: 4px; padding: 0px; }"
+            f"QToolButton:hover {{ background: {theme.SURFACE_HOVER}; }}"
+        )
+
     def restyle(self) -> None:
         """Re-apply the inline colours, then rebuild the rows with new ones."""
         self.subtitle.setStyleSheet(
             f"color: {theme.TEXT}; font-size: 10.5pt; font-weight: 600;"
         )
         self._style_add_button()
+        self._style_info_button()
         self.series_count_label.setStyleSheet(
             f"color: {theme.TEXT_DIM}; font-size: 8pt;"
         )
@@ -410,6 +471,7 @@ class SeriesPanel(QWidget):
             f"color: {theme.TEXT_DIM}; font-size: 8pt;"
         )
         self.refresh_series()
+        self._update_info_button()
 
     def activate_shelf(self, kind: str):
         """Select a shelf from outside the pane (stat cards, menu)."""
@@ -444,6 +506,7 @@ class SeriesPanel(QWidget):
         label = item.data(Qt.ItemDataRole.UserRole + 1) or ""
         self.clear_shelves()
         self.subtitle.setText(label or "All books")
+        self._update_info_button()
         self.series_selected.emit(series_id)
 
     # ------------------------------------------------------------------
@@ -456,6 +519,39 @@ class SeriesPanel(QWidget):
         if dialog.exec():
             self.refresh_series()
             self.series_changed.emit()
+
+    def _on_series_hovered(self, item: QListWidgetItem) -> None:
+        """Replace the short row tooltip with a full summary, once."""
+        series_id = item.data(Qt.ItemDataRole.UserRole)
+        if series_id is None or isinstance(series_id, str):
+            return
+        series_id = int(series_id)
+        if series_id not in self._tooltip_cache:
+            try:
+                self._tooltip_cache[series_id] = self._describe_series(series_id)
+            except Exception:
+                return
+        name = item.data(Qt.ItemDataRole.UserRole + 1) or ""
+        item.setToolTip(f"{name}\n{self._tooltip_cache[series_id]}\n"
+                        "Double click for the full info")
+
+    def _describe_series(self, series_id: int) -> str:
+        """One tooltip line: volumes, progress and who wrote them."""
+        from ui.series_info_dialog import series_statistics
+
+        books = db.get_all_books(series_id=series_id)
+        stats = series_statistics(books)
+        parts = [
+            f"{stats['total']} volume" + ("s" if stats["total"] != 1 else ""),
+            f"{stats['read']} read",
+        ]
+        writers = [str(book.get("writer") or "").strip() for book in books]
+        writers = sorted({name for name in writers if name})
+        if writers:
+            parts.append(", ".join(writers[:2]) + (" …" if len(writers) > 2 else ""))
+        if stats["formats"]:
+            parts.append(" / ".join(sorted(stats["formats"])))
+        return "  ·  ".join(parts)
 
     def _show_context_menu(self, pos):
         item = self.series_list.itemAt(pos)
@@ -470,6 +566,11 @@ class SeriesPanel(QWidget):
             return
 
         menu = QMenu(self)
+        info_action = QAction("Series info…", self)
+        info_action.triggered.connect(lambda: self._show_series_info(series_id))
+        menu.addAction(info_action)
+        menu.addSeparator()
+
         edit_action = QAction("Rename…", self)
         edit_action.triggered.connect(lambda: self._edit_series(series_id))
         menu.addAction(edit_action)
@@ -504,6 +605,36 @@ class SeriesPanel(QWidget):
         delete_action.triggered.connect(lambda: self._delete_series(series_id))
         menu.addAction(delete_action)
         menu.exec(self.series_list.mapToGlobal(pos))
+
+    def _show_series_info(self, series_id):
+        """Open the info page of a series, if the id really is one."""
+        if series_id is None or isinstance(series_id, str):
+            return
+        if not db.get_series(int(series_id)):
+            return
+        from ui.series_info_dialog import SeriesInfoDialog
+
+        SeriesInfoDialog(int(series_id), self).exec()
+
+    def _show_current_series_info(self):
+        self._show_series_info(self._current_series_id())
+
+    def _update_info_button(self) -> None:
+        series_id = self._current_series_id()
+        has_series = series_id is not None and not isinstance(series_id, str)
+        if getattr(self, "info_btn", None) is None:
+            return
+        if self.info_btn.isEnabled() == bool(has_series) and hasattr(self, "_info_state"):
+            return
+        self._info_state = bool(has_series)
+        self.info_btn.setEnabled(bool(has_series))
+        self.info_btn.setToolTip(
+            "Info about the selected series" if has_series
+            else "Select a series to see its info"
+        )
+        # The icon turns accent coloured while a series is picked, so the way
+        # to the info page is visible instead of being another grey glyph.
+        self._style_info_button()
 
     def _edit_series(self, series_id: int):
         from ui.dialogs import EditSeriesDialog

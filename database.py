@@ -1,5 +1,5 @@
 """
-Database module for the Digital Library application.
+Database module for the Glib application.
 Uses SQLite with proper connection handling and PRAGMA settings.
 """
 import json

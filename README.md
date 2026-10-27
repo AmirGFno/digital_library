@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/icon.png" width="120" alt="Digital Library icon">
+  <img src="assets/icon.png" width="120" alt="Glib icon">
 </p>
 
-<h1 align="center">Digital Library</h1>
+<h1 align="center">Glib</h1>
 
 <p align="center">
   مدیر کتابخانه‌ی کمیک و کتاب دیجیتال برای ویندوز، لینوکس و مک<br>
@@ -12,7 +12,7 @@
 <p align="center">
   <a href="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/AmirGFno/digital_library/actions/workflows/tests.yml/badge.svg"></a>
   <a href="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml"><img alt="Windows build" src="https://github.com/AmirGFno/digital_library/actions/workflows/build-windows.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-2.6.0-e8552d">
+  <img alt="Version" src="https://img.shields.io/badge/version-2.7.0-e8552d">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
@@ -22,7 +22,7 @@
 
 ### درباره
 
-**Digital Library** یک برنامه‌ی دسکتاپ برای مدیریت کمیک‌ها و کتاب‌های دیجیتال است.
+**Glib** یک برنامه‌ی دسکتاپ برای مدیریت کمیک‌ها و کتاب‌های دیجیتال است.
 فایل‌ها را دسته‌بندی می‌کند، کاور می‌سازد، اطلاعات کمیک را از فایل می‌خواند و هر
 کتاب را با یکی از خواننده‌های کمیک نصب‌شده روی سیستم باز می‌کند.
 
@@ -40,6 +40,9 @@
 - فیلتر خوانده/نخوانده/در حال مطالعه و فیلتر نوع فایل
 - مرتب‌سازی بر اساس سری، عنوان، تازگی افزودن، آخرین مطالعه، امتیاز و حجم
 - کشیدن و رها کردن فایل یا پوشه روی پنجره‌ی برنامه برای افزودن سریع
+- صفحهٔ **اطلاعات سری**: تعداد جلدها، پیشرفت مطالعه، نویسنده، ناشر، سال‌ها،
+  قالب‌ها، حجم و تاریخ آخرین مطالعه؛ با دکمهٔ ⓘ در نوار کنار، راست‌کلیک یا
+  دوبار کلیک روی نام سری
 - ویرایش اطلاعات هر کتاب از پنجره‌ی جزئیات
 - تشخیص خودکار خواننده‌های کمیک و امکان افزودن هر برنامه‌ی دلخواه
 - انتخاب خواننده‌ی پیش‌فرض، یا خواننده‌ی جداگانه برای هر نوع فایل؛ ذخیره‌ی
@@ -135,6 +138,11 @@ python main.py
 
 > ویندوز ممکن است بار اول هشدار SmartScreen نشان دهد، چون فایل امضای دیجیتال
 > ندارد. با «More info → Run anyway» ادامه دهید.
+
+> نام برنامه از نسخهٔ ۲.۷.۰ **Glib** است. نام فایل‌های نصب و به‌روزرسانی
+> (`DigitalLibrary-...`) عمداً عوض نشده تا نسخه‌های نصب‌شدهٔ قبلی بتوانند خودشان
+> را در جا به‌روزرسانی کنند؛ همین نام‌ها در ویندوز دیده می‌شوند و به برنامهٔ
+> نصب‌شده ربطی ندارند.
 
 نسخه‌ی **portable**: پوشه‌های `data`، `logs`، `thumbnails` و `custom_covers` کنار
 فایل EXE ساخته می‌شوند. برای انتقال کتابخانه کافی است پوشه‌ی برنامه را جابه‌جا
@@ -254,6 +262,9 @@ python scripts/smoke.py
 
 ## English
 
+**Glib** (formerly Digital Library) is a desktop comic and digital book library
+manager for Windows, Linux and macOS.
+
 ### Features
 
 - CBZ, CBR, CB7, CBT, ZIP, RAR, 7z, TAR, PDF and image support
@@ -266,6 +277,9 @@ python scripts/smoke.py
 - Favorites, five-star ratings, read/started filters
 - Full-text search over title, series, writer and publisher
 - Six sort orders, drag &amp; drop import, metadata editor and statistics
+- A **series info** page (volumes, reading progress, writers, publishers,
+  years, formats, size and last read) from the ⓘ button, the context menu or a
+  double click on a series
 - Detects popular comic readers (including CDisplayEx) and can launch any custom
   executable, globally or per file type; reader choices are verified on disk
 - Default library folder asked once, then watched: new comics are imported

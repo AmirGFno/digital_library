@@ -1,5 +1,5 @@
 """
-Main window of the Digital Library application.
+Main window of the Glib application.
 
 Contains the series sidebar, the book grid (with multi-selection), search,
 filters, sorting, drag & drop import, the library folder that is synced on every
@@ -618,6 +618,13 @@ class MainWindow(QMainWindow):
         self.restore_series_action.setShortcut(QKeySequence("Ctrl+Shift+Z"))
         self.restore_series_action.triggered.connect(self._restore_deleted_series)
 
+        # Info about the series currently shown; the navigation pane offers the
+        # same page from its "i" button, its context menu and a double click.
+        self.series_info_action = QAction("Series info...", self)
+        self.series_info_action.setShortcut(QKeySequence("Ctrl+I"))
+        self.series_info_action.triggered.connect(self._show_series_info)
+        self.series_info_action.setEnabled(False)
+
         self.remove_missing_action = QAction("Remove books with missing files...", self)
         self.remove_missing_action.triggered.connect(self._remove_missing_files)
 
@@ -699,6 +706,7 @@ class MainWindow(QMainWindow):
         series_menu = menubar.addMenu("&Series")
         add_series = series_menu.addAction("Add series...")
         add_series.triggered.connect(self._add_series)
+        series_menu.addAction(self.series_info_action)
         series_menu.addAction(self.restore_series_action)
 
         view_menu = menubar.addMenu("&View")
@@ -1136,6 +1144,7 @@ class MainWindow(QMainWindow):
     def _on_quick_filter(self, kind: str):
         """A shelf in the navigation pane was picked."""
         self.current_series_filter = None
+        self._update_series_info_action()
         self.favorites_button.blockSignals(True)
         self.read_filter_combo.blockSignals(True)
         try:
@@ -2047,6 +2056,7 @@ class MainWindow(QMainWindow):
         self.search_input.clear()
         self.current_search = ""
         self.current_series_filter = None
+        self._update_series_info_action()
         self.favorites_button.setChecked(False)
         self.read_filter_combo.setCurrentIndex(0)
         self.format_combo.setCurrentIndex(0)
@@ -2255,7 +2265,23 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
     def _on_series_selected(self, series_id):
         self.current_series_filter = series_id
+        self._update_series_info_action()
         self.refresh_books()
+
+    def _update_series_info_action(self):
+        """The menu item only makes sense while a series is being shown."""
+        current = self.current_series_filter
+        self.series_info_action.setEnabled(
+            current is not None and not isinstance(current, str)
+        )
+
+    def _show_series_info(self):
+        current = self.current_series_filter
+        if current is None or isinstance(current, str):
+            return
+        from ui.series_info_dialog import SeriesInfoDialog
+
+        SeriesInfoDialog(int(current), self).exec()
 
     def _on_series_changed(self):
         self.series_panel.refresh_series()
@@ -2886,7 +2912,7 @@ class MainWindow(QMainWindow):
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Information)
         box.setWindowTitle(f"{APP_NAME} - update available")
-        box.setText(f"Digital Library {version} is available.")
+        box.setText(f"{APP_NAME} {version} is available.")
         box.setInformativeText(
             "This is the portable edition, so it cannot update itself. Download "
             "the new file from the releases page and replace the old one; your "
@@ -2906,7 +2932,7 @@ class MainWindow(QMainWindow):
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.Information)
         box.setWindowTitle(f"{APP_NAME} - update available")
-        box.setText(f"Digital Library {version} is available.")
+        box.setText(f"{APP_NAME} {version} is available.")
         box.setInformativeText(
             f"The small in-place update needs to start from a nearby version, and "
             f"there is no package from {APP_VERSION} to {version}. Download the "
