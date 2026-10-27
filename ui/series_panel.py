@@ -152,7 +152,10 @@ class SeriesPanel(QWidget):
         title_box.setSpacing(0)
         title = QLabel("LIBRARY")
         title.setObjectName("SectionLabel")
-        self.subtitle = QLabel("All books")
+        # The current shelf or series name. Windows draws it a few pixels wider
+        # than Linux does, and the two round buttons next to it do not shrink,
+        # so the label ends with "…" instead of losing half a letter.
+        self.subtitle = ElidedLabel("All books")
         self.subtitle.setStyleSheet(
             f"color: {theme.TEXT}; font-size: 10.5pt; font-weight: 600;"
         )
