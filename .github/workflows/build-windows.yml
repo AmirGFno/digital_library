@@ -41,6 +41,23 @@ jobs:
           path: pytest.log
           if-no-files-found: ignore
 
+      - name: Publish the test report
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          # The artifact and the step log both live on storage the maintainer
+          # may not be able to reach, so the short version is posted where the
+          # API can always read it back.
+          $lines = Get-Content pytest.log -Tail 40
+          $body = New-Object System.Collections.Generic.List[string]
+          $body.Add('```')
+          foreach ($line in $lines) { $body.Add($line) }
+          $body.Add('```')
+          $body -join "`n" | Out-File -FilePath pytest-tail.md -Encoding utf8
+          gh api "repos/$env:GITHUB_REPOSITORY/commits/$env:GITHUB_SHA/comments" -F body=@pytest-tail.md | Out-Null
+
       - name: GUI smoke test
         env:
           QT_QPA_PLATFORM: offscreen
