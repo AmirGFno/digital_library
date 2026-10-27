@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Digital Library - entry point.
+Glib - entry point.
 
 A desktop comic & digital book library built with PyQt6 and SQLite.
 """
@@ -223,7 +223,7 @@ def main() -> int:
     app.setApplicationName(APP_NAME)
     app.setApplicationDisplayName(APP_NAME)
     app.setApplicationVersion(APP_VERSION)
-    app.setOrganizationName("DigitalLibrary")
+    app.setOrganizationName("AmirGFno")
 
     icon = _application_icon()
     if not icon.isNull():

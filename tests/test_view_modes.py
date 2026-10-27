@@ -236,7 +236,7 @@ def test_the_details_list_survives_a_sort_click(window, qt_app):
         qt_app.processEvents()
     assert window.books_table.book_count() == 3
     ids_before = set(window.books_table.selected_ids())
-    header = window.books_table.horizontalHeader()
+    window.books_table.horizontalHeader()
     window.books_table._on_header_clicked(6)  # Pages
     for _ in range(4):
         qt_app.processEvents()

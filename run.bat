@@ -1,7 +1,7 @@
 @echo off
-REM Digital Library - Run Script
+REM Glib - Run Script
 echo ========================================
-echo     Digital Library Application
+echo     Glib Application
 echo ========================================
 echo.
 
@@ -35,7 +35,7 @@ if errorlevel 1 (
 
 REM Run the application
 echo.
-echo Starting Digital Library...
+echo Starting Glib...
 echo ========================================
 echo.
 python main.py

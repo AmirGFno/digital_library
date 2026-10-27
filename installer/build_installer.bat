@@ -1,5 +1,5 @@
 @echo off
-REM Build the Digital Library setup program from the installed folder edition.
+REM Build the Glib setup program from the installed folder edition.
 REM Requires NSIS 3 (https://nsis.sourceforge.io) and a finished
 REM "dist\installed\DigitalLibrary" folder (see build_windows.bat).
 setlocal enabledelayedexpansion

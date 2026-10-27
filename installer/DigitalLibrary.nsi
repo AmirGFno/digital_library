@@ -1,4 +1,6 @@
-; Digital Library setup program (NSIS 3 + Modern UI 2).
+; Glib setup program (NSIS 3 + Modern UI 2).
+; The product is called Glib; the file names stay DigitalLibrary.* so an
+; installation made before the rename can still update itself in place.
 ;
 ; Build with:
 ;   makensis /DVERSION=2.4.0 /DSRCDIR=<installed build folder> ^
@@ -27,7 +29,7 @@
   !define APP_ICON "${__FILEDIR__}\..\assets\icon.ico"
 !endif
 
-!define APP_NAME "Digital Library"
+!define APP_NAME "Glib"
 !define APP_EXE "DigitalLibrary.exe"
 !define APP_PUBLISHER "AmirGFno"
 !define APP_URL "https://github.com/AmirGFno/digital_library"

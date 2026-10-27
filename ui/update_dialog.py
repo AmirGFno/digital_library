@@ -27,7 +27,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from config import APP_VERSION
+from config import APP_NAME, APP_VERSION
 from ui import layout as layout_tools
 from ui import theme
 from utils import updater
@@ -106,7 +106,7 @@ class UpdateDialog(QDialog):
         self._download = download or self._default_download
         self._install = install or self._default_install
 
-        self.setWindowTitle("Update Digital Library")
+        self.setWindowTitle(f"Update {APP_NAME}")
         self.setModal(True)
         self._build_ui()
         # Resize before show() so the taller error page does not stretch the
@@ -138,7 +138,7 @@ class UpdateDialog(QDialog):
         badge.setStyleSheet(f"color: {theme.ACCENT}; font-weight: 700;")
         layout.addWidget(badge)
 
-        title = QLabel(f"Digital Library {self.info.version} is ready")
+        title = QLabel(f"{APP_NAME} {self.info.version} is ready")
         title.setObjectName("TitleLabel")
         title.setWordWrap(True)
         self.version_title = title

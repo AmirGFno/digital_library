@@ -493,7 +493,6 @@ def test_the_background_check_plans_the_whole_chain(window, monkeypatch):
 
 
 def _opener(payload, url):
-    import io
     import json
 
     class Response:

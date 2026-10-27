@@ -71,6 +71,7 @@ def _dialogs(database, book_id, tmp_path):
     from ui.new_folder_dialog import NewFolderDialog
     from ui.reader_settings_dialog import CustomReaderDialog, ReaderSettingsDialog
     from ui.restore_dialog import RestoreSeriesDialog
+    from ui.series_info_dialog import SeriesInfoDialog
     from ui.stats_dialog import StatisticsDialog
     from ui.update_dialog import UpdateDialog
     from ui.welcome_dialog import WelcomeDialog
@@ -100,6 +101,7 @@ def _dialogs(database, book_id, tmp_path):
         ("ReaderSettingsDialog", lambda: ReaderSettingsDialog()),
         ("CustomReaderDialog", lambda: CustomReaderDialog()),
         ("StatisticsDialog", lambda: StatisticsDialog()),
+        ("SeriesInfoDialog", lambda: SeriesInfoDialog(database.get_all_series()[0]["id"])),
         ("RestoreSeriesDialog", lambda: RestoreSeriesDialog()),
         ("WelcomeDialog", lambda: WelcomeDialog()),
         ("NamePreviewDialog", lambda: NamePreviewDialog([str(tmp_path / "Some 01 [FA].cbz")])),
@@ -123,7 +125,8 @@ def test_every_dialog_fits_a_laptop_screen(qt_app, screen, tmp_path, sample, mon
 
     database, book_id = sample
     for module_name in ("ui.details_dialog", "ui.stats_dialog", "ui.restore_dialog",
-                        "ui.dialogs", "ui.folder_import_dialog"):
+                        "ui.dialogs", "ui.folder_import_dialog",
+                        "ui.series_info_dialog"):
         module = __import__(module_name, fromlist=["db"])
         if hasattr(module, "db"):
             monkeypatch.setattr(module, "db", database)

@@ -1,5 +1,5 @@
 """
-Utilities package for Digital Library.
+Utilities package for Glib.
 """
 
 from .logger import logger, setup_logger

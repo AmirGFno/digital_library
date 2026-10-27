@@ -45,7 +45,7 @@ from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional, Sequence
 
 import config
-from config import APP_VERSION
+from config import APP_NAME, APP_VERSION
 from utils.logger import logger
 
 REPOSITORY = "AmirGFno/digital_library"
@@ -209,7 +209,7 @@ def _request(url: str) -> urllib.request.Request:
         url,
         headers={
             "Accept": "application/vnd.github+json",
-            "User-Agent": f"DigitalLibrary-Updater/{APP_VERSION}",
+            "User-Agent": f"Glib-Updater/{APP_VERSION}",
         },
     )
 
@@ -698,7 +698,7 @@ if (Test-Path -LiteralPath $explorer) {
     else:
         restart = "Start-Process -FilePath $exe -WorkingDirectory $target"
 
-    return f"""# Digital Library in-place update helper.
+    return f"""# {APP_NAME} in-place update helper.
 $ErrorActionPreference = 'SilentlyContinue'
 $log = Join-Path $env:TEMP 'DigitalLibrary-update.log'
 function Write-Log($message) {{
@@ -708,7 +708,7 @@ function Show-Problem($message) {{
     Write-Log ("problem: " + $message)
     try {{
         $shell = New-Object -ComObject WScript.Shell
-        $shell.Popup(("The update could not be installed.`n`n" + $message + "`n`nYour current version still works. Log: " + $log), 0, 'Digital Library', 16) | Out-Null
+        $shell.Popup(("The update could not be installed.`n`n" + $message + "`n`nYour current version still works. Log: " + $log), 0, {_ps_quote(APP_NAME)}, 16) | Out-Null
     }} catch {{ }}
 }}
 Write-Log 'update helper started'
