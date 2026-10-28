@@ -3,6 +3,7 @@
 Both specs import this module so the bundled assets, hidden imports and the
 excluded Qt modules can never drift apart.
 """
+from pathlib import Path
 
 DATAS = [
     ("assets/icon.png", "assets"),
@@ -12,6 +13,20 @@ DATAS = [
     ("assets/check.png", "assets"),
     ("assets/radio_dot.png", "assets"),
 ]
+
+# The brand font follows the program: a machine without it installed must
+# still draw the title the same way. Font files in assets/ and in
+# assets/fonts/ are packaged as they are, so a second weight needs no change
+# here and the file can sit wherever it was dropped.
+FONT_SUFFIXES = {".ttf", ".otf"}
+for _folder in (Path("assets"), Path("assets") / "fonts"):
+    if not _folder.is_dir():
+        continue
+    DATAS += [
+        (str(path), str(_folder))
+        for path in sorted(_folder.iterdir())
+        if path.is_file() and path.suffix.lower() in FONT_SUFFIXES
+    ]
 
 HIDDEN_IMPORTS = [
     "rarfile",

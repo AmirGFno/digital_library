@@ -26,6 +26,7 @@ from PyQt6.QtGui import (
     QPalette,
     QPixmap,
 )
+from PyQt6.QtGui import QFontDatabase
 from PyQt6.QtWidgets import (
     QApplication,
     QGraphicsDropShadowEffect,
@@ -35,7 +36,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from config import ASSETS_DIR
+from config import ASSETS_DIR, BRAND_FONT_NAME, FONTS_DIR
 
 
 def _asset_url(name: str) -> str:
@@ -164,6 +165,70 @@ DISPLAY_STACK = (
 )
 MONO_STACK = '"Cascadia Mono", "Cascadia Code", "Consolas", monospace'
 
+# The word "Glib" is drawn with the font that ships in assets/fonts. Its family
+# name is read back from the file, so renaming the file never breaks the title.
+# Size of the "Glib" word in the app bar, in points: noticeably larger than the
+# 10.5 pt the title used before, but still one line of the bar.
+BRAND_TITLE_PT = 22
+_BRAND_FAMILY = ""
+_FONTS_LOADED = False
+_FONT_DIRS = (FONTS_DIR, ASSETS_DIR)
+
+
+def register_fonts(force: bool = False) -> str:
+    """Load the bundled font files and return the display family name.
+
+    Qt only knows fonts installed on the system, so a font that travels with
+    the program has to be registered once per process. Nothing happens (and
+    the normal display stack is used) when the file is missing, which keeps a
+    fresh checkout without the asset working.
+    """
+    global _BRAND_FAMILY, _FONTS_LOADED
+    if _FONTS_LOADED and not force:
+        return _BRAND_FAMILY
+    _FONTS_LOADED = True
+
+    families = []
+    candidates = []
+    for folder in _FONT_DIRS:
+        candidates.append(folder / BRAND_FONT_NAME)
+    for folder in _FONT_DIRS:
+        if folder.is_dir():
+            candidates.extend(sorted(folder.glob("*.ttf")))
+            candidates.extend(sorted(folder.glob("*.otf")))
+    seen = set()
+    for path in candidates:
+        if path in seen or not path.is_file():
+            continue
+        seen.add(path)
+        font_id = QFontDatabase.addApplicationFont(str(path))
+        if font_id < 0:
+            continue
+        for family in QFontDatabase.applicationFontFamilies(font_id):
+            if family and family not in families:
+                families.append(family)
+        if families:
+            break
+    _BRAND_FAMILY = families[0] if families else ""
+    return _BRAND_FAMILY
+
+
+def brand_family() -> str:
+    """The family of the bundled brand font, or "" when it is not there."""
+    if not _FONTS_LOADED:
+        register_fonts()
+    return _BRAND_FAMILY
+
+
+def _brand_stack() -> str:
+    family = brand_family()
+    return f'"{family}", {DISPLAY_STACK}' if family else DISPLAY_STACK
+
+
+def _brand_weight() -> int:
+    """600 for a system face that has a semibold, 400 for the bundled one."""
+    return 400 if brand_family() else 600
+
 
 def _apply_palette(values: dict) -> None:
     """Copy one palette into the module namespace."""
@@ -256,13 +321,15 @@ QLabel#TitleLabel {{
     color: {TEXT};
 }}
 QLabel#HeroTitle {{
-    font-family: {DISPLAY_STACK};
-    font-size: 10.5pt;
-    font-weight: 600;
+    font-family: {_brand_stack()};
+    font-size: {BRAND_TITLE_PT}pt;
+    /* The bundled face has one weight. A 600 request would be faked with a
+       smeared outline, so the title uses the letterform as it was drawn. */
+    font-weight: {_brand_weight()};
     color: {TEXT};
 }}
 QLabel#WelcomeTitle {{
-    font-family: {DISPLAY_STACK};
+    font-family: {_brand_stack()};
     font-size: 19pt;
     font-weight: 600;
     color: {TEXT};
@@ -1072,6 +1139,9 @@ def apply_theme(app, mode: str | None = None):
             mode = "system"
     set_mode(mode)
     _install_style(app)
+    # The brand font has to exist in Qt's database before the stylesheet that
+    # names it is parsed, otherwise the title falls back for this session.
+    register_fonts()
     app.setPalette(build_palette())
     app.setStyleSheet(build_stylesheet() + card_stylesheet())
     _run_restylers()
