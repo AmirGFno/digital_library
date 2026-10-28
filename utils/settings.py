@@ -58,7 +58,7 @@ class Settings:
                 "answered_folders": [],
             },
             "app": {
-                "version": "2.7.0",
+                "version": "2.7.1",
             },
             "updates": {
                 # The installed edition asks for a newer release once the

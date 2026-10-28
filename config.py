@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 APP_NAME = "Glib"
-APP_VERSION = "2.7.0"
+APP_VERSION = "2.7.1"
 
 # The setup installer drops this marker next to the executable. It is what
 # tells the app apart from the portable single-file build: only an installed
