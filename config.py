@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 APP_NAME = "Glib"
-APP_VERSION = "2.7.0"
+APP_VERSION = "2.7.1"
 
 # The setup installer drops this marker next to the executable. It is what
 # tells the app apart from the portable single-file build: only an installed
@@ -103,6 +103,12 @@ LOGS_DIR = BASE_DIR / "logs"
 CUSTOM_COVERS_DIR = BASE_DIR / "custom_covers"
 
 ASSETS_DIR = RESOURCE_DIR / "assets"
+# The brand font of the window title lives with the other bundled resources so
+# a frozen build carries it too (see build_config.DATAS). It is looked up as
+# assets/GFno.ttf first and then in assets/fonts/, where a family of weights
+# can be kept together.
+FONTS_DIR = ASSETS_DIR / "fonts"
+BRAND_FONT_NAME = "GFno.ttf"
 
 # Database
 DATABASE_PATH = DATA_DIR / "library.db"

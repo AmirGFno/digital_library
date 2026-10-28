@@ -348,9 +348,12 @@ class MainWindow(QMainWindow):
         # display at 125 % their two lines did not fit in the strip and the
         # number overlapped its caption, so the counts live where they belong:
         # in the navigation pane and in the status bar.
+        # The title grew to 18 pt with the brand font, so the bar is measured
+        # from what the two labels really need - a fixed 46 px would cut the
+        # word in half on a machine with a taller font.
         self.hero.setMinimumHeight(
-            max(46, self.app_title.sizeHint().height()
-                + self.hero_subtitle.sizeHint().height() + 14)
+            max(54, theme.text_height(self.app_title)
+                + theme.text_height(self.hero_subtitle) + 16)
         )
         self.hero.setMaximumHeight(self.hero.minimumHeight())
 
